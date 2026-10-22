@@ -148,12 +148,21 @@ class BoundedProvenanceAccumulatorCache {
 }
 
 function allowedOrigins(): Set<string> {
-    const configured = process.env.CORS_ORIGINS;
-    if (configured !== undefined) {
+    const configured = process.env.CORS_ORIGINS || process.env.CORS_ORIGIN;
+    if (configured !== undefined && configured.trim() !== '') {
+        if (configured.trim() === '*') {
+            return new Set(['*', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000']);
+        }
         return new Set(configured.split(',').map(origin => origin.trim()).filter(Boolean));
     }
-    if (process.env.NODE_ENV === 'production') return new Set();
-    return new Set(['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173']);
+    return new Set([
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:4173',
+        'http://127.0.0.1:4173'
+    ]);
 }
 
 function toProvenanceEntry(entry: {
@@ -277,7 +286,7 @@ export function divya23BCE1042_GetSystemBanner(): string {
 
 export function createApp(
     prisma: PrismaClient,
-    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY),
+    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY || process.env.PROVENANCE_MASTER_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
     options?: { trustProxy?: boolean | number | string },
 ) {
 const app = express();
@@ -304,19 +313,22 @@ app.use((req, res, next) => {
 });
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || origins.has(origin)) return callback(null, true);
+        if (!origin || origins.has('*') || origins.has(origin)) return callback(null, true);
         return callback(new Error('CORS origin denied.'));
     },
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     maxAge: 600,
 }));
 app.use(express.json({ limit: '1mb', strict: true }));
 const publicDir = path.join(__dirname, '..', 'public');
 const distDir = path.resolve(__dirname, '../../frontend/dist');
-const staticRoot = fs.existsSync(publicDir) && fs.existsSync(path.join(publicDir, 'index.html'))
+const containerDist = path.resolve(__dirname, '../dist');
+const staticRoot = fs.existsSync(path.join(distDir, 'index.html'))
+    ? distDir
+    : fs.existsSync(path.join(publicDir, 'index.html'))
     ? publicDir
-    : distDir;
+    : containerDist;
 app.use(express.static(staticRoot));
 const authenticate = requireAuth(prisma);
 const activeEngines = new BoundedEngineCache(100);

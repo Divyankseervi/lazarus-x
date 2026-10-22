@@ -6,6 +6,7 @@ import { CandidateDiffMatrix } from './CandidateDiffMatrix';
 import { ForensicReportModal } from './ForensicReportModal';
 import { PatentSpecificationModal } from './PatentSpecificationModal';
 import { AuditLogsModal } from './AuditLogsModal';
+import { ERDiagramModal } from './ERDiagramModal';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Scale, Boxes, Check, ChevronDown, CircleAlert,
@@ -316,6 +317,7 @@ function App() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [patentModalOpen, setPatentModalOpen] = useState(false);
   const [auditLogsModalOpen, setAuditLogsModalOpen] = useState(false);
+  const [erModalOpen, setErModalOpen] = useState(false);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [diffViewOpen, setDiffViewOpen] = useState(false);
 
@@ -1237,6 +1239,14 @@ function App() {
                 <>
                   <button
                     type="button"
+                    className="secondary-button er-btn"
+                    onClick={() => setErModalOpen(true)}
+                    title="Inspect 11-table Relational ER Diagram and Data Dictionary"
+                  >
+                    <Database size={14} className="text-blue" /> ER Diagram &amp; Schema
+                  </button>
+                  <button
+                    type="button"
                     className="secondary-button patent-btn"
                     onClick={() => setPatentModalOpen(true)}
                     title="Inspect formal patent claims & technical specifications"
@@ -1652,6 +1662,10 @@ function App() {
         currentUser={{ id: email, email, role }}
         apiBase={API_BASE}
         token={token}
+      />
+      <ERDiagramModal
+        isOpen={erModalOpen}
+        onClose={() => setErModalOpen(false)}
       />
       </main>
     </div>
