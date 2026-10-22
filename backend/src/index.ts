@@ -286,7 +286,7 @@ export function divya23BCE1042_GetSystemBanner(): string {
 
 export function createApp(
     prisma: PrismaClient,
-    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY || process.env.PROVENANCE_MASTER_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY || process.env.PROVENANCE_MASTER_KEY),
     options?: { trustProxy?: boolean | number | string },
 ) {
 const app = express();

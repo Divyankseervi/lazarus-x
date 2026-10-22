@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/Language-TypeScript%205-blue)](https://www.typescriptlang.org/)
 [![Prisma ORM](https://img.shields.io/badge/ORM-Prisma%205.11-2D3748)](https://www.prisma.io/)
-[![React 18](https://img.shields.io/badge/Frontend-React%2018%20%2F%20Vite-61DAFB)](https://reactjs.org/)
+[![React 19](https://img.shields.io/badge/Frontend-React%2019%20%2F%20Vite-61DAFB)](https://react.dev/)
 [![Patent Status](https://img.shields.io/badge/Patent-Pending%20(25%20Claims)-purple)](research/PATENT_SPECIFICATION_FORMAL.md)
 [![Academic Assessment](https://img.shields.io/badge/VIT%20SCOPE-BCSE302P%20(33%2F30%20Marks)-success)](docs/BCSE302P_LAB_ASSESSMENT_REPORT.md)
 
@@ -14,24 +14,19 @@
 
 **LAZARUS-X** is an enterprise-grade forensic relational database reconstruction engine designed to recover corrupted, incomplete, and out-of-order relational database records following storage failure, ransomware corruption, or deliberate anti-forensic tampering.
 
-Unlike traditional recovery tools that rely on heuristic record scraping or unverified raw carving, LAZARUS-X pairs an **algorithmic Constraint Satisfaction Problem (CSP/AC-3) propagation engine** with **active Shannon entropy disambiguation** and an **RFC 6962 verifiable cryptographic Merkle tree ledger**, ensuring that all recovered candidate hypotheses maintain mathematical consistency and court-admissible chain-of-custody.
+Unlike traditional recovery tools that rely on heuristic record scraping or unverified raw carving, LAZARUS-X pairs an **algorithmic Constraint Satisfaction Problem (CSP/AC-3) propagation engine** with **active Shannon entropy disambiguation** and an **RFC 6962 verifiable cryptographic Merkle tree ledger**, ensuring that recovered candidate hypotheses maintain mathematical consistency and an audit-ready evidence history.
 
 ---
 
-## 🎓 Academic Assessment & Student Credentials
+## 🎓 Academic Assessment Mapping
 
 This project satisfies all requirements for the **Lab Internal Assessment Test 8, 9 & 10** for the **Database Systems Lab (BCSE302P)** at the School of Computer Science and Engineering (SCOPE), Vellore Institute of Technology (VIT).
 
 | Assessment Field | Details |
 | :--- | :--- |
-| **Candidate Name** | **DIVYA** |
-| **Registration Number** | **23BCE1042** |
 | **Course Code & Title** | **BCSE302P — Database Systems Lab** |
-| **Class Number & Slot** | **VL2026270104025 | L25+L26** |
-| **Faculty In-Charge** | **Dr. V. SIVAKUMAR** |
-| **Academic Semester** | **Fall Semester 2026–27** |
-| **Assessment Score** | **33 / 30 Marks** *(30 Core Rubric + 3 Bonus Marks)* |
-| **Official Submission PDF** | `23BCE1042_L25_IA9&10_Proj_DIVYA.pdf` |
+| **Assessment mapping** | See `docs/REQUIREMENTS_TRACEABILITY.md` for implementation evidence and local validation commands. |
+| **External requirements** | Repository privacy, collaborators, cloud hosting, Docker Hub publication, and DNS require account-owner configuration and are not claimed as locally verified. |
 
 ---
 
@@ -292,7 +287,7 @@ lazarus-x/
 │   ├── package.json
 │   └── vite.config.ts
 ├── docs/
-│   ├── BCSE302P_LAB_ASSESSMENT_REPORT.md # Academic submission report (33/30 Marks)
+│   ├── BCSE302P_LAB_ASSESSMENT_REPORT.md # Academic submission report and requirement mapping
 │   ├── REQUIREMENTS_TRACEABILITY.md      # Full rubric mapping matrix
 │   └── PROJECT_STATUS.md                 # System health and architecture audit
 ├── research/

@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { hashPassword } from '../security/password';
 
 const divya23BCE1042_CandidateName = 'DIVYA';
@@ -238,7 +238,7 @@ async function divya23BCE1042_runDBMSRequirements() {
     console.log('------------------------------------------------------------------------');
 
     // Atomic Transaction simulating Stored Procedure: sp_seal_case_and_anchor
-    const sealedResult = await prisma.$transaction(async tx => {
+    const sealedResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // 1. Verify case exists and active
       const activeCase = await tx.reconstructionCase.findUniqueOrThrow({
         where: { id: forensicCase.id },

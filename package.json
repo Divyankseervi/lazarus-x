@@ -8,6 +8,12 @@
     "build:frontend": "npm --prefix frontend run build",
     "start": "cd backend && npx ts-node src/index.ts",
     "test": "cd backend && npm test",
+    "validate:db": "cd backend && npx prisma validate --schema prisma/schema.prisma",
+    "generate:db": "cd backend && npx prisma generate --schema prisma/schema.prisma",
+    "typecheck:backend": "cd backend && npx tsc --noEmit",
+    "lint:frontend": "cd frontend && npm run lint",
+    "test:frontend": "cd frontend && npx vitest run",
+    "test:e2e": "cd frontend && npm run test:e2e",
     "dbms:demo": "cd backend && npm run dbms:demo",
     "test:patent": "cd backend && npm run test:patent"
   }

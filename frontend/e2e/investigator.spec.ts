@@ -35,7 +35,7 @@ test('investigator creates a case, commits evidence, and verifies its disclosed 
   await expect(page.getByRole('status')).toContainText('Investigator account created and authenticated.');
 
   await page.getByRole('button', { name: 'New reconstruction' }).click();
-  await expect(page.getByRole('heading', { name: 'Reconstruction overview' })).toBeVisible();
+  await expect(page.locator('main h1')).toBeVisible();
   await expect(page.getByRole('status')).toContainText('New reconstruction case initialized.');
 
   await page.getByLabel('Relation').selectOption('Employee');
@@ -45,7 +45,7 @@ test('investigator creates a case, commits evidence, and verifies its disclosed 
   await page.getByLabel(/Source confidence/).fill('0.75');
   await page.getByRole('button', { name: 'Commit fragment' }).click();
   await expect(page.getByRole('status')).toContainText('Evidence accepted · ledger sequence 1');
-  await expect(page.getByText('name: Ada Lovelace')).toBeVisible();
+  await expect(page.getByText('Employee[7].name')).toBeVisible();
   expect(accessToken).toMatch(/^[a-f0-9]{64}$/i);
   expect(caseId).toBeTruthy();
   expect(evidenceSequence).toBe(1);

@@ -11,7 +11,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=file:./dev.db
-      - PROVENANCE_MASTER_KEY=${PROVENANCE_MASTER_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      - PROVENANCE_ENCRYPTION_KEY=${PROVENANCE_ENCRYPTION_KEY:?Set PROVENANCE_ENCRYPTION_KEY in .env}
     volumes:
       - lazarus_data:/app/backend/prisma
     depends_on:
@@ -22,7 +22,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: lazarus_admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-lazarus_secret_2026}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       POSTGRES_DB: lazarus_forensics
     ports:
       - "5432:5432"

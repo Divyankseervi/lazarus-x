@@ -869,3 +869,11 @@ Prior to this delivery, `GET /api/cases/:id/provenance/proofs/:sequence` rebuilt
   - Oxlint: 0 warnings, 0 errors.
   - Production build: Succeeded in 1.54s.
   - `git diff --check`: 0 errors.
+## GitHub clone verification update
+
+- CI now uses Node.js 24, generates and validates Prisma Client/schema, runs backend and frontend checks, and invokes the browser E2E workflow from `frontend`.
+- The DBMS demonstration transaction callback is explicitly typed with `Prisma.TransactionClient`.
+- Runtime provenance configuration no longer falls back to a public key. Docker Compose requires `PROVENANCE_ENCRYPTION_KEY` and `DB_PASSWORD`.
+- Root convenience scripts now expose database validation/generation, backend typecheck, frontend lint/tests, and E2E execution.
+- Remote-clone validation passed locally: Prisma validation, backend typecheck, backend tests, DBMS demonstration, frontend lint/build/tests, and Playwright E2E. Frontend lint reports existing non-blocking warnings.
+- Cloud deployment, Docker Hub publication, repository privacy/collaborator settings, and DNS remain external account-owner actions.
