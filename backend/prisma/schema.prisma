@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// SYSTEM & AUTHENTICATION (Rule 3)
+// ==========================================
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         String    @default("INVESTIGATOR") // ADMIN or INVESTIGATOR
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+  cases        ReconstructionCase[] @relation("CaseOwner")
+  auditLogs    AuditLog[]
+  evidence     EvidenceFragment[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique // SHA-256 digest of the bearer token; plaintext is returned only at login.
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  action       String   // e.g., "LOGIN", "SUBMIT_EVIDENCE", "CREATE_CASE"
+  resourceType String?  // e.g., "CASE"
+  resourceId   String?  // e.g., case ID
+  timestamp    DateTime @default(now())
+}
+
+// ==========================================
+// CORE WORKFLOW: FORENSICS ENGINE (Rule 2)
+// ==========================================
+model ReconstructionCase {
+  id           String   @id @default(uuid())
+  name         String   @default("Untitled Case")
+  status       String   @default("ACTIVE") // ACTIVE, RESOLVED, FAILED
+  currentState String   // JSON dump of the Top Candidate
+  provenanceHead String @default("b4c2613e5407a1150c170fd4d99d11fbb2d4b1eb9d9be872a9e5f0b843104d91")
+  provenanceSequence Int @default(0)
+  /// AES-256-GCM encrypted random case salt; encryption key is held outside the database.
+  provenanceSaltCiphertext String?
+  ownerId      String
+  owner        User     @relation("CaseOwner", fields: [ownerId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  evidence     EvidenceFragment[]
+  candidates   CandidateReconstruction[]
+  evaluations  ConstraintEvaluation[]
+  provenanceEntries EvidenceProvenanceEntry[]
+
+  @@index([ownerId, updatedAt])
+}
+
+model EvidenceFragment {
+  id        String   @id @default(uuid())
+  caseId    String
+  case      ReconstructionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  table     String
+  recordId  Int
+  field     String
+  value     String   // Serialized string representation
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  timestamp DateTime @default(now())
+
+  @@index([caseId, id])
+}
+
+/// Per-case SHA-256 chain entries (append-only through the API). The database
+/// does not block direct row updates; retain each head outside it for checkpointing.
+model EvidenceProvenanceEntry {
+  id                  String   @id @default(uuid())
+  caseId              String
+  case                ReconstructionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sequence            Int
+  eventType           String
+  fragmentId          String
+  relatedFragmentIds  String   // Canonical JSON string array
+  actorId             String
+  receivedAt          DateTime
+  payload             String   // Canonical JSON, including typed evidence or correction details
+  previousHash        String
+  hash                String
+
+  @@unique([caseId, sequence])
+  @@index([caseId, hash])
+  @@index([caseId, receivedAt])
+}
+
+model CandidateReconstruction {
+  id               String   @id @default(uuid())
+  caseId           String
+  case             ReconstructionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  stateDump        String   // JSON payload of full tables
+  probabilityScore Float
+  isPruned         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+}
+
+model ConstraintEvaluation {
+  id                   String   @id @default(uuid())
+  caseId               String
+  case                 ReconstructionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  constraintId         String
+  fatalViolations      Int      @default(0)
+  resolvableViolations Int      @default(0)
+  evaluatedAt          DateTime @default(now())
+}
+
+// ==========================================
+// TARGET DOMAIN SCHEMA (Analyzed by Lazarus)
+// ==========================================
+model Department {
+  id        Int        @id @default(autoincrement())
+  name      String
+  employees Employee[]
+}
+
+model Employee {
+  id           Int        @id @default(autoincrement())
+  name         String
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id])
+  orders       Order[]
+}
+
+model Order {
+  id         Int      @id @default(autoincrement())
+  amount     Float
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id])
+}
