@@ -11,7 +11,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Scale, Boxes, Check, ChevronDown, CircleAlert,
   ClipboardCheck, Cpu, Database, Edit2, Fingerprint, GitBranch, GraduationCap, KeyRound, Loader2, Lock, LogOut, Mail, Split,
-  Plus, RefreshCw, Search, Shield, ShieldCheck, Sparkles, TimerReset, Trash2, Zap,
+  Plus, RefreshCw, Search, Shield, ShieldCheck, TimerReset, Trash2, Zap, Target, Table,
 } from 'lucide-react';
 import {
   deriveEnvelopeMerkleProofDetails,
@@ -361,6 +361,50 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const exportTableAsSQL = (relationName: string, rows: Record<string, unknown>[]) => {
+    if (!rows || rows.length === 0) return;
+    const headers = Object.keys(rows[0]!).filter(k => k !== '_recordId');
+    const sqlStatements = rows.map(row => {
+      const vals = headers.map(h => {
+        const val = row[h];
+        if (val === null || val === undefined) return 'NULL';
+        if (typeof val === 'number') return String(val);
+        if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+        return `'${String(val).replace(/'/g, "''")}'`;
+      });
+      return `INSERT INTO "${relationName}" (${headers.map(h => `"${h}"`).join(', ')}) VALUES (${vals.join(', ')});`;
+    });
+    const sqlContent = `-- LAZARUS-X Forensic Relational Reconstruction Export\n-- Table: ${relationName} | Tuples: ${rows.length}\n-- Generated: ${new Date().toISOString()}\n\nBEGIN TRANSACTION;\n${sqlStatements.join('\n')}\nCOMMIT;\n`;
+    const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.sql`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const inferSqlType = (column: string, rows: Array<Record<string, unknown>>): string => {
+    const colLower = column.toLowerCase();
+    if (colLower === 'id') return 'INTEGER';
+    if (colLower.endsWith('id')) return 'INTEGER [FK]';
+    if (colLower === 'salary' || colLower === 'amount' || colLower === 'budget' || colLower === 'price') return 'DECIMAL(10,2)';
+    if (colLower === 'email') return 'VARCHAR(255)';
+    if (colLower === 'status') return 'VARCHAR(32)';
+    if (colLower.includes('date') || colLower.includes('time') || colLower.endsWith('at')) return 'TIMESTAMP';
+    for (const r of rows) {
+      const v = r[column];
+      if (v !== undefined && v !== null) {
+        if (typeof v === 'number') return Number.isInteger(v) ? 'INTEGER' : 'DECIMAL';
+        if (typeof v === 'boolean') return 'BOOLEAN';
+        if (typeof v === 'string') return v.length > 50 ? 'TEXT' : 'VARCHAR(128)';
+      }
+    }
+    return 'VARCHAR(64)';
   };
 
   const triggerAdminBackup = async () => {
@@ -1309,8 +1353,8 @@ function App() {
             {caseId && (
               <div className="quick-benchmarks-bar">
                 <div className="benchmarks-header">
-                  <Zap size={13} className="text-amber" />
-                  <span>ONE-CLICK RECONSTRUCTION BENCHMARKS:</span>
+                  <Database size={13} className="text-amber" />
+                  <span>ONE-CLICK FORENSIC BENCHMARKS:</span>
                 </div>
                 <div className="benchmarks-buttons">
                   <button
@@ -1318,46 +1362,46 @@ function App() {
                     className="benchmark-btn"
                     disabled={loading || caseStatus === 'SEALED'}
                     onClick={() => {
-                      setTable('users');
-                      setRecordId('1');
-                      setField('badge');
-                      setValue('102');
+                      setTable('Employee');
+                      setRecordId('21');
+                      setField('salary');
+                      setValue('145000');
                       setValueFormat('text');
                       setSourceConfidence(0.5);
                     }}
-                    title="Load contradictory badge evidence (badge #102 vs #101) to demonstrate Shannon entropy spike"
+                    title="Load contradictory salary evidence ($145,000 vs $142,000) for Employee #21 to evaluate Shannon entropy spike"
                   >
-                    <Activity size={12} /> Disputed Badge (Entropy Demo)
+                    <Activity size={12} /> Disputed Salary (Entropy Spike)
                   </button>
                   <button
                     type="button"
                     className="benchmark-btn"
                     disabled={loading || caseStatus === 'SEALED'}
                     onClick={() => {
-                      setTable('users');
-                      setRecordId('1');
-                      setField('badge');
-                      setValue('101');
+                      setTable('Employee');
+                      setRecordId('21');
+                      setField('salary');
+                      setValue('142000');
                       setValueFormat('text');
                       setSourceConfidence(0.95);
                     }}
-                    title="Load high-confidence resolving evidence to collapse candidate ambiguity"
+                    title="Submit authentic audit salary observation to collapse candidate ambiguity"
                   >
-                    <Check size={12} /> Resolve Ambiguity (Confidence 0.95)
+                    <Check size={12} /> Resolve Variance (Confidence 0.95)
                   </button>
                   <button
                     type="button"
                     className="benchmark-btn"
                     disabled={loading || caseStatus === 'SEALED'}
                     onClick={() => {
-                      setTable('incidents');
-                      setRecordId('10');
-                      setField('reported_by');
-                      setValue('1');
+                      setTable('Order');
+                      setRecordId('101');
+                      setField('employeeId');
+                      setValue('21');
                       setValueFormat('text');
-                      setSourceConfidence(0.9);
+                      setSourceConfidence(0.98);
                     }}
-                    title="Link incident foreign key referencing user 1 to demonstrate AC-3 propagation"
+                    title="Assert referential foreign key constraint linking Order #101 to Employee #21 (AC-3 Solver)"
                   >
                     <GitBranch size={12} /> Foreign Key Link (AC-3 Solver)
                   </button>
@@ -1469,10 +1513,25 @@ function App() {
                     const rows = tableFilterQuery.trim()
                       ? allRows.filter(r => Object.entries(r).some(([k, v]) => String(v).toLowerCase().includes(tableFilterQuery.toLowerCase()) || k.toLowerCase().includes(tableFilterQuery.toLowerCase())))
                       : allRows;
+
+                    // Extract all unique attribute columns across all rows for this relation
+                    const allCols = Array.from(new Set(allRows.flatMap(r => Object.keys(r).filter(k => k !== '_recordId'))));
+                    const sortedCols = allCols.sort((a, b) => {
+                      if (a === 'id') return -1;
+                      if (b === 'id') return 1;
+                      if (a.toLowerCase().endsWith('id')) return -1;
+                      if (b.toLowerCase().endsWith('id')) return 1;
+                      return a.localeCompare(b);
+                    });
+
                     return (
                       <article className="relation-card" key={relation}>
                         <div className="relation-title">
-                          <span>{relation}</span>
+                          <div className="relation-name-group">
+                            <Table size={13} className="text-cyan" />
+                            <span className="relation-name">{relation}</span>
+                            <span className="relation-schema-tag">public.{relation}</span>
+                          </div>
                           <div className="relation-title-right">
                             <span className="row-count-badge">{rows.length}{tableFilterQuery ? ` / ${allRows.length}` : ''} rows</span>
                             {rows.length > 0 && (
@@ -1493,38 +1552,108 @@ function App() {
                                 >
                                   JSON
                                 </button>
+                                <button
+                                  type="button"
+                                  className="table-export-btn"
+                                  onClick={() => exportTableAsSQL(relation, rows)}
+                                  title={`Export ${relation} records as SQL INSERT statements`}
+                                >
+                                  SQL
+                                </button>
                               </div>
                             )}
                           </div>
                         </div>
                         {rows.length === 0 ? (
-                          <p className="empty-relation">{allRows.length > 0 ? 'No matching rows found' : 'No observed rows'}</p>
+                          <p className="empty-relation">{allRows.length > 0 ? 'No matching rows found for query' : 'No observed tuples in relation'}</p>
                         ) : (
-                          rows.map((row, index) => (
-                            <div className="record-row" key={`${relation}-${String(row._recordId ?? index)}`}>
-                              <span className="record-index">{String(row._recordId ?? index + 1).padStart(2, '0')}</span>
-                              <code>
-                                {Object.entries(row)
-                                  .filter(([key]) => key !== '_recordId')
-                                  .map(([key, item]) => `${key}: ${String(item)}`)
-                                  .join(' · ') || 'No observed attributes'}
-                              </code>
-                            </div>
-                          ))
+                          <div className="relation-data-grid-wrap">
+                            <table className="relation-data-grid">
+                              <thead>
+                                <tr>
+                                  <th className="th-locator" title="Record Locator Index">#</th>
+                                  {sortedCols.map(col => {
+                                    const isPk = col === 'id' || col.toLowerCase() === `${relation.toLowerCase()}id`;
+                                    const isFk = col.toLowerCase().endsWith('id') && !isPk;
+                                    const sqlType = inferSqlType(col, allRows);
+                                    return (
+                                      <th key={col} className="th-col">
+                                        <div className="col-header-meta">
+                                          <span className="col-name">{col}</span>
+                                          {isPk && <span className="col-badge pk-badge" title="Primary Key">PK</span>}
+                                          {isFk && <span className="col-badge fk-badge" title="Foreign Key constraint">FK</span>}
+                                          <span className="col-type-tag">{sqlType}</span>
+                                        </div>
+                                      </th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((row, index) => {
+                                  const rowId = String(row._recordId ?? index + 1);
+                                  return (
+                                    <tr key={`${relation}-${rowId}`} className="data-grid-row">
+                                      <td className="td-locator">{rowId.padStart(2, '0')}</td>
+                                      {sortedCols.map(col => {
+                                        const val = row[col];
+                                        const isDisputed = rankedRecommendations.some(
+                                          r => r.table === relation && String(r.recordId) === rowId && r.field === col
+                                        );
+                                        const isNull = val === undefined || val === null;
+
+                                        return (
+                                          <td
+                                            key={col}
+                                            className={`td-val ${isNull ? 'td-null' : ''} ${isDisputed ? 'td-disputed' : ''}`}
+                                            title={
+                                              isDisputed
+                                                ? `Disputed attribute across candidate states. Click to probe.`
+                                                : `Record ${rowId} · ${col}: ${String(val)} (Click to acquire fragment)`
+                                            }
+                                            onClick={() => {
+                                              setTable(relation);
+                                              setRecordId(rowId);
+                                              setField(col);
+                                              if (!isNull) setValue(String(val));
+                                              document.getElementById('evValue')?.focus();
+                                            }}
+                                          >
+                                            {isNull ? (
+                                              <span className="null-indicator">NULL</span>
+                                            ) : typeof val === 'boolean' ? (
+                                              <span className={`bool-pill ${val ? 'bool-true' : 'bool-false'}`}>{String(val)}</span>
+                                            ) : isDisputed ? (
+                                              <span className="disputed-cell-val">
+                                                <span className="conflict-dot" />
+                                                {String(val)}
+                                              </span>
+                                            ) : (
+                                              <span className="cell-text">{String(val)}</span>
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
                       </article>
                     );
                   })}
                 </div>
               )
-            ) : <div className="empty-case-state"><Sparkles size={19} />Start with a new case or select an existing case file.</div>}
+            ) : <div className="empty-case-state"><Database size={20} className="text-cyan" />Select or initialize a case file to inspect reconstructed relations.</div>}
           </section>
         </section>
         </CaseViewErrorBoundary>
 
         <aside className="right-column">
           <section className="panel intel-panel">
-            <div className="tab-bar"><button className={auditTab === 'guidance' ? 'active' : ''} onClick={() => setAuditTab('guidance')}><Sparkles size={14} /> Next evidence</button><button className={auditTab === 'ledger' ? 'active' : ''} onClick={() => setAuditTab('ledger')}><Fingerprint size={14} /> Provenance</button></div>
+            <div className="tab-bar"><button className={auditTab === 'guidance' ? 'active' : ''} onClick={() => setAuditTab('guidance')}><Target size={14} /> Active Probes</button><button className={auditTab === 'ledger' ? 'active' : ''} onClick={() => setAuditTab('ledger')}><Fingerprint size={14} /> Provenance</button></div>
             <AnimatePresence mode="wait">
               {auditTab === 'guidance' ? <motion.div key="guidance" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="guidance-content">
                 <div className="guidance-heading"><span className="panel-icon violet-icon"><Activity size={17} /></span><div><h2>Predictive evidence</h2><p>Entropy-ranked forensic probes</p></div></div>
@@ -1548,7 +1677,7 @@ function App() {
                     </div>
                   </div>
                 )}
-                <p>{recommendation.explanation || 'Collect an independent observation for this disputed field to distinguish surviving interpretations.'}</p><button className="secondary-button full-width" onClick={() => { setTable(recommendation.table); setRecordId(String(recommendation.recordId)); setField(recommendation.field); document.getElementById('evValue')?.focus(); }}><ArrowDownToLine size={15} /> Acquire this evidence</button></div> : <div className="guidance-empty"><Sparkles size={25} /><strong>Model is waiting for a useful query</strong><span>{engineState ? 'One surviving interpretation has no disputed field to query.' : 'Open a case and submit fragments to surface the next best evidence.'}</span></div>}
+                <p>{recommendation.explanation || 'Collect an independent observation for this disputed field to distinguish surviving interpretations.'}</p><button className="secondary-button full-width" onClick={() => { setTable(recommendation.table); setRecordId(String(recommendation.recordId)); setField(recommendation.field); document.getElementById('evValue')?.focus(); }}><ArrowDownToLine size={15} /> Acquire this evidence</button></div> : <div className="guidance-empty"><Target size={24} /><strong>AC-3 Fixed-Point Consensus Reached</strong><span>{engineState ? 'Zero unresolved attribute variance detected across candidates. All foreign key constraints satisfied.' : 'Open a case and submit evidentiary fragments to trigger Shannon entropy ranking.'}</span></div>}
                 {rankedRecommendations.length > 1 && (
                   <div className="ranked-probes">
                     <span className="ranked-probes-label">ALTERNATIVE FORENSIC PROBES</span>
