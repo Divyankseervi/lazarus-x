@@ -1,0 +1,35 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "ts-node --files src/engine/test.ts && ts-node --files src/engine/audit_test.ts && ts-node --files src/engine/oracle_test.ts && ts-node --files src/engine/csp_fuzzy_provenance.test.ts && ts-node --files src/engine/provenance_test.ts && ts-node --files src/engine/audit_bundle_test.ts && ts-node --files src/security/key_rotation.test.ts && ts-node --files src/security/schema_migration.test.ts && ts-node --files src/security.test.ts && ts-node --files src/engine/branching_test.ts && ts-node --files src/database_url.test.ts && ts-node --files src/engine/patent_claim_verification.test.ts",
+    "load:engine": "ts-node --files src/engine/load_test.ts",
+    "load:api": "ts-node --files src/engine/api_load_test.ts",
+    "security:rotate-provenance-key": "ts-node --files src/security/rotate_provenance_keys.ts",
+    "postinstall": "prisma skills sync || exit 0",
+    "dbms:demo": "ts-node --files src/database/dbms_features_demonstration.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "5.11.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "prisma": "5.11.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
