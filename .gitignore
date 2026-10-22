@@ -1,0 +1,45 @@
+# Python environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Production build artifacts
+dist/
+build/
+coverage/
+frontend/test-results/
+frontend/playwright-report/
+
+# Secrets & Environment Configurations
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+
+# Database files
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+backend/prisma/dev.db-wal
+backend/prisma/dev.db-shm
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Archives & Temporary files
+*.zip
+*.tar.gz
+*.log
+backups/
+.DS_Store
+Thumbs.db

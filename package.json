@@ -1,0 +1,14 @@
+{
+  "name": "lazarus-x",
+  "version": "2.4.0",
+  "description": "LAZARUS-X: Forensic Relational Database Reconstruction & Cryptographic Provenance Platform",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "build:frontend": "npm --prefix frontend run build",
+    "start": "cd backend && npx ts-node src/index.ts",
+    "test": "cd backend && npm test",
+    "dbms:demo": "cd backend && npm run dbms:demo",
+    "test:patent": "cd backend && npm run test:patent"
+  }
+}
