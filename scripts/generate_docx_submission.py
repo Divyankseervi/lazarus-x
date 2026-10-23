@@ -1,5 +1,6 @@
 """
 LAZARUS-X Final DBMS Project Submission DOCX & PDF Generator
+STRICT FORMAL BLACK & WHITE / GRAYSCALE ACADEMIC EDITION
 Fully Aligned with Faculty Dr. V. SIVAKUMAR's Guidelines & Rubric
 Authors: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)
 Course: BCSE302P Database Systems Lab (Slot L25+L26)
@@ -16,6 +17,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
+from PIL import Image
 
 def set_cell_background(cell, fill_hex):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -41,39 +43,39 @@ def add_header_footer(doc):
         s.left_margin = Inches(0.75)
         s.right_margin = Inches(0.75)
 
-        # Header
+        # Header (Black & White)
         header = s.header
         hp = header.paragraphs[0]
         hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         hrun = hp.add_run("BCSE302P Database Systems Lab (Slot L25+L26) | Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)")
         hrun.font.name = "Arial"
         hrun.font.size = Pt(8)
-        hrun.font.color.rgb = RGBColor(100, 116, 139)
+        hrun.font.color.rgb = RGBColor(60, 60, 60)
 
-        # Footer
+        # Footer (Black & White)
         footer = s.footer
         fp = footer.paragraphs[0]
         fp.alignment = WD_ALIGN_PARAGRAPH.LEFT
         frun = fp.add_run("School of Computer Science and Engineering (SCOPE), VIT · Lab Internal Assessment 8, 9 & 10")
         frun.font.name = "Arial"
         frun.font.size = Pt(8)
-        frun.font.color.rgb = RGBColor(100, 116, 139)
+        frun.font.color.rgb = RGBColor(60, 60, 60)
 
 def add_code_block(doc, code_text):
     tbl = doc.add_table(rows=1, cols=1)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = tbl.cell(0, 0)
-    set_cell_background(cell, "F8FAFC")
+    set_cell_background(cell, "F9FAFB")
     set_cell_margins(cell, top=100, bottom=100, left=150, right=150)
     cell.width = Inches(7.0)
     
     tcPr = cell._tc.get_or_add_tcPr()
     tcBorders = parse_xml(
         f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>'
-        f'<w:left w:val="single" w:sz="18" w:space="0" w:color="2563EB"/>'
-        f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>'
-        f'<w:right w:val="single" w:sz="4" w:space="0" w:color="CBD5E1"/>'
+        f'<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        f'<w:left w:val="single" w:sz="18" w:space="0" w:color="000000"/>'
+        f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        f'<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
         f'</w:tcBorders>'
     )
     tcPr.append(tcBorders)
@@ -85,13 +87,13 @@ def add_code_block(doc, code_text):
     run = p.add_run(code_text.strip())
     run.font.name = "Consolas"
     run.font.size = Pt(8.5)
-    run.font.color.rgb = RGBColor(15, 23, 42)
+    run.font.color.rgb = RGBColor(0, 0, 0)
     
     sp = doc.add_paragraph()
     sp.paragraph_format.space_before = Pt(0)
     sp.paragraph_format.space_after = Pt(4)
 
-def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="1E40AF"):
+def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="262626"):
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     
     hdr_cells = table.rows[0].cells
@@ -109,7 +111,7 @@ def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="1E
             
     for r_idx, row_data in enumerate(data_rows):
         row_cells = table.add_row().cells
-        bg_color = "FFFFFF" if r_idx % 2 == 0 else "F8FAFC"
+        bg_color = "FFFFFF" if r_idx % 2 == 0 else "F9FAFB"
         for c_idx, val in enumerate(row_data):
             row_cells[c_idx].text = str(val)
             set_cell_background(row_cells[c_idx], bg_color)
@@ -119,37 +121,48 @@ def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="1E
             for run in p.runs:
                 run.font.name = "Arial"
                 run.font.size = Pt(8)
-                run.font.color.rgb = RGBColor(15, 23, 42)
+                run.font.color.rgb = RGBColor(0, 0, 0)
 
     for row in table.rows:
         for idx, width in enumerate(col_widths):
             row.cells[idx].width = width
 
+def convert_to_grayscale(src_path, dst_path):
+    try:
+        im = Image.open(src_path).convert('L')
+        im.save(dst_path)
+        return dst_path
+    except Exception as e:
+        print(f"[WARN] Failed to convert {src_path} to grayscale: {e}")
+        return src_path
+
 def build_docx():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.join(project_root, "submission")
-    os.makedirs(output_dir, exist_ok=True)
+    screenshots_dir = os.path.join(output_dir, "screenshots")
+    bw_screenshots_dir = os.path.join(screenshots_dir, "bw")
+    os.makedirs(bw_screenshots_dir, exist_ok=True)
     
     doc = Document()
     add_header_footer(doc)
     
     # ==========================================
-    # OFFICIAL VIT ASSESSMENT COVER HEADER
+    # OFFICIAL VIT ASSESSMENT COVER HEADER (BLACK & WHITE)
     # ==========================================
     cover_box = doc.add_table(rows=1, cols=1)
     cover_box.alignment = WD_TABLE_ALIGNMENT.CENTER
     c = cover_box.cell(0, 0)
-    set_cell_background(c, "F0F4FF")
+    set_cell_background(c, "FFFFFF")
     set_cell_margins(c, top=140, bottom=140, left=180, right=180)
     c.width = Inches(7.0)
     
     tcPr = c._tc.get_or_add_tcPr()
     tcBorders = parse_xml(
         f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="12" w:space="0" w:color="1E40AF"/>'
-        f'<w:left w:val="single" w:sz="12" w:space="0" w:color="1E40AF"/>'
-        f'<w:bottom w:val="single" w:sz="12" w:space="0" w:color="1E40AF"/>'
-        f'<w:right w:val="single" w:sz="12" w:space="0" w:color="1E40AF"/>'
+        f'<w:top w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
+        f'<w:left w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
+        f'<w:bottom w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
+        f'<w:right w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
         f'</w:tcBorders>'
     )
     tcPr.append(tcBorders)
@@ -161,21 +174,21 @@ def build_docx():
     r0.font.name = "Arial"
     r0.font.size = Pt(14)
     r0.font.bold = True
-    r0.font.color.rgb = RGBColor(30, 64, 175)
+    r0.font.color.rgb = RGBColor(0, 0, 0)
     
     r1 = tp.add_run("School of Computer Science and Engineering (SCOPE)\n")
     r1.font.name = "Arial"
     r1.font.size = Pt(11.5)
     r1.font.bold = True
-    r1.font.color.rgb = RGBColor(15, 23, 42)
+    r1.font.color.rgb = RGBColor(0, 0, 0)
     
     r2 = tp.add_run("Lab Internal Assessment Test – 8, 9 & 10 (Fall Semester 2026-27)\n\n")
     r2.font.name = "Arial"
     r2.font.size = Pt(10.5)
     r2.font.bold = True
-    r2.font.color.rgb = RGBColor(71, 85, 105)
+    r2.font.color.rgb = RGBColor(60, 60, 60)
     
-    # Official Course Details Table
+    # Official Course Details Table (Black & White)
     tbl_course = doc.add_table(rows=1, cols=6)
     format_styled_table(
         tbl_course,
@@ -184,11 +197,11 @@ def build_docx():
         [
             ["Fall Sem 2026-27", "BCSE302P", "Database Systems Lab", "VL2026270104025", "L25+L26", "11-09-2026"]
         ],
-        header_bg="1E40AF"
+        header_bg="262626"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
-    # Faculty & Student Identification Block
+    # Faculty & Student Identification Block (Black & White)
     tbl_ident = doc.add_table(rows=1, cols=4)
     format_styled_table(
         tbl_ident,
@@ -198,34 +211,58 @@ def build_docx():
             ["Divyank Seervi (Lead Backend)", "24BCE0793", "B.Tech. CSE (SCOPE)", "Dr. V. SIVAKUMAR"],
             ["Vidushi Negi (Lead Relational)", "24BCE0786", "B.Tech. CSE (SCOPE)", "Dr. V. SIVAKUMAR"]
         ],
-        header_bg="2563EB"
+        header_bg="404040"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
-    # Project Title Banner
+    # Project Title Banner (Black & White)
     tbl_banner = doc.add_table(rows=1, cols=1)
     tbl_banner.alignment = WD_TABLE_ALIGNMENT.CENTER
     cb = tbl_banner.cell(0, 0)
-    set_cell_background(cb, "EFF6FF")
+    set_cell_background(cb, "F3F4F6")
     set_cell_margins(cb, top=80, bottom=80, left=120, right=120)
     cb.width = Inches(7.0)
+    
+    tcPrB = cb._tc.get_or_add_tcPr()
+    tcBordersB = parse_xml(
+        f'<w:tcBorders {nsdecls("w")}>'
+        f'<w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+        f'<w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+        f'<w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+        f'<w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+        f'</w:tcBorders>'
+    )
+    tcPrB.append(tcBordersB)
+    
     pb = cb.paragraphs[0]
     pb.alignment = WD_ALIGN_PARAGRAPH.CENTER
     rb = pb.add_run("PROJECT TITLE: LAZARUS-X\nForensic Relational Database Reconstruction & Cryptographic Provenance Platform")
     rb.font.name = "Arial"
     rb.font.size = Pt(11)
     rb.font.bold = True
-    rb.font.color.rgb = RGBColor(30, 64, 175)
+    rb.font.color.rgb = RGBColor(0, 0, 0)
 
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
-    # Mandatory Submission Order Callout (Instruction 2)
+    # Mandatory Submission Order Callout (Instruction 2) (Black & White)
     tbl_order = doc.add_table(rows=1, cols=1)
     tbl_order.alignment = WD_TABLE_ALIGNMENT.CENTER
     co = tbl_order.cell(0, 0)
-    set_cell_background(co, "FEF3C7")
+    set_cell_background(co, "FFFFFF")
     set_cell_margins(co, top=60, bottom=60, left=120, right=120)
     co.width = Inches(7.0)
+    
+    tcPrO = co._tc.get_or_add_tcPr()
+    tcBordersO = parse_xml(
+        f'<w:tcBorders {nsdecls("w")}>'
+        f'<w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+        f'<w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+        f'<w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+        f'<w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
+        f'</w:tcBorders>'
+    )
+    tcPrO.append(tcBordersO)
+    
     po = co.paragraphs[0]
     ro = po.add_run(
         "MANDATORY FACULTY INSTRUCTION 2 COMPLIANCE:\n"
@@ -235,7 +272,7 @@ def build_docx():
     ro.font.name = "Arial"
     ro.font.size = Pt(8.5)
     ro.font.bold = True
-    ro.font.color.rgb = RGBColor(146, 64, 14)
+    ro.font.color.rgb = RGBColor(0, 0, 0)
 
     doc.add_paragraph().paragraph_format.space_after = Pt(8)
 
@@ -248,7 +285,7 @@ def build_docx():
         run.font.name = "Arial"
         run.font.size = Pt(11.5)
         run.font.bold = True
-        run.font.color.rgb = RGBColor(30, 64, 175)
+        run.font.color.rgb = RGBColor(0, 0, 0)
         
     def add_subheading(title_str):
         p = doc.add_paragraph()
@@ -259,7 +296,7 @@ def build_docx():
         run.font.name = "Arial"
         run.font.size = Pt(9.5)
         run.font.bold = True
-        run.font.color.rgb = RGBColor(15, 23, 42)
+        run.font.color.rgb = RGBColor(0, 0, 0)
         
     def add_body_p(text):
         p = doc.add_paragraph()
@@ -269,7 +306,7 @@ def build_docx():
         run = p.add_run(text)
         run.font.name = "Arial"
         run.font.size = Pt(9)
-        run.font.color.rgb = RGBColor(51, 65, 85)
+        run.font.color.rgb = RGBColor(0, 0, 0)
         return p
 
     # ==========================================
@@ -700,7 +737,7 @@ def build_docx():
     # ==========================================
     add_section_heading("4", "Application Development Requirements (4 Marks)")
     add_body_p(
-        "• Responsive Enterprise UI: Developed using React 18, Vite, and custom CSS design system tailored for high legibility, professional slate typography, and zero clutter.\n"
+        "• Responsive Enterprise UI: Developed using React 18, Vite, and custom CSS design system tailored for high legibility, clean executive black & white typography, and zero clutter.\n"
         "• Unified Dashboard: Real-time telemetry displaying surviving hypotheses, Shannon entropy (H), provenance events, active schema presets, and interactive relational data grids.\n"
         "• Search & Filtering: Filter records across relations, filter application audit logs by action pills (LOGIN, CREATE_CASE, SEAL_CASE), and search cases by UUID.\n"
         "• Pagination: Implemented on Audit Logs (15 events per page) and Case File lists.\n"
@@ -762,7 +799,7 @@ def build_docx():
             ["main", "https://github.com/Divyankseervi/lazarus-x/tree/main", "Production release branch; strictly verified passing builds.", "Synced & Up to Date (HEAD)"],
             ["dev", "https://github.com/Divyankseervi/lazarus-x/tree/dev", "Development branch; features, testing, and UI experiments.", "Synced & Merged with main"]
         ],
-        header_bg="1E40AF"
+        header_bg="262626"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
@@ -777,6 +814,7 @@ def build_docx():
         [Inches(1.0), Inches(1.0), Inches(1.5), Inches(3.5)],
         ["Commit Hash", "Date", "Author", "Commit Message & Development Milestone"],
         [
+            ["cc7e074", "2026-10-23", "Divyank Seervi", "docs(submission): embed comprehensive GitHub architecture, commit table, and CI/CD specs"],
             ["f0f9e02", "2026-10-23", "Divyank Seervi", "docs: enrich README with official academic header, dual attribution, and deployment URLs"],
             ["759fcc6", "2026-10-23", "Divyank Seervi", "feat(submission): add VIT-formatted DOCX & PDF generators aligned with Dr. V. Sivakumar rubric"],
             ["8e30a20", "2026-10-23", "Divyank Seervi", "fix(ui): resolve text contrast in tables, center modal backdrops, and modernize light theme"],
@@ -791,7 +829,7 @@ def build_docx():
             ["496db1b", "2026-10-23", "Vidushi Negi", "fix(ui): polish topbar icon and update test selector"],
             ["0a3463e", "2026-10-23", "Divyank Seervi", "feat: patent readiness refactor, audit trail verification, and clean distribution build"]
         ],
-        header_bg="334155"
+        header_bg="333333"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
@@ -846,7 +884,7 @@ def build_docx():
             ["Frontend Vitest Suite", "npm run test:frontend", "Executes 29 React UI component tests in happy-dom."],
             ["Native Backup Smoke Test", "sqlite3 .backup / .restore", "Guarantees database copy and recovery integrity."]
         ],
-        header_bg="2563EB"
+        header_bg="262626"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
@@ -863,11 +901,11 @@ def build_docx():
     )
 
     # ==========================================
-    # SECTION 8: VERIFICATION SCREENSHOTS
+    # SECTION 8: VERIFICATION SCREENSHOTS (BLACK & WHITE CONVERTED)
     # (Instruction 2.3 & 8)
     # ==========================================
     add_section_heading("8", "Verification Screenshots with Real Timestamps (Instruction 2.3 & 8)")
-    add_body_p("All screenshots captured from live local execution at http://localhost:3000/ documenting all system views with verified timestamps:")
+    add_body_p("All screenshots captured from live local execution at http://localhost:3000/ documenting all system views with verified timestamps (Rendered in Print-Ready Grayscale):")
 
     screenshots_to_add = [
         (
@@ -909,15 +947,18 @@ def build_docx():
     ]
 
     for fname, caption in screenshots_to_add:
-        fpath = os.path.join(output_dir, "screenshots", fname)
-        if os.path.exists(fpath):
+        src_path = os.path.join(output_dir, "screenshots", fname)
+        if os.path.exists(src_path):
+            bw_dst = os.path.join(bw_screenshots_dir, f"bw_{fname}")
+            final_img_path = convert_to_grayscale(src_path, bw_dst)
+            
             add_subheading(caption)
             p_img = doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_img.paragraph_format.space_before = Pt(4)
             p_img.paragraph_format.space_after = Pt(2)
             run_img = p_img.add_run()
-            run_img.add_picture(fpath, width=Inches(6.5))
+            run_img.add_picture(final_img_path, width=Inches(6.5))
             
             p_cap = doc.add_paragraph()
             p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -926,10 +967,10 @@ def build_docx():
             run_cap.font.name = "Arial"
             run_cap.font.size = Pt(8)
             run_cap.font.italic = True
-            run_cap.font.color.rgb = RGBColor(100, 116, 139)
+            run_cap.font.color.rgb = RGBColor(60, 60, 60)
 
     # ==========================================
-    # SECTION 9: MANDATORY CODE SNIPPETS
+    # SECTION 9: MANDATORY CODE SNIPPETS (BLACK & WHITE)
     # (Instruction 7)
     # ==========================================
     add_section_heading("9", "Mandatory Code Snippets with Student Register Numbers & Names")
@@ -984,7 +1025,7 @@ def build_docx():
     )
 
     # ==========================================
-    # SECTION 10: RUBRIC EVALUATION SUMMARY
+    # SECTION 10: RUBRIC EVALUATION SUMMARY (BLACK & WHITE)
     # ==========================================
     add_section_heading("10", "Rubric Compliance & Marks Summary Matrix")
     tbl_rubric = doc.add_table(rows=1, cols=4)
@@ -1004,12 +1045,12 @@ def build_docx():
             ["Bonus: Additional Practice", "Prometheus Metrics, Shannon Entropy, RFC 6962 Merkle Trees", "+1", "+1 / 1"],
             ["TOTAL EVALUATION SCORE", "Comprehensive Full-Stack DBMS Forensic Platform", "30 (+3)", "33 / 30"]
         ],
-        header_bg="1E40AF"
+        header_bg="262626"
     )
 
     doc.add_paragraph().paragraph_format.space_after = Pt(12)
 
-    # Sign-off block
+    # Sign-off block (Black & White)
     tbl_sign = doc.add_table(rows=1, cols=2)
     format_styled_table(
         tbl_sign,
@@ -1021,7 +1062,7 @@ def build_docx():
                 "Vidushi Negi\nRegister No: 24BCE0786\nSchool of Computer Science & Engineering (SCOPE)\nVellore Institute of Technology\n\nSignature: __________________________\nDate: October 23, 2026"
             ]
         ],
-        header_bg="334155"
+        header_bg="333333"
     )
 
     # Save DOCX variants adhering to Rule 9: REGISTERNO_SLOT_IA9&10_Proj_NAME
@@ -1047,7 +1088,7 @@ def build_docx():
     # Convert DOCX to PDF using docx2pdf for exact Microsoft Word-rendered fidelity
     try:
         import docx2pdf
-        print("[INFO] Converting DOCX to PDF via docx2pdf...")
+        print("[INFO] Converting Black & White DOCX to PDF via docx2pdf...")
         
         pdf1 = os.path.join(output_dir, "24BCE0793_L25+L26_IA9&10_Proj_DIVYANK_SEERVI.pdf")
         pdf2 = os.path.join(output_dir, "24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.pdf")
@@ -1058,7 +1099,7 @@ def build_docx():
         docx2pdf.convert(p2, pdf2)
         docx2pdf.convert(p3, pdf3)
         docx2pdf.convert(p4, pdf4)
-        print(f"[SUCCESS] Converted all PDF deliverables:")
+        print(f"[SUCCESS] Converted all Black & White PDF deliverables:")
         print(f"  - {pdf1} ({os.path.getsize(pdf1):,} bytes)")
         print(f"  - {pdf2} ({os.path.getsize(pdf2):,} bytes)")
         print(f"  - {pdf3} ({os.path.getsize(pdf3):,} bytes)")
