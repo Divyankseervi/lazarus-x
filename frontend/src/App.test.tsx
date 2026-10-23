@@ -3,8 +3,10 @@ import '@testing-library/jest-dom';
 /// <reference types="node" />
 import { createHash, createHmac, webcrypto } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import App, { CaseViewErrorBoundary } from './App';
+import { CaseViewErrorBoundary } from './App';
+import App from './App';
 import { verifyDisclosedClaim, verifyEnvelopeInclusionProof, verifyProvenanceCheckpoint, type PublicEnvelopeEntry } from './provenanceVerifier';
+import { createPresetSchema } from './schemaTypes';
 
 const emptyAudit = {
   valid: true,
@@ -686,4 +688,119 @@ describe('LAZARUS-X investigator console', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2); // schema setup does not create a case until submitted
   });
 
+  it('renders example scenarios, disables load for mismatched preset, sealed, and non-empty cases, and confirm-cancel submits nothing', async () => {
+    const divyank24BCE0793_irSchema = createPresetSchema('incident-response');
+    const divyank24BCE0793_emptyState = {
+      id: 'S-0',
+      data: { Person: [], Device: [], Incident: [], Artifact: [], Observation: [] },
+      probabilityScore: 1,
+      fatalViolations: 0,
+      resolvableViolations: 0,
+    };
+    const divyank24BCE0793_fetchMock = vi.mocked(globalThis.fetch);
+
+    divyank24BCE0793_fetchMock
+      .mockResolvedValueOnce(fakeResponse({ token: 'e'.repeat(64), email: 'examiner@example.test', role: 'INVESTIGATOR' }) as Response)
+      .mockResolvedValueOnce(fakeResponse({
+        cases: [
+          { id: 'case-divyank-ir-active', name: 'Divyank IR Empty Case', status: 'ACTIVE', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 0 },
+          { id: 'case-divyank-ir-sealed', name: 'Divyank IR Sealed Case', status: 'SEALED', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 0 },
+          { id: 'case-divyank-non-empty', name: 'Divyank Non-Empty Case', status: 'ACTIVE', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 5 },
+        ],
+      }) as Response)
+      .mockResolvedValueOnce(fakeResponse({
+        id: 'case-divyank-ir-active',
+        name: 'Divyank IR Empty Case',
+        status: 'ACTIVE',
+        schemaDefinition: divyank24BCE0793_irSchema,
+        bestState: divyank24BCE0793_emptyState,
+        candidates: [{ id: 'S-0', rank: 1, score: 1, fatalViolations: 0, resolvableViolations: 0, fuzzyPenalty: 0, isSelected: true }],
+        ambiguityReduction: null,
+        ambiguity: { entropyBits: 0, candidateCount: 1 },
+      }) as Response)
+      .mockResolvedValueOnce(fakeResponse(emptyAudit) as Response);
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText(/investigator email/i), { target: { value: 'examiner@example.test' } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'correct-horse-battery' } });
+    fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: /divyank ir empty case/i }));
+    await screen.findByText(/case restored from its verified evidence ledger/i);
+
+    const scenarioSelect = screen.getByLabelText(/select example scenario/i);
+    expect(scenarioSelect).toBeInTheDocument();
+    expect(screen.getByText(/clean incident \(no conflicts\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 surviving interpretation, entropy 0.000/i)).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /load scenario/i })).not.toBeDisabled();
+
+    // 1. Mismatched preset check: switch scenario dropdown to 'wf-clean' (preset workforce-orders on incident-response case)
+    fireEvent.change(scenarioSelect, { target: { value: 'wf-clean' } });
+    expect(screen.getByText(/Workforce and orders \(clean\)/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /load scenario/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /load scenario/i })).toHaveAttribute(
+      'title',
+      "Create a case using the 'workforce-orders' preset to load this scenario"
+    );
+
+    // 2. Confirm-cancel submits nothing: switch back to 'ir-clean'
+    fireEvent.change(scenarioSelect, { target: { value: 'ir-clean' } });
+    expect(screen.getByRole('button', { name: /load scenario/i })).not.toBeDisabled();
+    const divyank24BCE0793_confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const fetchCallsBeforeConfirm = divyank24BCE0793_fetchMock.mock.calls.length;
+    fireEvent.click(screen.getByRole('button', { name: /load scenario/i }));
+    expect(divyank24BCE0793_confirmSpy).toHaveBeenCalledWith(
+      'Load 20 EXAMPLE fragments into this case? These are demo values, not recovered evidence, and cannot be removed individually.'
+    );
+    expect(divyank24BCE0793_fetchMock.mock.calls.length).toBe(fetchCallsBeforeConfirm);
+
+    // 3. Sealed case check: switch to sealed case
+    divyank24BCE0793_fetchMock
+      .mockResolvedValueOnce(fakeResponse({
+        id: 'case-divyank-ir-sealed',
+        name: 'Divyank IR Sealed Case',
+        status: 'SEALED',
+        schemaDefinition: divyank24BCE0793_irSchema,
+        bestState: divyank24BCE0793_emptyState,
+        candidates: [{ id: 'S-0', rank: 1, score: 1, fatalViolations: 0, resolvableViolations: 0, fuzzyPenalty: 0, isSelected: true }],
+        ambiguityReduction: null,
+        ambiguity: { entropyBits: 0, candidateCount: 1 },
+      }) as Response)
+      .mockResolvedValueOnce(fakeResponse(emptyAudit) as Response);
+
+    fireEvent.click(screen.getByRole('button', { name: /divyank ir sealed case/i }));
+    await waitFor(() => {
+      const sealedLoadBtn = screen.getByRole('button', { name: /load scenario/i });
+      expect(sealedLoadBtn).toBeDisabled();
+      expect(sealedLoadBtn).toHaveAttribute('title', 'Case is sealed; new evidence cannot be loaded');
+    });
+
+    // 4. Non-empty case check: switch to non-empty case (totalEntries = 5)
+    const divyank24BCE0793_nonEmptyAudit = {
+      ...emptyAudit,
+      totalEntries: 5,
+    };
+    divyank24BCE0793_fetchMock
+      .mockResolvedValueOnce(fakeResponse({
+        id: 'case-divyank-non-empty',
+        name: 'Divyank Non-Empty Case',
+        status: 'ACTIVE',
+        schemaDefinition: divyank24BCE0793_irSchema,
+        bestState: divyank24BCE0793_emptyState,
+        candidates: [{ id: 'S-0', rank: 1, score: 1, fatalViolations: 0, resolvableViolations: 0, fuzzyPenalty: 0, isSelected: true }],
+        ambiguityReduction: null,
+        ambiguity: { entropyBits: 0, candidateCount: 1 },
+      }) as Response)
+      .mockResolvedValueOnce(fakeResponse(divyank24BCE0793_nonEmptyAudit) as Response);
+
+    fireEvent.click(screen.getByRole('button', { name: /divyank non-empty case/i }));
+    await waitFor(() => {
+      const nonEmptyLoadBtn = screen.getByRole('button', { name: /load scenario/i });
+      expect(nonEmptyLoadBtn).toBeDisabled();
+      expect(nonEmptyLoadBtn).toHaveAttribute('title', 'Evidence ledger must be empty to load example scenarios. Create a fresh case.');
+    });
+  });
+
 });
+

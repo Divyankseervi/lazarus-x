@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "ts-node --files src/engine/test.ts && ts-node --files src/engine/audit_test.ts && ts-node --files src/engine/oracle_test.ts && ts-node --files src/engine/csp_fuzzy_provenance.test.ts && ts-node --files src/engine/provenance_test.ts && ts-node --files src/engine/audit_bundle_test.ts && ts-node --files src/security/key_rotation.test.ts && ts-node --files src/security/schema_migration.test.ts && ts-node --files src/security.test.ts && ts-node --files src/engine/branching_test.ts && ts-node --files src/database_url.test.ts && ts-node --files src/engine/research_claim_consistency.test.ts && ts-node --files src/engine/schema_definition.test.ts",
+    "test": "ts-node --files src/engine/test.ts && ts-node --files src/engine/audit_test.ts && ts-node --files src/engine/oracle_test.ts && ts-node --files src/engine/csp_fuzzy_provenance.test.ts && ts-node --files src/engine/provenance_test.ts && ts-node --files src/engine/audit_bundle_test.ts && ts-node --files src/security/key_rotation.test.ts && ts-node --files src/security/schema_migration.test.ts && ts-node --files src/security.test.ts && ts-node --files src/engine/branching_test.ts && ts-node --files src/database_url.test.ts && ts-node --files src/engine/research_claim_consistency.test.ts && ts-node --files src/engine/schema_definition.test.ts && ts-node --files src/engine/example_scenarios.test.ts",
     "load:engine": "ts-node --files src/engine/load_test.ts",
     "load:api": "ts-node --files src/engine/api_load_test.ts",
     "security:rotate-provenance-key": "ts-node --files src/security/rotate_provenance_keys.ts",

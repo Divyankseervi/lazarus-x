@@ -8,6 +8,7 @@ import { AuditLogsModal } from './AuditLogsModal';
 import { SchemaStudio } from './SchemaStudio';
 import { createPresetSchema, createWalkthroughEvidence, hasWalkthroughConflictTarget, type CaseSchema } from './schemaTypes';
 import { parseEvidenceCsv, type ImportedEvidenceFragment } from './evidenceCsv';
+import { divyank24BCE0793_EXAMPLE_SCENARIOS } from './exampleScenarios';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Boxes, ChevronDown, CircleAlert,
@@ -678,6 +679,7 @@ function App() {
     setProofStatus(null);
     setProofInspection(null);
     setTimeline([]);
+    setDivyank24BCE0793_selectedScenarioId('ir-clean');
   };
 
   const handleRenameCase = async (event?: FormEvent) => {
@@ -745,6 +747,11 @@ function App() {
         ? { ...state.schemaDefinition, tableDefinitions: state.schemaDefinition.tableDefinitions ?? state.schemaDefinition.tables.map(name => ({ name, columns: [] })) }
         : createPresetSchema('workforce-orders');
       setCaseSchema(openedSchema);
+      if (openedSchema.preset === 'workforce-orders') {
+        setDivyank24BCE0793_selectedScenarioId('wf-clean');
+      } else if (openedSchema.preset === 'incident-response') {
+        setDivyank24BCE0793_selectedScenarioId('ir-clean');
+      }
       const firstTable = openedSchema.tables[0] ?? 'Department';
       setTable(firstTable);
       setField(openedSchema.tableDefinitions?.find(definition => definition.name === firstTable)?.columns?.[0]?.name ?? 'name');
@@ -777,6 +784,11 @@ function App() {
       const createdSchema = created.schemaDefinition ?? createPresetSchema('workforce-orders');
       setCaseId(created.id);
       setCaseSchema(createdSchema);
+      if (createdSchema.preset === 'workforce-orders') {
+        setDivyank24BCE0793_selectedScenarioId('wf-clean');
+      } else if (createdSchema.preset === 'incident-response') {
+        setDivyank24BCE0793_selectedScenarioId('ir-clean');
+      }
       setSchemaStudioOpen(false);
       setTable(createdSchema.tables[0] ?? 'Person');
       setField(createdSchema.tableDefinitions?.find(definition => definition.name === createdSchema.tables[0])?.columns?.[0]?.name ?? 'id');
@@ -821,6 +833,7 @@ function App() {
     evidence: ImportedEvidenceFragment[],
     successMessage: string,
     replaceTimeline = false,
+    exactNotice?: string,
   ) => {
     if (!caseId || !token || evidence.length === 0) return;
     setLoading(true);
@@ -852,7 +865,7 @@ function App() {
       setSourceRef('');
       setSourceSha256('');
       setFormErrors({});
-      setNotice(`${successMessage} · ${evidence.length} fragment(s) · ledger sequence ${response.provenance.sequence}`);
+      setNotice(exactNotice ?? `${successMessage} · ${evidence.length} fragment(s) · ledger sequence ${response.provenance.sequence}`);
       // The evidence commit is durable before the secondary UI refreshes run. If a
       // refresh fails, don't tell the investigator to submit the same evidence again.
       await loadAudit(caseId, token);
@@ -963,6 +976,31 @@ function App() {
     }
     setFormErrors({});
     await commitEvidenceBatch([{ table, recordId: numericRecordId, field: normalizedField, value: evidenceValue, confidence: sourceConfidence, ...(sourceRef.trim() ? { sourceRef: sourceRef.trim() } : {}), ...(sourceSha256.trim() ? { sourceSha256: sourceSha256.trim().toLowerCase() } : {}) }], 'Evidence accepted');
+  };
+
+  const divyank24BCE0793_scenarioList = divyank24BCE0793_EXAMPLE_SCENARIOS;
+  const [divyank24BCE0793_selectedScenarioId, setDivyank24BCE0793_selectedScenarioId] = useState<string>('ir-clean');
+
+  const divyank24BCE0793_loadExampleScenario = async (scenarioId: string) => {
+    if (!caseId || !token || !caseSchema || loading || caseStatus === 'SEALED') return;
+    if (auditTotal > 0) {
+      setError('Example scenarios can only be loaded into a case with an empty evidence ledger. Create a fresh case to keep the demonstration reproducible.');
+      return;
+    }
+    const scenario = divyank24BCE0793_scenarioList.find(s => s.id === scenarioId);
+    if (!scenario) return;
+    if (caseSchema.preset !== scenario.preset) {
+      setError(`This scenario requires the '${scenario.preset}' preset. Create a new case with that preset to load it.`);
+      return;
+    }
+    const confirmed = window.confirm(`Load ${scenario.evidence.length} EXAMPLE fragments into this case? These are demo values, not recovered evidence, and cannot be removed individually.`);
+    if (!confirmed) return;
+    await commitEvidenceBatch(
+      scenario.evidence,
+      `Example '${scenario.title}' loaded`,
+      true,
+      `Example '${scenario.title}' loaded (${scenario.evidence.length} fragments)`,
+    );
   };
 
   const loadSyntheticWalkthrough = async () => {
@@ -1646,12 +1684,108 @@ function App() {
               </div>
             </div>
 
-            {caseId && caseSchema && (
-              <div className="walkthrough-strip">
-                <div className="walkthrough-copy"><span className="walkthrough-kicker"><Sparkles size={13}/> GUIDED WALKTHROUGH</span><strong>See the reconstruction loop with synthetic data</strong><small>Loads linked sample records plus one deliberate conflict. This is demo input, not recovered evidence.</small></div>
-                <button type="button" className="secondary-button walkthrough-button" onClick={() => void loadSyntheticWalkthrough()} disabled={loading || caseStatus === 'SEALED' || auditTotal > 0}><Zap size={14}/>{auditTotal > 0 ? 'Use a fresh case to replay demo' : loading ? 'Loading scenario…' : 'Load synthetic scenario'}</button>
-              </div>
-            )}
+            {caseId && caseSchema && (() => {
+              const divyank24BCE0793_currentScenario = divyank24BCE0793_scenarioList.find(s => s.id === divyank24BCE0793_selectedScenarioId);
+              const isSyntheticWalkthroughSelected = divyank24BCE0793_selectedScenarioId === 'synthetic-walkthrough';
+              const isScenarioDisabled = Boolean(
+                !caseId || loading || caseStatus === 'SEALED' || auditTotal > 0 ||
+                (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) ||
+                (isSyntheticWalkthroughSelected && !hasWalkthroughConflictTarget(caseSchema))
+              );
+              let scenarioTooltip = '';
+              if (!caseId) {
+                scenarioTooltip = 'Select a case to load example scenarios';
+              } else if (caseStatus === 'SEALED') {
+                scenarioTooltip = 'Case is sealed; new evidence cannot be loaded';
+              } else if (auditTotal > 0) {
+                scenarioTooltip = 'Evidence ledger must be empty to load example scenarios. Create a fresh case.';
+              } else if (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) {
+                scenarioTooltip = `Create a case using the '${divyank24BCE0793_currentScenario.preset}' preset to load this scenario`;
+              } else if (isSyntheticWalkthroughSelected && !hasWalkthroughConflictTarget(caseSchema)) {
+                scenarioTooltip = 'The synthetic ambiguity walkthrough needs at least one non-unique field. Add a non-unique field in Schema Studio and create a new case.';
+              } else {
+                scenarioTooltip = isSyntheticWalkthroughSelected
+                  ? 'Load synthetic guided walkthrough'
+                  : `Load demo fragments for ${divyank24BCE0793_currentScenario?.title ?? ''}`;
+              }
+
+              return (
+                <div className="example-scenarios-panel walkthrough-strip" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                    <div className="walkthrough-copy">
+                      <span className="walkthrough-kicker"><Sparkles size={13}/> ONE-CLICK EXAMPLE SCENARIOS</span>
+                      <strong>Fill an empty case with ready-made demo scenarios</strong>
+                      <small>Select a pre-configured scenario to observe constraint resolution, branching, and recommendations without manual typing.</small>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <select
+                        id="exampleScenarioSelect"
+                        aria-label="Select example scenario"
+                        value={divyank24BCE0793_selectedScenarioId}
+                        onChange={e => setDivyank24BCE0793_selectedScenarioId(e.target.value)}
+                        className="secondary-button"
+                        style={{ padding: '6px 12px', fontSize: '12px', background: 'var(--panel-bg, rgba(20,24,33,0.9))', color: 'var(--text, #e5e7eb)' }}
+                      >
+                        <optgroup label="Incident Response Preset">
+                          <option value="ir-clean">A) Clean incident (no conflicts)</option>
+                          <option value="ir-out-of-order">B) Out-of-order evidence (parent arrives late)</option>
+                          <option value="ir-name-conflict">C) Conflicting name from a weaker source</option>
+                          <option value="ir-unique-clash">D) Duplicate id (fatal violation)</option>
+                        </optgroup>
+                        <optgroup label="Workforce & Orders Preset">
+                          <option value="wf-clean">E) Workforce and orders (clean)</option>
+                          <option value="wf-missing-parent">F) Order points to unknown employee</option>
+                          <option value="wf-amount-conflict">G) Two amounts for one order</option>
+                        </optgroup>
+                        <optgroup label="General Walkthrough">
+                          <option value="synthetic-walkthrough">Guided Walkthrough (Dynamic Conflict)</option>
+                        </optgroup>
+                      </select>
+                      <button
+                        type="button"
+                        aria-label={`Load scenario ${isSyntheticWalkthroughSelected ? 'Synthetic walkthrough' : (divyank24BCE0793_currentScenario?.title ?? '')}`}
+                        className="secondary-button walkthrough-button"
+                        onClick={() => {
+                          if (isSyntheticWalkthroughSelected) {
+                            void loadSyntheticWalkthrough();
+                          } else {
+                            void divyank24BCE0793_loadExampleScenario(divyank24BCE0793_selectedScenarioId);
+                          }
+                        }}
+                        disabled={isScenarioDisabled}
+                        title={scenarioTooltip}
+                      >
+                        <Zap size={14}/> {loading ? 'Loading…' : 'Load scenario'}
+                      </button>
+                    </div>
+                  </div>
+                  {divyank24BCE0793_currentScenario && !isSyntheticWalkthroughSelected && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--muted, #9aa3b2)', flexWrap: 'wrap', gap: '6px' }}>
+                        <span><strong>Goal:</strong> {divyank24BCE0793_currentScenario.learningGoal}</span>
+                        <span className="role-tag" style={{ textTransform: 'uppercase' }}>Preset: {divyank24BCE0793_currentScenario.preset}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #9aa3b2)' }}>
+                        {divyank24BCE0793_currentScenario.description}
+                      </div>
+                      <div className="scenario-expected-note" style={{ fontSize: '11px', color: '#a78bfa' }}>
+                        <strong>Expected:</strong> {divyank24BCE0793_currentScenario.expected.note}
+                      </div>
+                    </div>
+                  )}
+                  {isSyntheticWalkthroughSelected && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--muted, #9aa3b2)' }}>
+                        Dynamically constructs sample evidence matching this case's declared relations, plus one intentional non-unique conflict.
+                      </div>
+                      <div className="scenario-expected-note" style={{ fontSize: '11px', color: '#a78bfa' }}>
+                        <strong>Expected:</strong> Demonstrates branch generation and Shannon information gain targeting the conflicting field.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {caseStatus === 'SEALED' && <div className="sealed-alert" role="status"><Lock size={14} /> Case is sealed in the application. Evidence intake through this interface is closed; direct database access is outside this control.</div>}
             <form onSubmit={event => void submitEvidence(event)} className="evidence-form">
               <div className="form-control"><label htmlFor="evTable">Relation</label><select id="evTable" value={table} onChange={event => { const nextTable = event.target.value; setTable(nextTable); setField(caseSchema?.tableDefinitions?.find(definition => definition.name === nextTable)?.columns?.[0]?.name ?? 'name'); setFormErrors(current => ({ ...current, field: undefined })); }}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>

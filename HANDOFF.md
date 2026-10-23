@@ -14,14 +14,44 @@
 - **F11 (Packaging & Clutter Removal)**: Removed `scripts/supervisor/` logs, `AUTONOMOUS_EXECUTION_LOG.md`, and `09_repository_audit.md`; updated `.env.example` to default to `NODE_ENV=development`; cleaned `backend/package.json`.
 - **F12 (External Deliverables Scope)**: Explicitly catalogued local verified components versus external hosting requirements.
 
+## Feature update — 2026-10-23 (One-Click Example Scenarios)
+
+Added one-click example scenarios to populate empty cases with pre-configured demonstration evidence fragments without manual typing, fully guarded and explicitly labeled as DEMO data.
+
+- **Frontend Scenario Definitions (`frontend/src/exampleScenarios.ts`)**:
+  - Implemented typed `divyank24BCE0793_EXAMPLE_SCENARIOS` export containing scenarios A through G:
+    - **A (`ir-clean`)**: Preset `incident-response`, clean incident evidence (Asha Rao, Ravi Kumar, LAPTOP-07, Phishing email, artifact, observation). Engine yields 1 surviving interpretation, entropy 0.000, 0 violations.
+    - **B (`ir-out-of-order`)**: Preset `incident-response`, out-of-order evidence arrival (observation first, then artifact, incident, person). Foreign keys resolve monotonically from 2 resolvable violations to 0; 1 surviving interpretation.
+    - **C (`ir-name-conflict`)**: Preset `incident-response`, conflicting name for Person 1 (conf 0.9 "Asha Rao" vs conf 0.4 "A. Rao"). Generates 2 surviving interpretations; recommendation targets `Person[1].name`; top candidate preserves "Asha Rao".
+    - **D (`ir-unique-clash`)**: Preset `incident-response`, duplicate primary key `Person.id=1` ("Asha Rao" vs "Ravi Kumar"). Engine reports fatal violation, retains single interpretation with penalized score (~0.01).
+    - **E (`wf-clean`)**: Preset `workforce-orders`, clean workforce evidence (Finance, Operations, Kiran, Lata, Order 1 & 2). Engine yields 1 interpretation, 0 violations, score 1.0.
+    - **F (`wf-missing-parent`)**: Preset `workforce-orders`, Order pointing to unevidenced employee 7. Retains 1 resolvable violation on `Order.employeeId` (score 0.5); guides investigator to add employee.
+    - **G (`wf-amount-conflict`)**: Preset `workforce-orders`, conflicting order amount (2500 conf 0.9 vs 250 conf 0.5). Generates 2 interpretations; recommendation targets `Order[1].amount`.
+  - Every fragment sets `sourceRef: "example:<scenario-id>"` so provenance records clearly display demonstration origin.
+- **UI & Guards (`frontend/src/App.tsx`)**:
+  - Replaced the single synthetic button with the Example Scenarios panel (`<select>` dropdown, scenario goal/preset card, expected note, and "Load scenario" action).
+  - Kept the dynamic guided walkthrough available as an option in the dropdown.
+  - Guarded: Enabled only when case is selected, status is not `SEALED`, evidence ledger is empty (`auditTotal === 0`), and case schema preset matches scenario preset (otherwise disabled with tooltip indicating which preset to create).
+  - Modal warning: `window.confirm("Load N EXAMPLE fragments into this case? These are demo values, not recovered evidence, and cannot be removed individually.")`.
+  - Batch commit path reused; displays banner: `Example '<title>' loaded (N fragments)`.
+  - Fully accessible with `aria-label`s and existing CSS tokens.
+- **Student Identity Variable Names**:
+  - Bound student registration number and name into code variables: `divyank24BCE0793_EXAMPLE_SCENARIOS`, `divyank24BCE0793_selectedScenarioId`, `divyank24BCE0793_scenarioList`, `divyank24BCE0793_loadExampleScenario`, `divyank24BCE0793_irSchema`, `divyank24BCE0793_emptyState`, `divyank24BCE0793_confirmSpy`, `divyank24BCE0793_nonEmptyAudit`.
+- **Test Coverage**:
+  - `frontend/src/exampleScenarios.test.ts`: Validates schema conformance, confidence in (0,1], ASCII sourceRef, and batch limits.
+  - `backend/src/engine/example_scenarios.test.ts`: Feeds each scenario into `LazarusXEngine` and verifies expected surviving interpretations, entropy, and fatal/resolvable violation counts.
+  - `frontend/src/App.test.tsx`: Tests rendering of scenario dropdown, details card, disabled states for mismatched preset, sealed case, non-empty ledger, and confirm cancellation.
+
 ## Current state
 
 LAZARUS-X is an academic forensic relational database reconstruction prototype. The active Prisma runtime targets SQLite. PostgreSQL DDL under `backend/db/init/01_advanced_features.sql` is a reference script only.
 
 Verified locally:
 - `npm run typecheck:backend` — 0 errors
-- `npm run lint:frontend` — 0 warnings, 0 errors
-- `npm test` — all backend test suites passed (11/11 suites, 100%), frontend unit tests passed (25/25), intake tests passed
+- `npm --prefix frontend run build` — built cleanly, 0 errors
+- `npm run lint:frontend` — 0 errors
+- `npx vitest run` (frontend) — 4/4 test files, 29/29 tests passed (100%)
+- `npm test` (backend) — all 12 test suites passed + all 7 scenario checks passed (`Scenario A` through `Scenario G`)
 - `npm run dbms:demo` — all 7 DBMS requirements verified (11 tables, CRUD, joins, aggregates, views, triggers, transactions, EXPLAIN QUERY PLAN, copy/restore)
 - `node scripts/verify_live_api.js` — 8/8 live server operations passed
 - `npm run test:e2e` — 3/3 Playwright browser tests passed
