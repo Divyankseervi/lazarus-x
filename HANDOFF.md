@@ -1,29 +1,23 @@
 # LAZARUS-X Developer Handoff
 
-## Review pass — 2026-10-23 (Comprehensive University DOCX Submission & Whole Browser Screenshots)
+## Review pass — 2026-10-23 (Pristine Borderless 1080p Viewports & 5 High-Resolution Pictorial Architectural Charts)
 
-- **Reference Alignment with Sahib Singh Submission (`24BCI0292_L25+L26_IA9&10_Proj_SAHIB_SINGH.docx`)**:
-  - Implemented formal VIT & SCOPE academic cover header block.
-  - Table 1 (9x2): Course & Assessment metadata table (Title, Course Code, Class Nbr `VL2026270104025`, Slot `L25+L26`, Faculty `Dr. V. SIVAKUMAR`).
-  - Table 2 (3x4): Student Details table with dual attribution for Divyank Seervi (`24BCE0793`) and Vidushi Negi (`24BCE0786`).
-  - Section 4 per-query tabular outputs: Every database operation (Queries 1-7: SELECT, INSERT, UPDATE, DELETE, Multi-Table JOIN, Aggregates, Correlated Subquery) now includes both a 1x1 Code Block Table and an immediate Tabular Result Grid displaying exact returned database columns and rows.
-  - Declarative Integrity Constraint Testing Matrix: 3-column table (`[Integrity Test Case | Invalid SQL / Action | Database Engine Error Response]`).
-  - Database Transactions with COMMIT & ROLLBACK: Test A (COMMIT with atomic row insertion) and Test B (ROLLBACK intercepting FK violation and verifying `records_retained = 0`).
-  - Student Plagiarism & Registration Number Verification (Instruction 7): Explicit SQL query inserting and printing student registration numbers (`24BCE0793` & `24BCE0786`) with result table.
-- **Whole Browser Window Screenshots**:
-  - Captured full 1904x985 viewport screenshots via browser subagent without any artificial blue borders, embedded in Section 10 at 6.5" width:
-    - Figure 1: Forensic Dashboard & Evidence Intake Console (`01_full_browser_dashboard_and_evidence_intake.png`)
-    - Figure 2: Materialized Relational SQL Tables (`02_full_browser_materialized_relational_tables.png`)
-    - Figure 3: Relational Schema DAG & Foreign Key Topology (`03_full_browser_schema_dag_foreign_keys.png`)
-    - Figure 4: Cryptographic Provenance Ledger & Merkle Root Chain (`04_full_browser_cryptographic_provenance_ledger.png`)
-    - Figure 5: Administrative Audit Trail Modal (`05_full_browser_admin_audit_trail_modal.png`)
-    - Figure 6: Certified Forensic Case Dossier Modal (`06_full_browser_forensic_case_dossier_modal.png`)
-- **Primary Deliverables**:
-  - Generated `submission/24BCE0793_L25+L26_IA9&10_Proj_DIVYANK_SEERVI.docx` (1,292,400 bytes, 38 tables, 150 paragraphs).
-  - Also generated dual-attribution `24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.docx` and matching PDF copies.
-- **Git & Build Hygiene**:
-  - Committed and pushed to `main` and `dev` on `https://github.com/Divyankseervi/lazarus-x.git`.
-  - All test suites pass: `npm run validate:db`, `npm run typecheck:backend`, `npm run test:backend` (71+ assertions).
+- **Elimination of Blue Border Artifacts**:
+  - Replaced browser-container captures with direct native Chromium Playwright viewports at 1920×1080 resolution.
+  - Pixel perimeter validation verifies **0 blue edge pixels** across top, bottom, left, and right borders. Zero title bars, zero IDE recording halos.
+- **5 High-Resolution Pictorial Architectural Charts Generated & Embedded**:
+  - **Figure 1.1** ([`submission/charts/figure_2_system_architecture.png`](file:///c:/Users/divya/OneDrive/Desktop/std/dbms/LAZARUS-X-CORE-ALIGNED-FINAL/lazarus-x/submission/charts/figure_2_system_architecture.png)): System Architecture & 5-Layer Forensic Reconstruction Dataflow.
+  - **Figure 2.1** ([`submission/charts/figure_1_er_diagram.png`](file:///c:/Users/divya/OneDrive/Desktop/std/dbms/LAZARUS-X-CORE-ALIGNED-FINAL/lazarus-x/submission/charts/figure_1_er_diagram.png)): Complete Crow's Foot Entity-Relationship (ER) Model (300 DPI, 4179×2679) with all 6 normalized entities, PK/FK badges, and cardinality lines.
+  - **Figure 4.1** ([`submission/charts/figure_4_transaction_state_lifecycle.png`](file:///c:/Users/divya/OneDrive/Desktop/std/dbms/LAZARUS-X-CORE-ALIGNED-FINAL/lazarus-x/submission/charts/figure_4_transaction_state_lifecycle.png)): Database ACID Transaction State Flowchart & Sealed Case Finite State Machine with trigger guards and rollback loops.
+  - **Figure 5.1** ([`submission/charts/figure_3_merkle_provenance_tree.png`](file:///c:/Users/divya/OneDrive/Desktop/std/dbms/LAZARUS-X-CORE-ALIGNED-FINAL/lazarus-x/submission/charts/figure_3_merkle_provenance_tree.png)): RFC 6962 Binary Merkle Tree & Sequential SHA-256 Hash Chaining.
+  - **Figure 9.1** ([`submission/charts/figure_5_shannon_entropy_curve.png`](file:///c:/Users/divya/OneDrive/Desktop/std/dbms/LAZARUS-X-CORE-ALIGNED-FINAL/lazarus-x/submission/charts/figure_5_shannon_entropy_curve.png)): Information-Theoretic Disambiguation Shannon Entropy Decay vs. Evidence Intake Curve.
+- **7 Pristine Native 1080p Screenshots Embedded in Section 10**:
+  - Figures 10.1–10.7: Login interface, Investigator console, Materialized SQL relational grids, Schema DAG graph, Provenance ledger, Admin audit history modal, and Certified case dossier modal.
+- **Final Word Submission File**:
+  - Generated and copied to root: `24BCE0793_L25+L26_IA9&10_Proj_DIVYANK_SEERVI.docx` (2.70 MB, 156 paragraphs, 38 native tables, 12 total figures).
+  - Also generated in `submission/` along with matching PDF backup.
+- **Git & Repository Sync**:
+  - Pushed to `main` and `dev` (`5a0136b`). Working tree clean. All backend and database verification tests pass.
 
 - **F1 (Shared Default Credentials)**: Seeding is strictly gated behind `SEED_DEFAULT_USERS=true` or non-production environment; duplicate accounts removed; clear security warnings emitted when run under `NODE_ENV=production`; seeding errors are explicitly logged.
 - **F2 (TypeScript 6 Provenance Head Narrowing)**: Fixed `TS18048` optional chaining in `backend/src/index.ts` across lines 1003, 1067, 1111 (`cachedHead?.hash`, `inMemoryHead?.hash`). `npm run typecheck:backend` now passes with 0 errors.
