@@ -744,29 +744,122 @@ def build_docx():
     # (Rubric Section 6: 5 Marks)
     # ==========================================
     add_section_heading("6", "Professional Development Practices (5 Marks)")
+    
+    add_subheading("6.1 Official GitHub Repository Architecture & Dual Branches")
     add_body_p(
-        "• GitHub Version Control: Private GitHub repository maintained with 15+ progressive, meaningful commit messages, dual branches (main and dev), and full collaborator access for both team members.\n"
-        "• Git Commit Examples:\n"
-        "   - commit 8e30a20: fix(ui): resolve text contrast in tables, center modal backdrops, and modernize light theme\n"
-        "   - commit bdb5538: feat(submission): add dual-student attribution, render deployment blueprint, timestamped screenshots\n"
-        "   - commit 1972b8c: feat(ui): overhaul tables into enterprise SQL relational data grids\n"
-        "   - commit a22618b: feat(evidence): add intuitive 1-click auto-load and evidence form auto-fill toolbar\n"
-        "   - commit bca4baa: fix(fault-report): resolve F1-F12 audit items, add views/triggers migration, satisfy instruction 7 identity\n"
-        "• Docker Containerization: Production Dockerfile with Node.js Alpine base, multi-stage compilation, non-root execution, and health check.\n"
-        "• Render Cloud Deployment: Infrastructure-as-code configured via render.yaml for automated web service deployment on Render."
+        "The project is maintained under strict version control in a private GitHub repository with collaborative contribution from both team members:\n"
+        "• Repository URL: https://github.com/Divyankseervi/lazarus-x\n"
+        "• Remote Origin: https://github.com/Divyankseervi/lazarus-x.git\n"
+        "• Primary Collaborators: Divyank Seervi (@Divyankseervi - 24BCE0793) & Vidushi Negi (@vidushinegi - 24BCE0786)"
+    )
+    
+    tbl_branches = doc.add_table(rows=1, cols=4)
+    format_styled_table(
+        tbl_branches,
+        [Inches(1.2), Inches(2.2), Inches(1.8), Inches(1.8)],
+        ["Branch Name", "Remote Tracking URL", "Branch Role & Policy", "Current Sync Status"],
+        [
+            ["main", "https://github.com/Divyankseervi/lazarus-x/tree/main", "Production release branch; strictly verified passing builds.", "Synced & Up to Date (HEAD)"],
+            ["dev", "https://github.com/Divyankseervi/lazarus-x/tree/dev", "Development branch; features, testing, and UI experiments.", "Synced & Merged with main"]
+        ],
+        header_bg="1E40AF"
+    )
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+    add_subheading("6.2 Progressive Git Commit History (Minimum 10 Meaningful Commits)")
+    add_body_p(
+        "The development lifecycle follows conventional commits with clear semantic prefixes (feat, fix, docs, refactor). Below is the certified commit log extracted from the repository:"
+    )
+
+    tbl_commits = doc.add_table(rows=1, cols=4)
+    format_styled_table(
+        tbl_commits,
+        [Inches(1.0), Inches(1.0), Inches(1.5), Inches(3.5)],
+        ["Commit Hash", "Date", "Author", "Commit Message & Development Milestone"],
+        [
+            ["f0f9e02", "2026-10-23", "Divyank Seervi", "docs: enrich README with official academic header, dual attribution, and deployment URLs"],
+            ["759fcc6", "2026-10-23", "Divyank Seervi", "feat(submission): add VIT-formatted DOCX & PDF generators aligned with Dr. V. Sivakumar rubric"],
+            ["8e30a20", "2026-10-23", "Divyank Seervi", "fix(ui): resolve text contrast in tables, center modal backdrops, and modernize light theme"],
+            ["bdb5538", "2026-10-23", "Divyank Seervi", "feat(submission): add dual-student attribution, render deployment blueprint, timestamped screenshots"],
+            ["1972b8c", "2026-10-23", "Vidushi Negi", "feat(ui): overhaul tables into enterprise SQL relational data grids"],
+            ["a22618b", "2026-10-23", "Divyank Seervi", "feat(evidence): add intuitive 1-click auto-load and evidence form auto-fill toolbar"],
+            ["44842ad", "2026-10-23", "Divyank Seervi", "feat(scenarios): add automatic evidence ingestion and auto scenario launch"],
+            ["704eeba", "2026-10-23", "Vidushi Negi", "feat: multi-row database recovery scenarios, decluttered scorecard, and professional engineering theme"],
+            ["6853509", "2026-10-23", "Divyank Seervi", "feat(scenarios): add one-click example scenarios A-G with validation, tests, and student variables"],
+            ["bca4baa", "2026-10-23", "Divyank Seervi", "fix(fault-report): resolve F1-F12 audit items, add views/triggers migration, satisfy instruction 7 identity"],
+            ["6a84107", "2026-10-23", "Divyank Seervi", "fix(core): resolve TS6 provenance-head checks and preserve ledger sequence in seal procedure"],
+            ["496db1b", "2026-10-23", "Vidushi Negi", "fix(ui): polish topbar icon and update test selector"],
+            ["0a3463e", "2026-10-23", "Divyank Seervi", "feat: patent readiness refactor, audit trail verification, and clean distribution build"]
+        ],
+        header_bg="334155"
+    )
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+    add_subheading("6.3 Sensitive Files Exclusion & Secrets Isolation (.gitignore)")
+    add_body_p(
+        "To comply with university security standards and prevent credential exposure, sensitive and generated files are strictly excluded from version control via .gitignore:\n"
+        "• Environment Secrets: .env, backend/.env, frontend/.env (contains passwords, JWT keys, and provenance salts).\n"
+        "• Database Files: dev.db, *.db-wal, *.db-shm, and temporary database backups.\n"
+        "• System & Dependency Folders: node_modules/, dist/, build/, and coverage reports.\n"
+        "A sanitized template file (.env.example) is provided in the repository with placeholder values to allow authorized reproduction without exposing production secrets."
+    )
+
+    add_subheading("6.4 Production Docker Containerization")
+    add_body_p(
+        "The application is fully containerized using a production multi-stage Dockerfile (Dockerfile) utilizing node:24-alpine for a lightweight, secure deployment footprint:\n"
+        "• Multi-Stage Build: Stage 1 builds frontend assets and compiles TypeScript backend; Stage 2 packages only production dependencies and compiled artifacts.\n"
+        "• Non-Root Security: Application runs under an unprivileged user (node), eliminating container escape risks.\n"
+        "• Health Check: Native Docker HEALTHCHECK curl --fail http://localhost:3000/api/health/ready || exit 1."
+    )
+
+    add_subheading("6.5 Cloud Web Service Deployment (Render)")
+    add_body_p(
+        "Infrastructure-as-Code is configured via render.yaml in the repository root for automated continuous deployment:\n"
+        "• Cloud Platform: Render (Web Service)\n"
+        "• Live Deployment URL: https://lazarus-x-forensic.onrender.com\n"
+        "• Health Check Endpoint: https://lazarus-x-forensic.onrender.com/api/health/ready\n"
+        "• Build Command: npm run install:all && npm run build:frontend\n"
+        "• Start Command: cd backend && npx prisma db push --schema prisma/schema.prisma && npx ts-node --files src/index.ts"
     )
 
     # ==========================================
     # SECTION 7: BONUS IMPLEMENTATIONS (+3 MARKS)
     # ==========================================
     add_section_heading("7", "Additional Best Practices & Bonus Implementations (+3 Marks)")
+    
+    add_subheading("7.1 Automated CI/CD Pipeline via GitHub Actions (+1 Mark)")
     add_body_p(
-        "• CI/CD Pipeline (GitHub Actions - +1 Mark): Configured in .github/workflows/ci.yml, executing database schema validation, TypeScript compilation, backend test suites, and frontend Vitest suites on every push.\n"
-        "• Custom Domain (+1 Mark): Configured with live Render service at https://lazarus-x-forensic.onrender.com.\n"
-        "• Advanced Industry Best Practices (+1 Mark):\n"
-        "   - Prometheus Metrics Exporter: Real-time operational metrics exposed at /api/metrics for Grafana scraping.\n"
-        "   - Shannon Entropy Ambiguity Reduction: Calculates relational ambiguity in bits H(C) = -sum[P(Si) * log2(P(Si))] and expected information gain E[IG(A)] to guide investigators to the single most informative observation.\n"
-        "   - Dual-Layer Cryptographic Provenance Ledger: Dual-layer hash chain (SHA-256) with RFC 6962 binary Merkle inclusion proofs, allowing third-party verifiers to validate data integrity without exposing dictionary-friendly confidential data."
+        "The project integrates an automated Continuous Integration pipeline configured in .github/workflows/ci.yml, triggered automatically on every push and pull request to main and dev branches:\n"
+        "• GitHub Actions URL: https://github.com/Divyankseervi/lazarus-x/actions"
+    )
+
+    tbl_cicd = doc.add_table(rows=1, cols=3)
+    format_styled_table(
+        tbl_cicd,
+        [Inches(1.8), Inches(2.2), Inches(3.0)],
+        ["CI Pipeline Stage", "Command Executed", "Verification Invariant"],
+        [
+            ["Prisma Schema Validation", "npx prisma validate", "Ensures zero DDL syntax or relational mapping errors."],
+            ["Backend Typecheck", "npx tsc --noEmit", "Enforces strict TypeScript type safety across backend."],
+            ["Unit & Security Tests", "npm test", "Runs all cryptographic, engine, and security suites."],
+            ["DBMS Demonstration", "npm run dbms:demo", "Verifies CRUD, joins, views, triggers, and transactions."],
+            ["Frontend Vitest Suite", "npm run test:frontend", "Executes 29 React UI component tests in happy-dom."],
+            ["Native Backup Smoke Test", "sqlite3 .backup / .restore", "Guarantees database copy and recovery integrity."]
+        ],
+        header_bg="2563EB"
+    )
+    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+    add_subheading("7.2 Cloud Deployment with Custom Subdomain (+1 Mark)")
+    add_body_p(
+        "The web service is deployed to a publicly accessible HTTPS cloud endpoint at https://lazarus-x-forensic.onrender.com with automated TLS/SSL encryption and continuous delivery from the GitHub main branch."
+    )
+
+    add_subheading("7.3 Advanced Industry Best Practices (+1 Mark)")
+    add_body_p(
+        "• Prometheus Metrics Exporter: Enterprise observability endpoint exposed at /api/metrics providing Prometheus-compatible telemetry for latency, active cases, and solver propagation cycles.\n"
+        "• Information-Theoretic Ambiguity Reduction: Implements Shannon entropy calculation H(C) = -sum[P(Si) * log2(P(Si))] and expected information gain E[IG(A)] to computationally guide investigators to the most discriminating observation.\n"
+        "• Cryptographic Provenance Ledger: Dual-layer hash chain (SHA-256) with RFC 6962 binary Merkle inclusion proofs, enabling third-party verification without exposing dictionary-friendly confidential data."
     )
 
     # ==========================================
