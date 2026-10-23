@@ -245,7 +245,7 @@ describe('LAZARUS-X investigator console', () => {
 
   it('renders default investigator credentials preset and switches to administrator preset', () => {
     render(<App />);
-    expect(screen.getByText(/LAZARUS/)).toBeInTheDocument();
+    expect(screen.getAllByText(/LAZARUS/)[0]).toBeInTheDocument();
     expect(screen.getByLabelText(/investigator email/i)).toHaveValue('investigator@lazarus.local');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Investigator2026!');
     expect(screen.getByRole('button', { name: /authenticate/i })).toBeInTheDocument();

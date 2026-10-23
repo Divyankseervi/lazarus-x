@@ -11,7 +11,7 @@ import { parseEvidenceCsv, type ImportedEvidenceFragment } from './evidenceCsv';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Boxes, ChevronDown, CircleAlert,
-  ClipboardCheck, Cpu, Database, Edit2, Fingerprint, FileSpreadsheet, GitBranch, GraduationCap, KeyRound, Loader2, Lock, LogOut, Mail, Split,
+  ClipboardCheck, Cpu, Database, Edit2, Fingerprint, FileSpreadsheet, GitBranch, KeyRound, Loader2, Lock, LogOut, Mail, Split,
   Plus, RefreshCw, Search, Shield, ShieldCheck, Sparkles, TimerReset, Trash2, Upload, Zap,
 } from 'lucide-react';
 import {
@@ -1358,7 +1358,7 @@ function App() {
         <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>INVESTIGATOR CONSOLE</small></div></div>
         <div className="topbar-right">
           <div className="system-version-pill" title="LAZARUS-X Platform">
-            <GraduationCap size={13} />
+            <ShieldCheck size={13} />
             <span>LAZARUS-X</span>
             <span className="slot-tag">v2.4</span>
           </div>
