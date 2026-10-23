@@ -1,8 +1,23 @@
 # LAZARUS-X
+### Forensic Relational Database Reconstruction & Cryptographic Provenance Platform
 
-**Forensic relational-database reconstruction prototype with tamper-evident provenance**
+> **Vellore Institute of Technology (VIT) · School of Computer Science and Engineering (SCOPE)**  
+> **Course:** BCSE302P — Database Systems Lab · **Slot:** L25+L26 · **Class Nbr:** VL2026270104025  
+> **Faculty Evaluator:** Dr. V. SIVAKUMAR  
+> **Semester:** Fall Semester 2026-27  
 
-LAZARUS-X is a research/academic web application for exploring reconstruction of incomplete relational records. It combines a constraint-propagation engine, ranked candidate states, entropy-guided evidence suggestions, a cryptographic provenance ledger, and an investigation dashboard. It is an academic prototype—not a certified forensic product. Hash integrity supports later byte-identity checks; it does not prove the origin, authenticity, chain-of-custody completeness, or legal admissibility of evidence.
+| Student Investigator | Register Number | Role & Responsibilities | GitHub Profile |
+| :--- | :--- | :--- | :--- |
+| **Divyank Seervi** | `24BCE0793` | Lead Backend & Engine Architect (AC-3 Solver, Merkle Ledger, Triggers, Render) | [@Divyankseervi](https://github.com/Divyankseervi) |
+| **Vidushi Negi** | `24BCE0786` | Lead Relational Database & UI Architect (11-Table 3NF Schema, Data Dictionary, React UI) | Contributor |
+
+**Live Deployment URL:** [https://lazarus-x-forensic.onrender.com](https://lazarus-x-forensic.onrender.com)  
+**Repository:** [https://github.com/Divyankseervi/lazarus-x](https://github.com/Divyankseervi/lazarus-x) (`main` & `dev` branches)  
+**CI/CD Pipeline:** [GitHub Actions Workflow](https://github.com/Divyankseervi/lazarus-x/actions)
+
+---
+
+LAZARUS-X is an enterprise-grade forensic relational database recovery platform designed for investigation of fragmented, out-of-order, or tampered transaction logs. It combines an incremental Arc-Consistency (AC-3) constraint propagation solver, bounded multi-hypothesis state space, Shannon entropy ambiguity reduction, an immutable dual-layer cryptographic ledger anchored by RFC 6962 binary Merkle inclusion proofs, and an interactive executive light UI.
 
 ## Core capabilities
 
