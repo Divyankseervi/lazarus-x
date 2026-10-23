@@ -8,7 +8,6 @@
     "load:engine": "ts-node --files src/engine/load_test.ts",
     "load:api": "ts-node --files src/engine/api_load_test.ts",
     "security:rotate-provenance-key": "ts-node --files src/security/rotate_provenance_keys.ts",
-    "postinstall": "prisma skills sync || exit 0",
     "dbms:demo": "ts-node --files src/database/dbms_features_demonstration.ts",
     "admin:provision": "ts-node --files src/provision_admin.ts"
   },

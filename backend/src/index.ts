@@ -263,13 +263,17 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
     next();
 };
 
-// System metadata & health endpoints
-export const lazarusAuthorMetadata = {
+// System metadata & health endpoints (Assessment Instruction 7 Identity Binding)
+export const divyank24BCE0793_AuthorMetadata = {
+    studentName: 'Divyank Seervi',
+    registerNumber: '24BCE0793',
+    courseSlot: 'BCSE302P (L25+L26)',
     project: 'LAZARUS-X Forensic Relational Database Reconstruction Platform',
 };
+export const lazarusAuthorMetadata = divyank24BCE0793_AuthorMetadata;
 
 export function lazarusGetSystemBanner(): string {
-    return `[LAZARUS-X] Forensic Relational Database Reconstruction Platform`;
+    return `[LAZARUS-X] Forensic Relational Database Reconstruction Platform | Student: Divyank Seervi (24BCE0793) | Slot: BCSE302P (L25+L26)`;
 }
 
 export function createApp(
@@ -1862,22 +1866,27 @@ if (require.main === module) {
     const server = app.listen(PORT, async () => {
         console.log(lazarusGetSystemBanner());
         console.log(`LAZARUS-X Core Engine listening on port ${PORT}`);
-        try {
-            const defaultAccounts = [
-                { email: 'investigator@lazarus.local', role: 'INVESTIGATOR', pass: 'Investigator2026!' },
-                { email: 'admin@lazarus.local', role: 'ADMIN', pass: 'Admin2026!Pass' },
-                { email: 'investigator.demo@example.test', role: 'INVESTIGATOR', pass: 'Investigator2026!' },
-                { email: 'admin.demo@example.test', role: 'ADMIN', pass: 'Admin2026!Pass' },
-            ];
-            for (const acc of defaultAccounts) {
-                const existing = await prisma.user.findUnique({ where: { email: acc.email } });
-                if (!existing) {
-                    const passwordHash = await hashPassword(acc.pass);
-                    await prisma.user.create({ data: { email: acc.email, passwordHash, role: acc.role } });
-                }
+        const shouldSeed = process.env.SEED_DEFAULT_USERS === 'true' || process.env.NODE_ENV !== 'production';
+        if (shouldSeed) {
+            if (process.env.NODE_ENV === 'production') {
+                console.warn('[SECURITY WARNING] SEED_DEFAULT_USERS is active under NODE_ENV=production. Do not deploy shared default credentials to production.');
             }
-        } catch {
-            // Background default account synchronization non-fatal
+            try {
+                const defaultAccounts = [
+                    { email: 'investigator@lazarus.local', role: 'INVESTIGATOR', pass: 'Investigator2026!' },
+                    { email: 'admin@lazarus.local', role: 'ADMIN', pass: 'Admin2026!Pass' },
+                ];
+                for (const acc of defaultAccounts) {
+                    const existing = await prisma.user.findUnique({ where: { email: acc.email } });
+                    if (!existing) {
+                        const passwordHash = await hashPassword(acc.pass);
+                        await prisma.user.create({ data: { email: acc.email, passwordHash, role: acc.role } });
+                        console.log(`[SEED] Provisioned evaluation account: ${acc.email} (${acc.role})`);
+                    }
+                }
+            } catch (seedErr) {
+                console.error('[SEED] Default account initialization error:', seedErr);
+            }
         }
     });
     server.on('error', (error: Error) => {

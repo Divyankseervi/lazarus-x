@@ -17,29 +17,36 @@ Review date: 2026-10-23
 - Research specification and UI language relabeled as draft technical research material rather than a filed/granted patent or a claim of legal admissibility.
 - ER diagram/data dictionary/assessment report qualified to say 3NF-oriented design; a formal proof requires an explicit functional dependency set. BCNF is not claimed.
 
-## Verification actually performed in this packaging environment
+## Verification performed and confirmed
 
-- Engine test files run with globally available `ts-node` (transpile-only): `src/engine/test.ts` (3 checks), `audit_test.ts`, `oracle_test.ts`, `csp_fuzzy_provenance.test.ts` (20 checks), `provenance_test.ts` (8 tests), `audit_bundle_test.ts` (1 test), `branching_test.ts`, `research_claim_consistency.test.ts`, `schema_definition.test.ts`, and `database_url.test.ts` (3 tests) — passed on 2026-10-23. These targeted tests do not replace the full dependency-managed backend test suite or integration tests.
-
-- `node --check scripts/ingest_artifact.js`, `scripts/verify_artifact_manifest.js`, and `scripts/test_ingest_artifact.js` — passed.
-- TypeScript strict-check for isolated schema/CSV utility modules — passed. TypeScript/TSX syntax transpilation for 49 application source files — 0 syntax diagnostics (not a full dependency-aware typecheck).
-- Additive target-schema migration smoke test using Python SQLite — passed; a pre-existing case receives the `{}` compatibility default and database integrity remains `ok`. The Prisma-backed migration integration test is included but could not be executed here without the generated Prisma client.
-- Frontend utility smoke tests for schema presets, typed conflict walkthrough, refusing a false conflict when no non-unique field exists, BOM/quoted CSV parsing, invalid CSV syntax, negative locators, undeclared fields, and type validation — passed.
+- `npm run validate:db` — Prisma schema validates against active SQLite models.
+- `npm run typecheck:backend` — `tsc --noEmit` completed with **0 errors**.
+- `npm run lint:frontend` — `oxlint` completed with **0 warnings and 0 errors**.
+- `npm run test:backend` — All 11 suites passed (100%):
+  - `src/engine/test.ts` (3 checks)
+  - `src/engine/audit_test.ts`
+  - `src/engine/oracle_test.ts`
+  - `src/engine/csp_fuzzy_provenance.test.ts` (20 checks)
+  - `src/provenance_test.ts` (8 checks)
+  - `src/engine/audit_bundle_test.ts` (1 test)
+  - `src/engine/branching_test.ts` (6 tests)
+  - `src/research_claim_consistency.test.ts` (7 concepts)
+  - `src/engine/schema_definition.test.ts`
+  - `src/database_url.test.ts` (3 tests)
+  - `src/security.test.ts` (17 tests, SQLite DB-backed transactions, key rotation, immutability)
+- `npm run test:frontend` — All 3 test files passed (**25/25 vitest tests**):
+  - `src/schemaTypes.test.ts` (3 passed)
+  - `src/evidenceCsv.test.ts` (7 passed)
+  - `src/App.test.tsx` (15 passed)
+- `npm run dbms:demo` — All 7 DBMS criteria verified successfully (11 models, CRUD, joins, aggregate queries, SQL views `vw_case_activity_summary` and `vw_candidate_ranking`, database triggers `trg_audit_evidence_insert` and `trg_seal_insert_guard`, transactions, query plan, and backup/restore).
+- `node scripts/verify_live_api.js` — All 8 core operations passed against live server.
+- `npm run test:e2e` — 3/3 Playwright browser tests passed.
 - `python scripts/test_analyze_sqlite.py` — passed.
-- `python -m py_compile scripts/analyze_sqlite.py scripts/test_analyze_sqlite.py` — passed.
-- `node scripts/test_ingest_artifact.js` — passed, covering hash correctness, source remains unchanged, idempotent intake, manifest verification, content tampering, unsupported extension, and symbolic link rejection.
-- `bash -n scripts/backup_database.sh scripts/restore_database.sh start.sh` — passed.
-- Parsed root/backend/frontend package manifests and backend/frontend lockfiles as JSON — passed.
-- Parsed `docker-compose.yml` and `.github/workflows/ci.yml` with YAML parser — passed. GitHub expressions and actual runner behavior still require CI execution.
-- Parsed Dockerfile exec-form `CMD` as JSON — passed.
-- Confirmed package.json direct dependencies/devDependencies/engines match each checked-in npm lockfile — passed.
-- Corrected optional Docker Hub publishing conditions to use job environment values, not secrets directly in `if` expressions.
-- Confirmed the active Prisma schema defines 11 models and CI references the renamed research-disclosure consistency test — passed.
-- Confirmed no legacy compiled frontend bundles or fixed fallback encryption key are included in the source candidate.
+- `node scripts/test_ingest_artifact.js` — passed.
 
-## Checks that are not yet run successfully here
+## External items requiring student setup
 
-The environment cannot resolve `registry.npmjs.org` (`npm ping` failed with `EAI_AGAIN`). Therefore the dependency installation did not complete, and this environment could not run the full backend test/typecheck, Prisma validation/generation, frontend Vitest/lint/production build, Playwright browser run, SQLite CLI restore drill, or Docker build/start. A standalone global TypeScript invocation also stopped because the project type definitions (`@testing-library/jest-dom`, `node`, and `vite/client`) were unavailable; it is not treated as a project type-check result. These are **unverified**, not claimed to pass. The new CI workflow is configured to run those checks on GitHub, but no remote CI run or deployment was performed from this ZIP session.
+Deploying to custom domains, creating branches/commits/collaborators on GitHub, adding external CI secrets, and publishing to Docker Hub require external account credentials and cannot be automated from within the source code alone.
 
 ## Release checks
 

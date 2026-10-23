@@ -310,6 +310,48 @@ type AdminOverview = {
   generatedAt: string;
 };
 
+function exportTableAsCSV(relationName: string, rows: Record<string, unknown>[]) {
+  if (!rows || rows.length === 0) return;
+  const headers = Object.keys(rows[0]!).filter(k => k !== '_recordId');
+  const csvRows = [
+    headers.join(','),
+    ...rows.map(row => headers.map(h => {
+      const val = row[h];
+      const str = val === null || val === undefined ? '' : String(val);
+      return str.includes(',') || str.includes('"') || str.includes('\n')
+        ? `"${str.replace(/"/g, '""')}"`
+        : str;
+    }).join(','))
+  ];
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportTableAsJSON(relationName: string, rows: Record<string, unknown>[]) {
+  if (!rows || rows.length === 0) return;
+  const cleaned = rows.map(r => {
+    const copy = { ...r };
+    delete copy._recordId;
+    return copy;
+  });
+  const blob = new Blob([JSON.stringify(cleaned, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.json`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 function AdministratorDashboard({
   token,
   email,
@@ -339,14 +381,34 @@ function AdministratorDashboard({
   }, [token]);
 
   useEffect(() => {
-    void loadOverview();
-  }, [loadOverview]);
+    let ignore = false;
+    void request<AdminOverview>('/admin/overview', token)
+      .then(data => {
+        if (!ignore) {
+          setOverview(data);
+          setError('');
+          setLoading(false);
+        }
+      })
+      .catch(cause => {
+        if (!ignore) {
+          setError(cause instanceof Error ? cause.message : 'Could not load administrator overview.');
+          setLoading(false);
+        }
+      });
+    return () => { ignore = true; };
+  }, [token]);
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>ADMINISTRATOR CONTROL CENTER</small></div></div>
         <div className="topbar-right">
+          <div className="student-pill" title="Lab Assessment Identity (Instruction 7)">
+            <Award size={13} />
+            <span>Divyank Seervi (24BCE0793)</span>
+            <span className="slot-tag">L25+L26</span>
+          </div>
           <div className="system-pill"><span className="status-light" /> ADMIN ENGINE ONLINE</div>
           <div className="user-pill"><span className="avatar">{email.slice(0, 1).toUpperCase()}</span><span>{email}</span><span className="role-tag">ADMIN</span></div>
           <button className="icon-button" aria-label="Log out" title="Log out" onClick={onLogout}><LogOut size={17} /></button>
@@ -425,48 +487,6 @@ function App() {
   const [auditLogsModalOpen, setAuditLogsModalOpen] = useState(false);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [diffViewOpen, setDiffViewOpen] = useState(false);
-
-  const exportTableAsCSV = (relationName: string, rows: Record<string, unknown>[]) => {
-    if (!rows || rows.length === 0) return;
-    const headers = Object.keys(rows[0]!).filter(k => k !== '_recordId');
-    const csvRows = [
-      headers.join(','),
-      ...rows.map(row => headers.map(h => {
-        const val = row[h];
-        const str = val === null || val === undefined ? '' : String(val);
-        return str.includes(',') || str.includes('"') || str.includes('\n')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
-      }).join(','))
-    ];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const exportTableAsJSON = (relationName: string, rows: Record<string, unknown>[]) => {
-    if (!rows || rows.length === 0) return;
-    const cleaned = rows.map(r => {
-      const copy = { ...r };
-      delete copy._recordId;
-      return copy;
-    });
-    const blob = new Blob([JSON.stringify(cleaned, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.json`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
   const triggerAdminBackup = async () => {
     if (!token || role !== 'ADMIN') return;
@@ -919,7 +939,7 @@ function App() {
     if (!Number.isFinite(sourceConfidence) || sourceConfidence <= 0 || sourceConfidence > 1) {
       nextErrors.confidence = 'Source confidence must be greater than 0 and at most 1.';
     }
-    if (sourceRef.trim().length > 256 || /[\u0000-\u001f\u007f]/.test(sourceRef)) nextErrors.sourceRef = 'Source reference must be a printable label of at most 256 characters.';
+    if (sourceRef.trim().length > 256 || sourceRef.split('').some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) nextErrors.sourceRef = 'Source reference must be a printable label of at most 256 characters.';
     if (sourceSha256.trim() && !/^[a-f0-9]{64}$/i.test(sourceSha256.trim())) nextErrors.sourceSha256 = 'Source SHA-256 must contain exactly 64 hexadecimal characters.';
 
     let evidenceValue: string | number | boolean | null;
@@ -1205,10 +1225,10 @@ function App() {
             </div>
 
             <div className="hero-academic-attribution">
-              <Award size={15} className="text-amber" />
+              <Award size={16} className="text-amber" />
               <div>
-                <strong>LAZARUS-X Forensic Platform</strong>
-                <small>Relational Database Reconstruction & Cryptographic Provenance</small>
+                <strong>Divyank Seervi · 24BCE0793</strong>
+                <small>BCSE302P Database Management Systems · Slot L25+L26</small>
               </div>
             </div>
           </div>
@@ -1340,7 +1360,7 @@ function App() {
               </button>
             )}
             <div className="auth-foot">
-              <ShieldCheck size={13} /> BCrypt KDF (Cost 12) · Tamper-Evident Session Tokens · Zero Secrets in Code
+              <ShieldCheck size={13} /> BCSE302P DBMS Project · Divyank Seervi (24BCE0793) · Slot L25+L26
             </div>
           </motion.section>
         </div>
@@ -1357,6 +1377,11 @@ function App() {
       <header className="topbar">
         <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>INVESTIGATOR CONSOLE</small></div></div>
         <div className="topbar-right">
+          <div className="student-pill" title="Lab Assessment Identity (Instruction 7)">
+            <Award size={13} />
+            <span>Divyank Seervi (24BCE0793)</span>
+            <span className="slot-tag">L25+L26</span>
+          </div>
           <div className="system-version-pill" title="LAZARUS-X Platform">
             <ShieldCheck size={13} />
             <span>LAZARUS-X</span>

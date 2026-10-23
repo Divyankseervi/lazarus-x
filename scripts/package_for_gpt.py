@@ -30,7 +30,8 @@ EXCLUDE_DIRS = {
     'backups',
     '__pycache__',
     '.pytest_cache',
-    'evidence-manifests'
+    'evidence-manifests',
+    'supervisor'
 }
 
 # Individual files and glob patterns to exclude
@@ -38,7 +39,10 @@ EXCLUDE_EXACT_FILES = {
     '.env',
     'dev.db',
     '.DS_Store',
-    'Thumbs.db'
+    'Thumbs.db',
+    'AUTONOMOUS_EXECUTION_LOG.md',
+    '09_repository_audit.md',
+    'AGENTS.md'
 }
 
 EXCLUDE_PATTERNS = [
@@ -48,7 +52,10 @@ EXCLUDE_PATTERNS = [
     '*.db-wal',
     '*.db-shm',
     '*.db-journal',
-    '*.log'
+    '*.log',
+    '*.docx',
+    '*.pptx',
+    '*.pdf'
 ]
 
 def create_gpt_archive(root_dir: str = '.', output_filename: str = 'LAZARUS-X-GPT.zip') -> str:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, X, RefreshCw, Search, ChevronLeft, ChevronRight, UserCheck, Database, Clock } from 'lucide-react';
 
 interface AuditLogEntry {
@@ -51,7 +51,7 @@ export const AuditLogsModal: React.FC<AuditLogsModalProps> = ({
   const [actionFilter, setActionFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchLogs = async (targetPage = page, targetAction = actionFilter, targetSearch = searchQuery) => {
+  const fetchLogs = useCallback(async (targetPage = page, targetAction = actionFilter, targetSearch = searchQuery) => {
     if (!token) return;
     setLoading(true);
     setError(null);
@@ -80,13 +80,42 @@ export const AuditLogsModal: React.FC<AuditLogsModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [token, apiBase, page, actionFilter, searchQuery]);
 
   useEffect(() => {
-    if (isOpen) {
-      void fetchLogs(1, actionFilter, searchQuery);
-    }
-  }, [isOpen, actionFilter]);
+    if (!isOpen || !token) return;
+    let ignore = false;
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    params.set('limit', '15');
+    if (actionFilter && actionFilter !== 'ALL') params.set('action', actionFilter);
+    if (searchQuery.trim()) params.set('search', searchQuery.trim());
+
+    void fetch(`${apiBase}/audit-logs?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error(`Failed to load audit logs: ${res.statusText}`);
+        return res.json();
+      })
+      .then(data => {
+        if (!ignore) {
+          setLogs(data.logs || []);
+          setPage(data.pagination?.page || 1);
+          setTotalPages(data.pagination?.totalPages || 1);
+          setTotalCount(data.pagination?.total || 0);
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        if (!ignore) {
+          setError(err.message || 'Error fetching audit logs');
+          setLoading(false);
+        }
+      });
+
+    return () => { ignore = true; };
+  }, [isOpen, actionFilter, apiBase, token, searchQuery]);
 
   if (!isOpen) return null;
 

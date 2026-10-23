@@ -27,18 +27,18 @@ import { execSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../security/password';
 
-const lazarus_DemoAuthor = 'LAZARUS-X';
-const lazarus_DemoId = 'LAZARUS-X-DEMO';
-const lazarus_DemoSlot = 'DEFAULT';
-const lazarus_DemoTag = 'DBMS';
+// Assessment Instruction 7 Mandated Identity Binding
+const divyank24BCE0793_DemoAuthor = 'Divyank Seervi';
+const divyank24BCE0793_DemoId = '24BCE0793';
+const divyank24BCE0793_DemoSlot = 'BCSE302P (L25+L26)';
+const divyank24BCE0793_DemoCourse = 'Database Management Systems';
 
-async function lazarus_runDBMSRequirements() {
+export async function divyank24BCE0793_runDBMSRequirements() {
   const timestamp = new Date().toISOString();
   console.log('========================================================================');
   console.log('   LAZARUS-X - COMPREHENSIVE DBMS REQUIREMENTS VERIFIER');
-  console.log(`   Platform: ${lazarus_DemoAuthor} | ID: ${lazarus_DemoId} | Config: ${lazarus_DemoSlot}`);
-  console.log(`   Execution Timestamp: ${timestamp}`);
-  console.log('   Tag: ' + lazarus_DemoTag);
+  console.log(`   Student: ${divyank24BCE0793_DemoAuthor} | Reg No: ${divyank24BCE0793_DemoId} | Slot: ${divyank24BCE0793_DemoSlot}`);
+  console.log(`   Course: ${divyank24BCE0793_DemoCourse} | Execution Timestamp: ${timestamp}`);
   console.log('========================================================================\n');
 
   // 1. Initialize Isolated Database
@@ -353,7 +353,9 @@ async function lazarus_runDBMSRequirements() {
   }
 }
 
-lazarus_runDBMSRequirements().catch(err => {
+export const lazarus_runDBMSRequirements = divyank24BCE0793_runDBMSRequirements;
+
+divyank24BCE0793_runDBMSRequirements().catch(err => {
   console.error('\nDBMS Requirements Runner Failed:', err);
   process.exit(1);
 });

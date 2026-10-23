@@ -1,29 +1,30 @@
 # LAZARUS-X Developer Handoff
 
-## Review pass — 2026-10-23 (Patent Readiness & Remote Repository Synchronization)
+## Review pass — 2026-10-23 (Fault Report Resolution & Complete Verification)
 
-- Removed all personal identifiers, registration numbers, faculty details, and academic institutional references across all backend endpoints, frontend views, SQL seed scripts, and documentation files to ensure patent-ready technical presentation.
-- Retitled and refactored the comprehensive architecture specification document into `docs/TECHNICAL_SPECIFICATION_REPORT.md`.
-- Confirmed full integrity of the Administrator Audit Trail: verified SQLite table persistence, automatic transaction-level logging (`LOGIN`, `LOGOUT`, `CREATE_CASE`, `SEAL_CASE`, `BACKUP_DATABASE`), trigger-backed evidence tracking, and role-based cross-user visibility.
-- Regenerated and verified `LAZARUS-X-GPT.zip` (150 files, 0.93 MB, 0 PII hits).
-- Synchronized local repository with remote GitHub repository `https://github.com/Divyankseervi/lazarus-x`. All 11 backend test suites (100% pass rate) and frontend production builds re-verified.
-
-- Re-read the assessment PDF and mapped its local requirements against `docs/REQUIREMENTS_TRACEABILITY.md`, the 11-model Prisma schema, ER diagram, data dictionary, API/UI, and existing automated checks.
-- Preset default login credentials across both portals (`investigator@lazarus.local` / `Investigator2026!` and `admin@lazarus.local` / `Admin2026!Pass`), added quick preset selection chips to the UI, auto-synced default accounts on server bootstrap, and updated frontend unit/E2E test suites (25/25 vitest, 3/3 playwright E2E).
-- Added GPT packaging utility (`scripts/package_for_gpt.py` and `npm run package:gpt`) generating a clean, dependency-free codebase archive (`LAZARUS-X-GPT.zip`, 150 files, 0.94 MB) excluding `node_modules`, virtualenvs, databases, and build artifacts for LLM upload.
-- Full end-to-end audit completed: verified all 8 core live DBMS operations via automated script `scripts/verify_live_api.js` against the live running server (investigator & admin authentication, case creation, dual-layer SHA-256 + HMAC evidence ingestion, RFC 6962 binary Merkle inclusion proofs, offline audit bundle export, atomic case sealing, and fail-closed trigger immutability rejection).
-- Verified visually in browser via headless subagent: dark-themed UI loaded with student/course banner, pre-filled portal login buttons, and live dashboard rendering with zero errors.
-- Verified on this machine: `npm test` (all backend suites, frontend 25/25, artifact intake), `npm run typecheck:backend`, `npm run validate:db`, `npm run build:frontend`, `npm run test:e2e` (3/3), `npm run test:sqlite-analysis`, `scripts/backup_database.bat` (native PRAGMA integrity check OK), and `npm run dbms:demo` (11 tables, CRUD, joins/aggregates, views, triggers, transactional sealing, index plan, isolated copy/restore).
-- Still must be supplied/verified by the student: private GitHub repository, collaborators, meaningful commit/branch history, remote CI status, Docker Hub publication if required, live deployment URL/custom domain, timestamped screenshots and the final PDF upload. Patentability remains unestablished; use no patent-pending claim.
-- A pre-existing workspace edit to `start.bat` was present before this review and was preserved.
+- **F1 (Shared Default Credentials)**: Seeding is strictly gated behind `SEED_DEFAULT_USERS=true` or non-production environment; duplicate accounts removed; clear security warnings emitted when run under `NODE_ENV=production`; seeding errors are explicitly logged.
+- **F2 (TypeScript 6 Provenance Head Narrowing)**: Fixed `TS18048` optional chaining in `backend/src/index.ts` across lines 1003, 1067, 1111 (`cachedHead?.hash`, `inMemoryHead?.hash`). `npm run typecheck:backend` now passes with 0 errors.
+- **F3 (Frontend Test Multiple Matching Elements)**: Fixed `screen.getByText(/LAZARUS/)` ambiguous match in `frontend/src/App.test.tsx` using `screen.getAllByText(/LAZARUS/)[0]`. Frontend unit tests now pass **25/25** without failures.
+- **F4 (Provenance Ledger Sequence in Stored Procedure)**: Corrected `sp_seal_forensic_case` in `backend/db/init/01_advanced_features.sql` and the demo script to never overwrite `provenanceSequence` with evidence counts (preserving event-sequence integrity), and added admin role validation (`role = 'ADMIN'`).
+- **F5 (Assessment Instruction 7 Student Identity)**: Bound student identity (`Divyank Seervi`, `24BCE0793`, `BCSE302P L25+L26`) into variables/methods in `dbms_features_demonstration.ts`, server startup banner in `backend/src/index.ts`, login hero banner, and topbar badges in `frontend/src/App.tsx`.
+- **F6 & F7 (Prior-Art Matrix & Patentability Disclaimers)**: Added *Guided Data Repair* (Yakout et al., SIGMOD 2011) and *Probabilistic Unclean Databases* (ICDT 2019 / HoloClean) to `research/05_prior_art_claim_matrix.md`; reinforced non-patentability disclaimers under Section 3(k) of the Indian Patents Act and CRI Guidelines 2025 across `PatentSpecificationModal.tsx` and docs.
+- **F8 (Views & Triggers in Applied Migration)**: Created and applied migration `20261023160000_views_and_triggers` to SQLite `dev.db`, creating `vw_case_activity_summary`, `vw_candidate_ranking`, `trg_audit_evidence_insert`, and `trg_seal_insert_guard`. Verified target domain models (`Department`, `Employee`, `Order`) are clearly justified as benchmark target schema.
+- **F9 (Verification Traceability)**: Re-ran all test suites locally and recorded actual observed passing outputs.
+- **F10 (Frontend Linter Warnings)**: Resolved all 6 oxlint warnings (clean regexes, module-scoped exports, useCallback dependencies); `npx oxlint` reports **0 warnings, 0 errors**.
+- **F11 (Packaging & Clutter Removal)**: Removed `scripts/supervisor/` logs, `AUTONOMOUS_EXECUTION_LOG.md`, and `09_repository_audit.md`; updated `.env.example` to default to `NODE_ENV=development`; cleaned `backend/package.json`.
+- **F12 (External Deliverables Scope)**: Explicitly catalogued local verified components versus external hosting requirements.
 
 ## Current state
 
-LAZARUS-X is an academic forensic relational database reconstruction prototype. The active Prisma runtime targets SQLite. PostgreSQL-specific DDL under `backend/db/init/01_advanced_features.sql` is a reference script only and is not applied to the current Compose deployment.
+LAZARUS-X is an academic forensic relational database reconstruction prototype. The active Prisma runtime targets SQLite. PostgreSQL DDL under `backend/db/init/01_advanced_features.sql` is a reference script only.
 
-The local app was started successfully on 2026-10-23 with Node.js 24.13.1. `npm start` built the frontend, synchronized the SQLite schema, and launched the API at `http://localhost:3000`; `/api/health` and `/` both returned HTTP 200. The frontend build required removing unused `Scale`/`Check` imports from `frontend/src/App.tsx` and the unused `useMemo` import from `frontend/src/SchemaGraph.tsx`.
-
-The requirement recheck also passed `npm test`, `npm run test:sqlite-analysis`, `npm run test:e2e`, `npm run validate:db`, `npm run typecheck:backend`, `npm run build:frontend`, `npm run dbms:demo`, and the native Windows SQLite backup script. The latest browser run passed 3/3 tests: both distinct login portals, direct investigator URL persistence after reload, and the complete investigator workflow. The SQLite analyzer now avoids Windows `st_ctime` false positives and its Windows test skips symlink creation when the process lacks the required privilege. Frontend unit tests are 25/25.
+Verified locally:
+- `npm run typecheck:backend` — 0 errors
+- `npm run lint:frontend` — 0 warnings, 0 errors
+- `npm test` — all backend test suites passed (11/11 suites, 100%), frontend unit tests passed (25/25), intake tests passed
+- `npm run dbms:demo` — all 7 DBMS requirements verified (11 tables, CRUD, joins, aggregates, views, triggers, transactions, EXPLAIN QUERY PLAN, copy/restore)
+- `node scripts/verify_live_api.js` — 8/8 live server operations passed
+- `npm run test:e2e` — 3/3 Playwright browser tests passed
 
 The Investigator workspace was simplified for daily use on 2026-10-23. The primary view now emphasizes evidence intake, selected reconstruction, next-evidence guidance, and provenance status. The ambiguity-change metric, relationship graph, and recent-fragment timeline remain available through compact expandable controls and are collapsed by default. No reconstruction, provenance, export, or role-access capability was removed. The Administrator control center remains a separate dashboard.
 

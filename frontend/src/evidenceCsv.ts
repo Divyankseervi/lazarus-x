@@ -123,7 +123,7 @@ export function parseEvidenceCsv(source: string, schema: CaseSchema): ImportedEv
     if (value === null && column?.required) throw new Error(`Row ${line}: ${table}.${field} is required and cannot be NULL.`);
     const sourceRef = index.has('sourceref') ? lookup(row, 'sourceref') : '';
     const sourceSha256 = index.has('sourcesha256') ? lookup(row, 'sourcesha256').toLowerCase() : '';
-    if (sourceRef.length > 256 || /[\u0000-\u001f\u007f]/.test(sourceRef)) throw new Error(`Row ${line}: sourceRef must be a printable label of at most 256 characters.`);
+    if (sourceRef.length > 256 || sourceRef.split('').some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) throw new Error(`Row ${line}: sourceRef must be a printable label of at most 256 characters.`);
     if (sourceSha256 && !/^[a-f0-9]{64}$/.test(sourceSha256)) throw new Error(`Row ${line}: sourceSha256 must contain exactly 64 hexadecimal characters.`);
     return { table, recordId, field, value, confidence, ...(sourceRef ? { sourceRef } : {}), ...(sourceSha256 ? { sourceSha256 } : {}) };
   });
