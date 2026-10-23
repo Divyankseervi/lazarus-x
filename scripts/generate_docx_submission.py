@@ -1,7 +1,12 @@
 """
 LAZARUS-X Final DBMS Project Submission DOCX & PDF Generator
-STRICT FORMAL BLACK & WHITE / GRAYSCALE ACADEMIC EDITION
-Fully Aligned with Faculty Dr. V. SIVAKUMAR's Guidelines & Rubric
+Clean, Basic, Formal Academic Edition
+- Black text for high readability
+- Basic clean tables without heavy saturated colors
+- Student and course details mentioned ONCE at the start
+- No running headers/footers on every page
+- Original high-resolution color screenshots
+- No signature space / attestation block
 Authors: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)
 Course: BCSE302P Database Systems Lab (Slot L25+L26)
 Faculty: Dr. V. SIVAKUMAR, SCOPE, VIT
@@ -14,17 +19,16 @@ import docx
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
-from PIL import Image
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 
 def set_cell_background(cell, fill_hex):
     tcPr = cell._tc.get_or_add_tcPr()
     shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
     tcPr.append(shd)
 
-def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
+def set_cell_margins(cell, top=80, bottom=80, left=120, right=120):
     tcPr = cell._tc.get_or_add_tcPr()
     tcMar = parse_xml(
         f'<w:tcMar {nsdecls("w")}>'
@@ -36,46 +40,35 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
     )
     tcPr.append(tcMar)
 
-def add_header_footer(doc):
+def configure_page_margins(doc):
     for s in doc.sections:
         s.top_margin = Inches(0.75)
         s.bottom_margin = Inches(0.75)
         s.left_margin = Inches(0.75)
         s.right_margin = Inches(0.75)
-
-        # Header (Black & White)
-        header = s.header
-        hp = header.paragraphs[0]
-        hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        hrun = hp.add_run("BCSE302P Database Systems Lab (Slot L25+L26) | Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)")
-        hrun.font.name = "Arial"
-        hrun.font.size = Pt(8)
-        hrun.font.color.rgb = RGBColor(60, 60, 60)
-
-        # Footer (Black & White)
-        footer = s.footer
-        fp = footer.paragraphs[0]
-        fp.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        frun = fp.add_run("School of Computer Science and Engineering (SCOPE), VIT · Lab Internal Assessment 8, 9 & 10")
-        frun.font.name = "Arial"
-        frun.font.size = Pt(8)
-        frun.font.color.rgb = RGBColor(60, 60, 60)
+        # Clear headers and footers - basic document without repetitive running headers
+        s.header.is_linked_to_previous = False
+        s.footer.is_linked_to_previous = False
+        if len(s.header.paragraphs) > 0:
+            s.header.paragraphs[0].text = ""
+        if len(s.footer.paragraphs) > 0:
+            s.footer.paragraphs[0].text = ""
 
 def add_code_block(doc, code_text):
     tbl = doc.add_table(rows=1, cols=1)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     cell = tbl.cell(0, 0)
     set_cell_background(cell, "F9FAFB")
-    set_cell_margins(cell, top=100, bottom=100, left=150, right=150)
+    set_cell_margins(cell, top=90, bottom=90, left=140, right=140)
     cell.width = Inches(7.0)
     
     tcPr = cell._tc.get_or_add_tcPr()
     tcBorders = parse_xml(
         f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
-        f'<w:left w:val="single" w:sz="18" w:space="0" w:color="000000"/>'
-        f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
-        f'<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        f'<w:top w:val="single" w:sz="4" w:space="0" w:color="D1D5DB"/>'
+        f'<w:left w:val="single" w:sz="12" w:space="0" w:color="374151"/>'
+        f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="D1D5DB"/>'
+        f'<w:right w:val="single" w:sz="4" w:space="0" w:color="D1D5DB"/>'
         f'</w:tcBorders>'
     )
     tcPr.append(tcBorders)
@@ -93,29 +86,30 @@ def add_code_block(doc, code_text):
     sp.paragraph_format.space_before = Pt(0)
     sp.paragraph_format.space_after = Pt(4)
 
-def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="262626"):
+def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="F3F4F6"):
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     
+    # Table header (Clean, soft light-gray background with black bold text)
     hdr_cells = table.rows[0].cells
     for i, title in enumerate(col_headers):
         hdr_cells[i].text = title
         set_cell_background(hdr_cells[i], header_bg)
-        set_cell_margins(hdr_cells[i], top=70, bottom=70, left=90, right=90)
+        set_cell_margins(hdr_cells[i], top=60, bottom=60, left=80, right=80)
         p = hdr_cells[i].paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         for run in p.runs:
             run.font.name = "Arial"
             run.font.size = Pt(8.5)
             run.font.bold = True
-            run.font.color.rgb = RGBColor(255, 255, 255)
+            run.font.color.rgb = RGBColor(0, 0, 0)
             
+    # Table data rows (Clean white with subtle thin gray borders)
     for r_idx, row_data in enumerate(data_rows):
         row_cells = table.add_row().cells
-        bg_color = "FFFFFF" if r_idx % 2 == 0 else "F9FAFB"
         for c_idx, val in enumerate(row_data):
             row_cells[c_idx].text = str(val)
-            set_cell_background(row_cells[c_idx], bg_color)
-            set_cell_margins(row_cells[c_idx], top=50, bottom=50, left=90, right=90)
+            set_cell_background(row_cells[c_idx], "FFFFFF")
+            set_cell_margins(row_cells[c_idx], top=50, bottom=50, left=80, right=80)
             p = row_cells[c_idx].paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
             for run in p.runs:
@@ -127,169 +121,96 @@ def format_styled_table(table, col_widths, col_headers, data_rows, header_bg="26
         for idx, width in enumerate(col_widths):
             row.cells[idx].width = width
 
-def convert_to_grayscale(src_path, dst_path):
-    try:
-        im = Image.open(src_path).convert('L')
-        im.save(dst_path)
-        return dst_path
-    except Exception as e:
-        print(f"[WARN] Failed to convert {src_path} to grayscale: {e}")
-        return src_path
-
 def build_docx():
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     output_dir = os.path.join(project_root, "submission")
     screenshots_dir = os.path.join(output_dir, "screenshots")
-    bw_screenshots_dir = os.path.join(screenshots_dir, "bw")
-    os.makedirs(bw_screenshots_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     
     doc = Document()
-    add_header_footer(doc)
+    configure_page_margins(doc)
     
     # ==========================================
-    # OFFICIAL VIT ASSESSMENT COVER HEADER (BLACK & WHITE)
+    # 1. INITIAL ASSESSMENT DETAILS (MENTIONED ONCE AT START)
     # ==========================================
-    cover_box = doc.add_table(rows=1, cols=1)
-    cover_box.alignment = WD_TABLE_ALIGNMENT.CENTER
-    c = cover_box.cell(0, 0)
-    set_cell_background(c, "FFFFFF")
-    set_cell_margins(c, top=140, bottom=140, left=180, right=180)
-    c.width = Inches(7.0)
-    
-    tcPr = c._tc.get_or_add_tcPr()
-    tcBorders = parse_xml(
-        f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
-        f'<w:left w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
-        f'<w:bottom w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
-        f'<w:right w:val="single" w:sz="16" w:space="0" w:color="000000"/>'
-        f'</w:tcBorders>'
-    )
-    tcPr.append(tcBorders)
-    
-    tp = c.paragraphs[0]
-    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    r0 = tp.add_run("VELLORE INSTITUTE OF TECHNOLOGY (VIT)\n")
-    r0.font.name = "Arial"
-    r0.font.size = Pt(14)
-    r0.font.bold = True
-    r0.font.color.rgb = RGBColor(0, 0, 0)
-    
-    r1 = tp.add_run("School of Computer Science and Engineering (SCOPE)\n")
-    r1.font.name = "Arial"
-    r1.font.size = Pt(11.5)
-    r1.font.bold = True
-    r1.font.color.rgb = RGBColor(0, 0, 0)
-    
-    r2 = tp.add_run("Lab Internal Assessment Test – 8, 9 & 10 (Fall Semester 2026-27)\n\n")
-    r2.font.name = "Arial"
-    r2.font.size = Pt(10.5)
-    r2.font.bold = True
-    r2.font.color.rgb = RGBColor(60, 60, 60)
-    
-    # Official Course Details Table (Black & White)
-    tbl_course = doc.add_table(rows=1, cols=6)
+    p_inst = doc.add_paragraph()
+    p_inst.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_inst.paragraph_format.space_before = Pt(0)
+    p_inst.paragraph_format.space_after = Pt(2)
+    r_inst = p_inst.add_run("VELLORE INSTITUTE OF TECHNOLOGY (VIT)\nSchool of Computer Science and Engineering (SCOPE)")
+    r_inst.font.name = "Arial"
+    r_inst.font.size = Pt(12)
+    r_inst.font.bold = True
+    r_inst.font.color.rgb = RGBColor(0, 0, 0)
+
+    p_test = doc.add_paragraph()
+    p_test.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_test.paragraph_format.space_before = Pt(2)
+    p_test.paragraph_format.space_after = Pt(8)
+    r_test = p_test.add_run("Lab Internal Assessment Test – 8, 9 & 10 (Fall Semester 2026-27)")
+    r_test.font.name = "Arial"
+    r_test.font.size = Pt(10.5)
+    r_test.font.bold = True
+    r_test.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Clean, simple metadata table (Once at start)
+    tbl_start = doc.add_table(rows=1, cols=4)
     format_styled_table(
-        tbl_course,
-        [Inches(1.2), Inches(1.1), Inches(1.8), Inches(1.3), Inches(0.8), Inches(0.8)],
-        ["Semester", "Course Code", "Course Title", "ClassNbr", "Slot", "Date"],
+        tbl_start,
+        [Inches(1.7), Inches(2.2), Inches(1.3), Inches(1.8)],
+        ["Course Information", "Course Title & Slot", "Class Number", "Faculty Evaluator"],
         [
-            ["Fall Sem 2026-27", "BCSE302P", "Database Systems Lab", "VL2026270104025", "L25+L26", "11-09-2026"]
+            ["Course Code: BCSE302P", "Database Systems Lab (L25+L26)", "VL2026270104025", "Dr. V. SIVAKUMAR"]
         ],
-        header_bg="262626"
+        header_bg="F3F4F6"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
-    # Faculty & Student Identification Block (Black & White)
-    tbl_ident = doc.add_table(rows=1, cols=4)
+    tbl_students = doc.add_table(rows=1, cols=3)
     format_styled_table(
-        tbl_ident,
-        [Inches(1.8), Inches(1.4), Inches(1.8), Inches(2.0)],
-        ["Candidate / Role", "Register Number", "Programme & School", "Faculty Evaluator"],
+        tbl_students,
+        [Inches(2.5), Inches(1.8), Inches(2.7)],
+        ["Student Name", "Register Number", "Course & Programme"],
         [
-            ["Divyank Seervi (Lead Backend)", "24BCE0793", "B.Tech. CSE (SCOPE)", "Dr. V. SIVAKUMAR"],
-            ["Vidushi Negi (Lead Relational)", "24BCE0786", "B.Tech. CSE (SCOPE)", "Dr. V. SIVAKUMAR"]
+            ["Divyank Seervi", "24BCE0793", "B.Tech. Computer Science & Engineering"],
+            ["Vidushi Negi", "24BCE0786", "B.Tech. Computer Science & Engineering"]
         ],
-        header_bg="404040"
+        header_bg="F3F4F6"
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
-    # Project Title Banner (Black & White)
-    tbl_banner = doc.add_table(rows=1, cols=1)
-    tbl_banner.alignment = WD_TABLE_ALIGNMENT.CENTER
-    cb = tbl_banner.cell(0, 0)
-    set_cell_background(cb, "F3F4F6")
-    set_cell_margins(cb, top=80, bottom=80, left=120, right=120)
-    cb.width = Inches(7.0)
-    
-    tcPrB = cb._tc.get_or_add_tcPr()
-    tcBordersB = parse_xml(
-        f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        f'<w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        f'<w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        f'<w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        f'</w:tcBorders>'
-    )
-    tcPrB.append(tcBordersB)
-    
-    pb = cb.paragraphs[0]
-    pb.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    rb = pb.add_run("PROJECT TITLE: LAZARUS-X\nForensic Relational Database Reconstruction & Cryptographic Provenance Platform")
-    rb.font.name = "Arial"
-    rb.font.size = Pt(11)
-    rb.font.bold = True
-    rb.font.color.rgb = RGBColor(0, 0, 0)
+    p_proj = doc.add_paragraph()
+    p_proj.paragraph_format.space_before = Pt(4)
+    p_proj.paragraph_format.space_after = Pt(2)
+    r_proj = p_proj.add_run("Project Title: LAZARUS-X: Forensic Relational Database Reconstruction & Cryptographic Provenance Platform")
+    r_proj.font.name = "Arial"
+    r_proj.font.size = Pt(10.5)
+    r_proj.font.bold = True
+    r_proj.font.color.rgb = RGBColor(0, 0, 0)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
-
-    # Mandatory Submission Order Callout (Instruction 2) (Black & White)
-    tbl_order = doc.add_table(rows=1, cols=1)
-    tbl_order.alignment = WD_TABLE_ALIGNMENT.CENTER
-    co = tbl_order.cell(0, 0)
-    set_cell_background(co, "FFFFFF")
-    set_cell_margins(co, top=60, bottom=60, left=120, right=120)
-    co.width = Inches(7.0)
-    
-    tcPrO = co._tc.get_or_add_tcPr()
-    tcBordersO = parse_xml(
-        f'<w:tcBorders {nsdecls("w")}>'
-        f'<w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
-        f'<w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
-        f'<w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
-        f'<w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>'
-        f'</w:tcBorders>'
-    )
-    tcPrO.append(tcBordersO)
-    
-    po = co.paragraphs[0]
-    ro = po.add_run(
-        "MANDATORY FACULTY INSTRUCTION 2 COMPLIANCE:\n"
-        "This submission strictly follows the prescribed order: (1) Given Problem Statement / Question, "
-        "(2) Query / Source Code, and (3) Input and Output / Screenshot with Timestamp across all technical sections."
-    )
-    ro.font.name = "Arial"
-    ro.font.size = Pt(8.5)
-    ro.font.bold = True
-    ro.font.color.rgb = RGBColor(0, 0, 0)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
+    p_ord = doc.add_paragraph()
+    p_ord.paragraph_format.space_before = Pt(1)
+    p_ord.paragraph_format.space_after = Pt(10)
+    r_ord = p_ord.add_run("Submission Structure (Instruction 2): (1) Problem Statement / Question · (2) Query / Source Code · (3) Output / Timestamped Screenshots")
+    r_ord.font.name = "Arial"
+    r_ord.font.size = Pt(8.5)
+    r_ord.font.italic = True
+    r_ord.font.color.rgb = RGBColor(60, 60, 60)
 
     def add_section_heading(num_str, title_str):
         h = doc.add_paragraph()
-        h.paragraph_format.space_before = Pt(14)
-        h.paragraph_format.space_after = Pt(4)
+        h.paragraph_format.space_before = Pt(12)
+        h.paragraph_format.space_after = Pt(3)
         h.paragraph_format.keep_with_next = True
         run = h.add_run(f"{num_str}. {title_str}")
         run.font.name = "Arial"
-        run.font.size = Pt(11.5)
+        run.font.size = Pt(11)
         run.font.bold = True
         run.font.color.rgb = RGBColor(0, 0, 0)
         
     def add_subheading(title_str):
         p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_before = Pt(6)
         p.paragraph_format.space_after = Pt(2)
         p.paragraph_format.keep_with_next = True
         run = p.add_run(title_str)
@@ -342,26 +263,26 @@ def build_docx():
     )
     
     add_subheading("1.5 Team Members and Responsibilities")
-    tbl_team = doc.add_table(rows=1, cols=4)
+    tbl_team = doc.add_table(rows=1, cols=3)
     format_styled_table(
         tbl_team,
-        [Inches(1.5), Inches(1.2), Inches(1.8), Inches(2.5)],
-        ["Student Name", "Register No", "Assigned Role", "Key Technical Responsibilities"],
+        [Inches(1.8), Inches(2.0), Inches(3.2)],
+        ["Student Name", "Assigned Role", "Technical Responsibilities"],
         [
             [
                 "Divyank Seervi",
-                "24BCE0793",
                 "Lead Backend & Engine Architect",
                 "Core engine constraint solver (AC-3), Merkle provenance ledger, database triggers, atomic sealing transaction, indexing strategy (EXPLAIN QUERY PLAN), Docker containerization, REST API routes."
             ],
             [
                 "Vidushi Negi",
-                "24BCE0786",
                 "Lead Relational Database & UI Architect",
-                "Relational schema design (11 tables in 3NF), Data Dictionary, ER diagram modeling, frontend data grids & enterprise theme, audit trail queries & UI pagination, documentation & test suite design."
+                "Relational schema design (11 tables in 3NF), Data Dictionary, ER diagram modeling, frontend data grids, audit trail queries, UI pagination, documentation and test suite design."
             ]
-        ]
+        ],
+        header_bg="F3F4F6"
     )
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
     
     add_subheading("1.6 Technology Stack")
     tbl_tech = doc.add_table(rows=1, cols=4)
@@ -377,8 +298,10 @@ def build_docx():
             ["Frontend UI", "React.js & Vite", "18.3 / 8.3", "Responsive single-page application and interactive relational data grids."],
             ["Cryptography", "Node Crypto Built-ins", "v22.x", "HMAC-SHA256 event commitments, Scrypt password hashing, Merkle trees."],
             ["Container & Cloud", "Docker & Render", "Latest", "Production multi-stage containerization and cloud web service deployment."]
-        ]
+        ],
+        header_bg="F3F4F6"
     )
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("1.7 Major Deliverables")
     tbl_deliv = doc.add_table(rows=1, cols=3)
@@ -392,24 +315,28 @@ def build_docx():
             ["DBMS Demonstration Suite", "Node.js / ts-node runner", "All 7 DBMS criteria verified via npm run dbms:demo."],
             ["Cloud Web Service", "Render Cloud Platform", "Live URL with Docker container and /api/health/ready health check."],
             ["Final Assessment Report", "PDF & DOCX Document", "Complete VIT-formatted document matching Faculty Dr. V. SIVAKUMAR guidelines."]
-        ]
+        ],
+        header_bg="F3F4F6"
     )
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("1.8 Project Timeline (Simple Gantt Chart)")
-    tbl_gantt = doc.add_table(rows=1, cols=5)
+    tbl_gantt = doc.add_table(rows=1, cols=4)
     format_styled_table(
         tbl_gantt,
-        [Inches(1.8), Inches(1.2), Inches(1.2), Inches(1.2), Inches(1.6)],
-        ["Project Phase", "Start Date", "End Date", "Lead Member", "Milestone Deliverable"],
+        [Inches(2.0), Inches(1.2), Inches(1.2), Inches(2.6)],
+        ["Project Phase", "Start Date", "End Date", "Milestone Deliverable"],
         [
-            ["Phase 1: Requirements & ER Modeling", "Week 1", "Week 2", "Vidushi Negi", "Approved Problem Statement, Scope, ER Diagram."],
-            ["Phase 2: Relational Schema & 3NF Design", "Week 3", "Week 4", "Vidushi Negi", "11 Normalized Tables, Data Dictionary, Prisma Schema."],
-            ["Phase 3: Core Solver & Provenance Engine", "Week 5", "Week 6", "Divyank Seervi", "AC-3 Constraint Propagation, RFC 6962 Merkle Trees."],
-            ["Phase 4: Views, Triggers & Transactions", "Week 7", "Week 8", "Divyank Seervi", "SQL Views, Database Triggers, Atomic Sealing Tx."],
-            ["Phase 5: Frontend Dashboard & Data Grids", "Week 9", "Week 10", "Vidushi Negi", "Enterprise Light UI, Auto-Load Scenarios, CSV/JSON."],
-            ["Phase 6: Testing, CI/CD & Deployment", "Week 11", "Week 12", "Divyank Seervi", "GitHub Actions CI/CD, Render Cloud Deploy, Final Submission."]
-        ]
+            ["Phase 1: Requirements & ER Modeling", "Week 1", "Week 2", "Approved Problem Statement, Scope, ER Diagram."],
+            ["Phase 2: Relational Schema & 3NF Design", "Week 3", "Week 4", "11 Normalized Tables, Data Dictionary, Prisma Schema."],
+            ["Phase 3: Core Solver & Provenance Engine", "Week 5", "Week 6", "AC-3 Constraint Propagation, RFC 6962 Merkle Trees."],
+            ["Phase 4: Views, Triggers & Transactions", "Week 7", "Week 8", "SQL Views, Database Triggers, Atomic Sealing Tx."],
+            ["Phase 5: Frontend Dashboard & Data Grids", "Week 9", "Week 10", "Responsive UI, Auto-Load Scenarios, CSV/JSON export."],
+            ["Phase 6: Testing, CI/CD & Deployment", "Week 11", "Week 12", "GitHub Actions CI/CD, Render Cloud Deploy, Final Submission."]
+        ],
+        header_bg="F3F4F6"
     )
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     # ==========================================
     # SECTION 2: DATABASE DESIGN REQUIREMENTS
@@ -514,8 +441,10 @@ def build_docx():
             ["Order", "id", "INTEGER", "PRIMARY KEY", "Autoincrement", "Unique purchase order identifier."],
             ["Order", "amount", "REAL", "NOT NULL", "None", "Monetary order amount in USD."],
             ["Order", "employeeId", "INTEGER", "NOT NULL, FK", "None", "Foreign key referencing Employee.id."]
-        ]
+        ],
+        header_bg="F3F4F6"
     )
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("2.4 Normalization Proof (1NF, 2NF, 3NF)")
     add_body_p(
@@ -531,13 +460,11 @@ def build_docx():
     add_section_heading("3", "Database Implementation (7 Marks)")
     
     add_subheading("3.1 Database Creation (Prisma Schema)")
-    add_body_p("The complete schema is implemented via Prisma ORM with SQLite backend. Below is the verified DDL specification incorporating mandatory student variable bindings:")
+    add_body_p("The complete schema is implemented via Prisma ORM with SQLite backend. Below is the verified DDL specification:")
     
     add_code_block(
         doc,
         "// LAZARUS-X Primary Prisma Relational Schema (backend/prisma/schema.prisma)\n"
-        "// Authors: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)\n"
-        "\n"
         "datasource db {\n"
         "  provider = \"sqlite\"\n"
         "  url      = env(\"DATABASE_URL\")\n"
@@ -584,41 +511,34 @@ def build_docx():
     )
 
     add_subheading("3.2 CRUD Operations Implementation & Execution Logs (Instruction 2.2 & 2.3)")
-    add_body_p("Executed through the automated test suite backend/src/database/dbms_features_demonstration.ts with full dual-student attribution:")
+    add_body_p("Executed through the automated test suite backend/src/database/dbms_features_demonstration.ts:")
     
     add_code_block(
         doc,
-        "// Dual-Student Attributed Method Execution\n"
-        "const divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements = async () => {\n"
-        "  const divyank24BCE0793_DemoAuthor = 'Divyank Seervi (24BCE0793)';\n"
-        "  const vidushi24BCE0786_DemoAuthor = 'Vidushi Negi (24BCE0786)';\n"
-        "  console.log(`[LAZARUS-X] Certified Lead Authors: ${divyank24BCE0793_DemoAuthor} & ${vidushi24BCE0786_DemoAuthor}`);\n"
+        "// 1. CREATE Operations\n"
+        "const user = await prisma.user.create({\n"
+        "  data: { email: 'demo@lazarus.local', passwordHash: 'scrypt$dummy', role: 'INVESTIGATOR' }\n"
+        "});\n"
+        "const newCase = await prisma.reconstructionCase.create({\n"
+        "  data: { name: 'Operation Chimera', ownerId: user.id, status: 'ACTIVE' }\n"
+        "});\n"
         "\n"
-        "  // 1. CREATE Operations\n"
-        "  const user = await prisma.user.create({\n"
-        "    data: { email: 'demo@lazarus.local', passwordHash: 'scrypt$dummy', role: 'INVESTIGATOR' }\n"
-        "  });\n"
-        "  const newCase = await prisma.reconstructionCase.create({\n"
-        "    data: { name: 'Operation Chimera', ownerId: user.id, status: 'ACTIVE' }\n"
-        "  });\n"
+        "// 2. READ Operation with Eager Relational Join\n"
+        "const readCase = await prisma.reconstructionCase.findUnique({\n"
+        "  where: { id: newCase.id },\n"
+        "  include: { owner: true, evidence: true }\n"
+        "});\n"
         "\n"
-        "  // 2. READ Operation with Eager Relational Join\n"
-        "  const readCase = await prisma.reconstructionCase.findUnique({\n"
-        "    where: { id: newCase.id },\n"
-        "    include: { owner: true, evidence: true }\n"
-        "  });\n"
+        "// 3. UPDATE Operation\n"
+        "const updatedCase = await prisma.reconstructionCase.update({\n"
+        "  where: { id: newCase.id },\n"
+        "  data: { name: 'Operation Chimera - Phase 2 Ingestion' }\n"
+        "});\n"
         "\n"
-        "  // 3. UPDATE Operation\n"
-        "  const updatedCase = await prisma.reconstructionCase.update({\n"
-        "    where: { id: newCase.id },\n"
-        "    data: { name: 'Operation Chimera - Phase 2 Ingestion' }\n"
-        "  });\n"
-        "\n"
-        "  // 4. DELETE Operation with Cascade Cleanup\n"
-        "  const deletedCase = await prisma.reconstructionCase.delete({\n"
-        "    where: { id: newCase.id }\n"
-        "  });\n"
-        "};"
+        "// 4. DELETE Operation with Cascade Cleanup\n"
+        "const deletedCase = await prisma.reconstructionCase.delete({\n"
+        "  where: { id: newCase.id }\n"
+        "});"
     )
 
     add_subheading("3.3 Multi-Table Joins & Aggregate Queries")
@@ -737,7 +657,7 @@ def build_docx():
     # ==========================================
     add_section_heading("4", "Application Development Requirements (4 Marks)")
     add_body_p(
-        "• Responsive Enterprise UI: Developed using React 18, Vite, and custom CSS design system tailored for high legibility, clean executive black & white typography, and zero clutter.\n"
+        "• Responsive Enterprise UI: Developed using React 18, Vite, and custom CSS design system tailored for high legibility, clean executive typography, and zero clutter.\n"
         "• Unified Dashboard: Real-time telemetry displaying surviving hypotheses, Shannon entropy (H), provenance events, active schema presets, and interactive relational data grids.\n"
         "• Search & Filtering: Filter records across relations, filter application audit logs by action pills (LOGIN, CREATE_CASE, SEAL_CASE), and search cases by UUID.\n"
         "• Pagination: Implemented on Audit Logs (15 events per page) and Case File lists.\n"
@@ -787,51 +707,51 @@ def build_docx():
         "The project is maintained under strict version control in a private GitHub repository with collaborative contribution from both team members:\n"
         "• Repository URL: https://github.com/Divyankseervi/lazarus-x\n"
         "• Remote Origin: https://github.com/Divyankseervi/lazarus-x.git\n"
-        "• Primary Collaborators: Divyank Seervi (@Divyankseervi - 24BCE0793) & Vidushi Negi (@vidushinegi - 24BCE0786)"
+        "• Primary Collaborators: Divyank Seervi & Vidushi Negi"
     )
     
-    tbl_branches = doc.add_table(rows=1, cols=4)
+    tbl_branches = doc.add_table(rows=1, cols=3)
     format_styled_table(
         tbl_branches,
-        [Inches(1.2), Inches(2.2), Inches(1.8), Inches(1.8)],
-        ["Branch Name", "Remote Tracking URL", "Branch Role & Policy", "Current Sync Status"],
+        [Inches(1.5), Inches(3.2), Inches(2.3)],
+        ["Branch Name", "Remote Tracking URL", "Branch Role & Policy"],
         [
-            ["main", "https://github.com/Divyankseervi/lazarus-x/tree/main", "Production release branch; strictly verified passing builds.", "Synced & Up to Date (HEAD)"],
-            ["dev", "https://github.com/Divyankseervi/lazarus-x/tree/dev", "Development branch; features, testing, and UI experiments.", "Synced & Merged with main"]
+            ["main", "https://github.com/Divyankseervi/lazarus-x/tree/main", "Production release branch; verified passing builds."],
+            ["dev", "https://github.com/Divyankseervi/lazarus-x/tree/dev", "Development branch; features, testing, and UI experiments."]
         ],
-        header_bg="262626"
+        header_bg="F3F4F6"
     )
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("6.2 Progressive Git Commit History (Minimum 10 Meaningful Commits)")
     add_body_p(
-        "The development lifecycle follows conventional commits with clear semantic prefixes (feat, fix, docs, refactor). Below is the certified commit log extracted from the repository:"
+        "The development lifecycle follows conventional commits with clear semantic prefixes (feat, fix, docs, refactor). Below is the certified commit log:"
     )
 
-    tbl_commits = doc.add_table(rows=1, cols=4)
+    tbl_commits = doc.add_table(rows=1, cols=3)
     format_styled_table(
         tbl_commits,
-        [Inches(1.0), Inches(1.0), Inches(1.5), Inches(3.5)],
-        ["Commit Hash", "Date", "Author", "Commit Message & Development Milestone"],
+        [Inches(1.2), Inches(1.2), Inches(4.6)],
+        ["Commit Hash", "Date", "Commit Message & Development Milestone"],
         [
-            ["cc7e074", "2026-10-23", "Divyank Seervi", "docs(submission): embed comprehensive GitHub architecture, commit table, and CI/CD specs"],
-            ["f0f9e02", "2026-10-23", "Divyank Seervi", "docs: enrich README with official academic header, dual attribution, and deployment URLs"],
-            ["759fcc6", "2026-10-23", "Divyank Seervi", "feat(submission): add VIT-formatted DOCX & PDF generators aligned with Dr. V. Sivakumar rubric"],
-            ["8e30a20", "2026-10-23", "Divyank Seervi", "fix(ui): resolve text contrast in tables, center modal backdrops, and modernize light theme"],
-            ["bdb5538", "2026-10-23", "Divyank Seervi", "feat(submission): add dual-student attribution, render deployment blueprint, timestamped screenshots"],
-            ["1972b8c", "2026-10-23", "Vidushi Negi", "feat(ui): overhaul tables into enterprise SQL relational data grids"],
-            ["a22618b", "2026-10-23", "Divyank Seervi", "feat(evidence): add intuitive 1-click auto-load and evidence form auto-fill toolbar"],
-            ["44842ad", "2026-10-23", "Divyank Seervi", "feat(scenarios): add automatic evidence ingestion and auto scenario launch"],
-            ["704eeba", "2026-10-23", "Vidushi Negi", "feat: multi-row database recovery scenarios, decluttered scorecard, and professional engineering theme"],
-            ["6853509", "2026-10-23", "Divyank Seervi", "feat(scenarios): add one-click example scenarios A-G with validation, tests, and student variables"],
-            ["bca4baa", "2026-10-23", "Divyank Seervi", "fix(fault-report): resolve F1-F12 audit items, add views/triggers migration, satisfy instruction 7 identity"],
-            ["6a84107", "2026-10-23", "Divyank Seervi", "fix(core): resolve TS6 provenance-head checks and preserve ledger sequence in seal procedure"],
-            ["496db1b", "2026-10-23", "Vidushi Negi", "fix(ui): polish topbar icon and update test selector"],
-            ["0a3463e", "2026-10-23", "Divyank Seervi", "feat: patent readiness refactor, audit trail verification, and clean distribution build"]
+            ["3b23733", "2026-10-23", "assets(submission): add print-ready grayscale screenshot assets"],
+            ["c3b4057", "2026-10-23", "style(submission): convert entire document, tables, borders to formal black and white"],
+            ["cc7e074", "2026-10-23", "docs(submission): embed comprehensive GitHub architecture, commit table, and CI/CD specs"],
+            ["f0f9e02", "2026-10-23", "docs: enrich README with official academic header, dual attribution, and deployment URLs"],
+            ["759fcc6", "2026-10-23", "feat(submission): add VIT-formatted DOCX & PDF generators aligned with Dr. V. Sivakumar rubric"],
+            ["8e30a20", "2026-10-23", "fix(ui): resolve text contrast in tables, center modal backdrops, and modernize light theme"],
+            ["bdb5538", "2026-10-23", "feat(submission): add dual-student attribution, render deployment blueprint, timestamped screenshots"],
+            ["1972b8c", "2026-10-23", "feat(ui): overhaul tables into enterprise SQL relational data grids"],
+            ["a22618b", "2026-10-23", "feat(evidence): add intuitive 1-click auto-load and evidence form auto-fill toolbar"],
+            ["44842ad", "2026-10-23", "feat(scenarios): add automatic evidence ingestion and auto scenario launch"],
+            ["704eeba", "2026-10-23", "feat: multi-row database recovery scenarios, decluttered scorecard, and professional theme"],
+            ["6853509", "2026-10-23", "feat(scenarios): add one-click example scenarios A-G with validation, tests, and student variables"],
+            ["bca4baa", "2026-10-23", "fix(fault-report): resolve F1-F12 audit items, add views/triggers migration, satisfy identity"],
+            ["6a84107", "2026-10-23", "fix(core): resolve TS6 provenance-head checks and preserve ledger sequence in seal procedure"]
         ],
-        header_bg="333333"
+        header_bg="F3F4F6"
     )
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("6.3 Sensitive Files Exclusion & Secrets Isolation (.gitignore)")
     add_body_p(
@@ -884,9 +804,9 @@ def build_docx():
             ["Frontend Vitest Suite", "npm run test:frontend", "Executes 29 React UI component tests in happy-dom."],
             ["Native Backup Smoke Test", "sqlite3 .backup / .restore", "Guarantees database copy and recovery integrity."]
         ],
-        header_bg="262626"
+        header_bg="F3F4F6"
     )
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+    doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
     add_subheading("7.2 Cloud Deployment with Custom Subdomain (+1 Mark)")
     add_body_p(
@@ -901,11 +821,11 @@ def build_docx():
     )
 
     # ==========================================
-    # SECTION 8: VERIFICATION SCREENSHOTS (BLACK & WHITE CONVERTED)
+    # SECTION 8: VERIFICATION SCREENSHOTS (ORIGINAL HIGH-RESOLUTION COLOR)
     # (Instruction 2.3 & 8)
     # ==========================================
     add_section_heading("8", "Verification Screenshots with Real Timestamps (Instruction 2.3 & 8)")
-    add_body_p("All screenshots captured from live local execution at http://localhost:3000/ documenting all system views with verified timestamps (Rendered in Print-Ready Grayscale):")
+    add_body_p("All screenshots captured from live local execution at http://localhost:3000/ documenting all system views with verified timestamps:")
 
     screenshots_to_add = [
         (
@@ -947,18 +867,15 @@ def build_docx():
     ]
 
     for fname, caption in screenshots_to_add:
-        src_path = os.path.join(output_dir, "screenshots", fname)
+        src_path = os.path.join(screenshots_dir, fname)
         if os.path.exists(src_path):
-            bw_dst = os.path.join(bw_screenshots_dir, f"bw_{fname}")
-            final_img_path = convert_to_grayscale(src_path, bw_dst)
-            
             add_subheading(caption)
             p_img = doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p_img.paragraph_format.space_before = Pt(4)
             p_img.paragraph_format.space_after = Pt(2)
             run_img = p_img.add_run()
-            run_img.add_picture(final_img_path, width=Inches(6.5))
+            run_img.add_picture(src_path, width=Inches(6.2))
             
             p_cap = doc.add_paragraph()
             p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -970,7 +887,7 @@ def build_docx():
             run_cap.font.color.rgb = RGBColor(60, 60, 60)
 
     # ==========================================
-    # SECTION 9: MANDATORY CODE SNIPPETS (BLACK & WHITE)
+    # SECTION 9: MANDATORY CODE SNIPPETS
     # (Instruction 7)
     # ==========================================
     add_section_heading("9", "Mandatory Code Snippets with Student Register Numbers & Names")
@@ -981,8 +898,6 @@ def build_docx():
     add_code_block(
         doc,
         "// File: backend/src/index.ts (Lines 65-75)\n"
-        "// Authors: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)\n"
-        "\n"
         "export const divyank24BCE0793_vidushi24BCE0786_AuthorsMetadata = {\n"
         "  leadAuthor1: 'Divyank Seervi',\n"
         "  regNo1: '24BCE0793',\n"
@@ -1025,7 +940,7 @@ def build_docx():
     )
 
     # ==========================================
-    # SECTION 10: RUBRIC EVALUATION SUMMARY (BLACK & WHITE)
+    # SECTION 10: RUBRIC EVALUATION SUMMARY
     # ==========================================
     add_section_heading("10", "Rubric Compliance & Marks Summary Matrix")
     tbl_rubric = doc.add_table(rows=1, cols=4)
@@ -1039,30 +954,13 @@ def build_docx():
             ["3. Database Implementation", "CRUD, 3-Table Joins, Views, Triggers, Atomic Tx, Indexes", "7", "7 / 7"],
             ["4. Application Development", "React UI, Dashboard, Search, Filter, Pagination, Auto-Load", "4", "4 / 4"],
             ["5. Auth & Database Security", "Single Users Table, RBAC, Scrypt Hashing, Zero SQL Injection", "5", "5 / 5"],
-            ["6. Professional Dev Practices", "GitHub (15+ Commits, 2 Branches), Docker, Render Deployment", "5", "5 / 5"],
+            ["6. Professional Dev Practices", "GitHub (14 Commits, 2 Branches), Docker, Render Deployment", "5", "5 / 5"],
             ["Bonus: CI/CD Pipeline", "GitHub Actions workflow (.github/workflows/ci.yml)", "+1", "+1 / 1"],
             ["Bonus: Custom Domain", "Configured Render deployment URL", "+1", "+1 / 1"],
             ["Bonus: Additional Practice", "Prometheus Metrics, Shannon Entropy, RFC 6962 Merkle Trees", "+1", "+1 / 1"],
             ["TOTAL EVALUATION SCORE", "Comprehensive Full-Stack DBMS Forensic Platform", "30 (+3)", "33 / 30"]
         ],
-        header_bg="262626"
-    )
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(12)
-
-    # Sign-off block (Black & White)
-    tbl_sign = doc.add_table(rows=1, cols=2)
-    format_styled_table(
-        tbl_sign,
-        [Inches(3.5), Inches(3.5)],
-        ["Student Investigator 1 Attestation", "Student Investigator 2 Attestation"],
-        [
-            [
-                "Divyank Seervi\nRegister No: 24BCE0793\nSchool of Computer Science & Engineering (SCOPE)\nVellore Institute of Technology\n\nSignature: __________________________\nDate: October 23, 2026",
-                "Vidushi Negi\nRegister No: 24BCE0786\nSchool of Computer Science & Engineering (SCOPE)\nVellore Institute of Technology\n\nSignature: __________________________\nDate: October 23, 2026"
-            ]
-        ],
-        header_bg="333333"
+        header_bg="F3F4F6"
     )
 
     # Save DOCX variants adhering to Rule 9: REGISTERNO_SLOT_IA9&10_Proj_NAME
@@ -1088,7 +986,7 @@ def build_docx():
     # Convert DOCX to PDF using docx2pdf for exact Microsoft Word-rendered fidelity
     try:
         import docx2pdf
-        print("[INFO] Converting Black & White DOCX to PDF via docx2pdf...")
+        print("[INFO] Converting clean DOCX to PDF via docx2pdf...")
         
         pdf1 = os.path.join(output_dir, "24BCE0793_L25+L26_IA9&10_Proj_DIVYANK_SEERVI.pdf")
         pdf2 = os.path.join(output_dir, "24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.pdf")
@@ -1099,7 +997,7 @@ def build_docx():
         docx2pdf.convert(p2, pdf2)
         docx2pdf.convert(p3, pdf3)
         docx2pdf.convert(p4, pdf4)
-        print(f"[SUCCESS] Converted all Black & White PDF deliverables:")
+        print(f"[SUCCESS] Converted all PDF deliverables:")
         print(f"  - {pdf1} ({os.path.getsize(pdf1):,} bytes)")
         print(f"  - {pdf2} ({os.path.getsize(pdf2):,} bytes)")
         print(f"  - {pdf3} ({os.path.getsize(pdf3):,} bytes)")
