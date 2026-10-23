@@ -135,6 +135,17 @@ The Investigator workspace was simplified for daily use on 2026-10-23. The prima
 - Never use shared default credentials. Admin provisioning rotates credentials and revokes that account's existing sessions.
 - Deployment URLs, GitHub branches/commits, custom domains, Docker Hub images, and CI results must be configured and verified externally.
 
+## UI Contrast Overhaul, Modal Backdrop Isolation & Verification — 2026-10-23
+
+Resolved remaining visual defects and component container constraints:
+- **Relational Data Grid Text Contrast**: Corrected cell value inline style in `frontend/src/App.tsx` from `#f1f5f9` (off-white, unreadable on white table backgrounds) to `#0f172a` (dark slate) and numbers to `#1d4ed8` (royal blue), with `#2563eb` primary key badges and `#64748b` null indicators. Table data across all relations (`Department`, `Employee`, `Order`, `Person`, etc.) is now crisp and legible.
+- **Audit Logs Modal Backdrop & Centering**: Moved `<AuditLogsModal />`, `<ForensicReportModal />`, and `<SchemaStudio />` outside of the `<main className="workspace">` grid container in `frontend/src/App.tsx`. Updated `.modal-backdrop` and `.modal-box` in `frontend/src/index.css` so modals center as fixed overlays above the entire workspace.
+- **Candidate Diff Matrix Light Theme**: Converted `.diff-matrix-container`, `.diff-matrix-table th/td`, `.cell-consensus`, `.dispute-card`, and `.val-text` from dark palettes to clean enterprise light styling with amber highlights for disputed attributes.
+- **Schema DAG & Relationship Graph**: Converted `.schema-graph-container`, `.schema-table-card`, and foreign key edge tags to clean white cards with royal blue indicators.
+- **Timeline Scrubber & Merkle Proof Inspector**: Converted scrubber backgrounds, search input, filter pills, and RFC 6962 Merkle proof cards to clean light backgrounds with high-contrast text.
+- **Dual-Student Authorship**: Bound both student identities (`Divyank Seervi`, `24BCE0793` & `Vidushi Negi`, `24BCE0786`) across backend metadata, database demo scripts, scenario runner, topbar badges, footer, and the final 9-page university submission PDF.
+
 ## Release validation
 
 See `docs/FINAL_ENGINEERING_STATUS.md` and `docs/REQUIREMENTS_TRACEABILITY.md` for exact completed checks and unverified items. Keep all output claims consistent with the command output actually observed on the submission machine.
+

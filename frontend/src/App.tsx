@@ -1881,13 +1881,13 @@ function App() {
               </div>
             </div>
 
-            {caseId && caseSchema && (() => {
+            {(() => {
               const divyank24BCE0793_currentScenario = divyank24BCE0793_scenarioList.find(s => s.id === divyank24BCE0793_selectedScenarioId);
               const isSyntheticWalkthroughSelected = divyank24BCE0793_selectedScenarioId === 'synthetic-walkthrough';
               const isScenarioDisabled = Boolean(
                 !caseId || loading || caseStatus === 'SEALED' || auditTotal > 0 ||
-                (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) ||
-                (isSyntheticWalkthroughSelected && !hasWalkthroughConflictTarget(caseSchema))
+                (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) ||
+                (isSyntheticWalkthroughSelected && (!caseSchema || !hasWalkthroughConflictTarget(caseSchema)))
               );
               let scenarioTooltip = '';
               if (!caseId) {
@@ -1896,9 +1896,9 @@ function App() {
                 scenarioTooltip = 'Case is sealed; new evidence cannot be loaded';
               } else if (auditTotal > 0) {
                 scenarioTooltip = 'Evidence ledger must be empty to load example scenarios. Create a fresh case.';
-              } else if (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) {
+              } else if (!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && caseSchema && caseSchema.preset !== divyank24BCE0793_currentScenario.preset) {
                 scenarioTooltip = `Create a case using the '${divyank24BCE0793_currentScenario.preset}' preset to load this scenario`;
-              } else if (isSyntheticWalkthroughSelected && !hasWalkthroughConflictTarget(caseSchema)) {
+              } else if (isSyntheticWalkthroughSelected && caseSchema && !hasWalkthroughConflictTarget(caseSchema)) {
                 scenarioTooltip = 'The synthetic ambiguity walkthrough needs at least one non-unique field. Add a non-unique field in Schema Studio and create a new case.';
               } else {
                 scenarioTooltip = isSyntheticWalkthroughSelected
@@ -1977,7 +1977,21 @@ function App() {
                       <div className="scenario-expected-note" style={{ fontSize: '11px', color: 'var(--violet)' }}>
                         <strong>Expected:</strong> {divyank24BCE0793_currentScenario.expected.note}
                       </div>
-                      {(caseSchema.preset !== divyank24BCE0793_currentScenario.preset || (auditTotal > 0 && caseStatus !== 'SEALED')) && (
+                      {!caseId ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.2)', marginTop: '2px', flexWrap: 'wrap', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: '#1d4ed8' }}>
+                            💡 No case open yet. Click <strong>'⚡ 1-Click Auto-Load'</strong> to instantly launch this scenario in a fresh case!
+                          </span>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            style={{ height: '26px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 8px' }}
+                            onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
+                          >
+                            <Sparkles size={11} /> Launch in Fresh Case
+                          </button>
+                        </div>
+                      ) : (caseSchema && (caseSchema.preset !== divyank24BCE0793_currentScenario.preset || (auditTotal > 0 && caseStatus !== 'SEALED'))) && (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.2)', marginTop: '2px', flexWrap: 'wrap', gap: '8px' }}>
                           <span style={{ fontSize: '11px', color: '#1d4ed8' }}>
                             {caseSchema.preset !== divyank24BCE0793_currentScenario.preset
@@ -2205,7 +2219,7 @@ function App() {
                               <thead>
                                 <tr>
                                   <th style={{ width: '80px', textAlign: 'center' }}>
-                                    <span style={{ color: '#60a5fa' }}># PK</span>
+                                    <span style={{ color: '#2563eb' }}># PK</span>
                                   </th>
                                   {columnsToDisplay.map(col => (
                                     <th key={col.name}>
@@ -2236,7 +2250,7 @@ function App() {
                                             {isNull ? (
                                               <span className="null-tag">NULL</span>
                                             ) : (
-                                              <span style={{ color: typeof val === 'number' ? '#93c5fd' : '#f1f5f9', fontWeight: typeof val === 'number' ? 600 : 400 }}>
+                                              <span style={{ color: typeof val === 'number' ? '#1d4ed8' : '#0f172a', fontWeight: typeof val === 'number' ? 600 : 500 }}>
                                                 {String(val)}
                                               </span>
                                             )}
@@ -2381,6 +2395,7 @@ function App() {
 
           <div className="system-foot"><span className="status-light" /> BOUNDED SEARCH ACTIVE <span className="foot-separator">·</span> MAX 10K CANDIDATES</div>
         </aside>
+      </main>
       <SchemaStudio open={schemaStudioOpen} busy={loading} onClose={() => setSchemaStudioOpen(false)} onCreate={createCase} />
       <ForensicReportModal
         isOpen={reportModalOpen}
@@ -2401,7 +2416,6 @@ function App() {
         apiBase={API_BASE}
         token={token}
       />
-      </main>
     </div>
   );
 }

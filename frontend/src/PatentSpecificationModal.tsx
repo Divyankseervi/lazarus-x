@@ -72,10 +72,10 @@ export const PatentSpecificationModal: React.FC<PatentSpecificationModalProps> =
                                 <Award size={26} className="text-cyan" />
                             </div>
                             <div>
-                                <h1 style={{ fontSize: '1.25rem', margin: 0, color: '#f8fafc' }}>
+                                <h1 style={{ fontSize: '1.25rem', margin: 0, color: '#0f172a' }}>
                                     LAZARUS-X RESEARCH CONCEPT &amp; TECHNICAL DISCLOSURE
                                 </h1>
-                                <p style={{ margin: '3px 0 0', color: '#94a3b8', fontSize: '0.82rem' }}>
+                                <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '0.82rem' }}>
                                     Research themes: database reconstruction · integrity provenance · uncertainty reduction
                                 </p>
                             </div>
@@ -142,7 +142,7 @@ export const PatentSpecificationModal: React.FC<PatentSpecificationModalProps> =
                         {activeConceptTab === 'concept1' && (
                             <div className="claim-panel">
                                 <div className="claim-header-row">
-                                    <h3 style={{ margin: 0, color: '#38bdf8' }}>Concept 1: Bounded Multi-Hypothesis Relational Reconstruction</h3>
+                                    <h3 style={{ margin: 0, color: '#1d4ed8' }}>Concept 1: Bounded Multi-Hypothesis Relational Reconstruction</h3>
                                     <span className="badge-verified"><CheckCircle2 size={12} /> Implemented concept (not legal validation)</span>
                                 </div>
                                 <div className="claim-prose custom-scrollbar">
@@ -169,7 +169,7 @@ export const PatentSpecificationModal: React.FC<PatentSpecificationModalProps> =
                         {activeConceptTab === 'concept2' && (
                             <div className="claim-panel">
                                 <div className="claim-header-row">
-                                    <h3 style={{ margin: 0, color: '#a855f7' }}>Concept 2: Entropy-Based Evidence Suggestions</h3>
+                                    <h3 style={{ margin: 0, color: '#6d28d9' }}>Concept 2: Entropy-Based Evidence Suggestions</h3>
                                     <span className="badge-verified"><CheckCircle2 size={12} /> Math Model · Research Summary</span>
                                 </div>
                                 <div className="claim-prose custom-scrollbar">
@@ -194,7 +194,7 @@ export const PatentSpecificationModal: React.FC<PatentSpecificationModalProps> =
                         {activeConceptTab === 'concept3' && (
                             <div className="claim-panel">
                                 <div className="claim-header-row">
-                                    <h3 style={{ margin: 0, color: '#34d399' }}>Concept 3: Provenance Ledger &amp; API-Level Sealing</h3>
+                                    <h3 style={{ margin: 0, color: '#047857' }}>Concept 3: Provenance Ledger &amp; API-Level Sealing</h3>
                                     <span className="badge-verified"><CheckCircle2 size={12} /> Merkle Accumulator · Design Summary</span>
                                 </div>
                                 <div className="claim-prose custom-scrollbar">
