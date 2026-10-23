@@ -1000,7 +1000,7 @@ app.get('/api/cases/:id', authenticate, async (req, res) => {
         }
         let engine = activeEngines.get(id);
         const cachedHead = engine?.getProvenanceHead();
-        if (!engine || cachedHead?.sequence !== dbCase.provenanceSequence || cachedHead.hash !== dbCase.provenanceHead) {
+        if (!engine || cachedHead?.sequence !== dbCase.provenanceSequence || cachedHead?.hash !== dbCase.provenanceHead) {
             engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
             if (!engine) return res.status(404).json({ error: 'Case not found.' });
             activeEngines.set(id, engine);
@@ -1064,7 +1064,7 @@ app.get('/api/cases/:id/candidates/:candidateId', authenticate, async (req, res)
         }
         let engine = activeEngines.get(id);
         const inMemoryHead = engine?.getProvenanceHead();
-        if (!engine || inMemoryHead?.sequence !== dbCase.provenanceSequence || inMemoryHead.hash !== dbCase.provenanceHead) {
+        if (!engine || inMemoryHead?.sequence !== dbCase.provenanceSequence || inMemoryHead?.hash !== dbCase.provenanceHead) {
             engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
             if (!engine) return res.status(404).json({ error: 'Case not found.' });
             activeEngines.set(id, engine);
@@ -1108,7 +1108,7 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
 
         let engine = activeEngines.get(id);
         const inMemoryHead = engine?.getProvenanceHead();
-        if (!engine || inMemoryHead?.sequence !== dbCase.provenanceSequence || inMemoryHead.hash !== dbCase.provenanceHead) {
+        if (!engine || inMemoryHead?.sequence !== dbCase.provenanceSequence || inMemoryHead?.hash !== dbCase.provenanceHead) {
             engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
             if (!engine) return res.status(404).json({ error: "Case not found" });
             activeEngines.set(id, engine);

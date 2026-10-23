@@ -42,8 +42,14 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     v_status TEXT;
-    v_evidence_count INT;
+    v_user_role TEXT;
 BEGIN
+    -- Verify caller authorization
+    SELECT role INTO v_user_role FROM "User" WHERE id = p_admin_user_id;
+    IF v_user_role IS NULL OR v_user_role <> 'ADMIN' THEN
+        RAISE EXCEPTION 'Unauthorized: User % is not an administrator', p_admin_user_id;
+    END IF;
+
     SELECT status INTO v_status FROM "ReconstructionCase" WHERE id = p_case_id FOR UPDATE;
 
     IF v_status IS NULL THEN
@@ -54,11 +60,10 @@ BEGIN
         RAISE EXCEPTION 'Case % is already sealed', p_case_id;
     END IF;
 
-    SELECT COUNT(*) INTO v_evidence_count FROM "EvidenceFragment" WHERE "caseId" = p_case_id;
-
+    -- Note: provenanceSequence tracks total ledger events (including corrections and commitments)
+    -- and must not be overwritten by evidence fragment counts.
     UPDATE "ReconstructionCase"
     SET status = 'SEALED',
-        "provenanceSequence" = v_evidence_count,
         "updatedAt" = NOW()
     WHERE id = p_case_id;
 

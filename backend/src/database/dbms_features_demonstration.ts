@@ -261,12 +261,11 @@ async function lazarus_runDBMSRequirements() {
         where: { caseId: activeCase.id },
       });
 
-      // 3. Atomically update case to SEALED
+      // 3. Atomically update case to SEALED (preserving event sequence)
       const sealed = await tx.reconstructionCase.update({
         where: { id: activeCase.id },
         data: {
           status: 'SEALED',
-          provenanceSequence: evidenceTotal,
         },
       });
 
