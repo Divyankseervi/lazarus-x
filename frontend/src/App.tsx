@@ -774,7 +774,7 @@ function App() {
     }
   };
 
-  const createCase = async (caseNameInput: string, schemaInput: CaseSchema) => {
+  const createCase = async (caseNameInput: string, schemaInput: CaseSchema, autoScenarioId?: string) => {
     if (!token) return;
     setLoading(true);
     setError('');
@@ -812,6 +812,29 @@ function App() {
       setNotice(`New reconstruction case initialized. ${createdSchema.tables.length} declared relations are ready for partial evidence and hypothesis comparison.`);
       await loadCases(token);
       await loadAudit(created.id, token);
+
+      if (autoScenarioId && autoScenarioId !== 'none') {
+        const scenario = divyank24BCE0793_scenarioList.find(s => s.id === autoScenarioId);
+        if (scenario) {
+          const batchResponse = await request<EvidenceBatchResponse>(`/cases/${encodeURIComponent(created.id)}/evidence`, token, {
+            method: 'POST',
+            body: JSON.stringify({ evidence: scenario.evidence }),
+          });
+          setEngineState(batchResponse.bestState);
+          setSelectedCandidateId(batchResponse.bestState.id);
+          setCandidates(batchResponse.candidates);
+          setRecommendation(batchResponse.ambiguityReduction);
+          setEntropy({
+            before: batchResponse.ambiguity.entropyBeforeBits,
+            after: batchResponse.ambiguity.entropyAfterBits,
+            reduction: batchResponse.ambiguity.reductionBits,
+            candidateCount: batchResponse.ambiguity.candidateCountAfter,
+          });
+          setNotice(`New case initialized and auto-populated with ${scenario.evidence.length} evidence fragments for '${scenario.title}'!`);
+          await loadAudit(created.id, token);
+          await loadCases(token);
+        }
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not create case.');
     } finally {
@@ -1000,6 +1023,103 @@ function App() {
       `Example '${scenario.title}' loaded`,
       true,
       `Example '${scenario.title}' loaded (${scenario.evidence.length} fragments)`,
+    );
+  };
+
+  const divyank24BCE0793_autoLaunchScenario = async (scenarioId: string) => {
+    if (!token) return;
+    const scenario = divyank24BCE0793_scenarioList.find(s => s.id === scenarioId);
+    if (!scenario) return;
+    setLoading(true);
+    setError('');
+    try {
+      const targetSchema = createPresetSchema(scenario.preset);
+      const caseTitle = `${scenario.title} · Auto`;
+      const created = await request<{
+        id: string;
+        name?: string;
+        status?: string;
+        schemaDefinition?: CaseSchema;
+        bestState: CandidateState;
+        candidates: CandidateSummary[];
+      }>('/cases', token, {
+        method: 'POST',
+        body: JSON.stringify({ name: caseTitle, schemaDefinition: targetSchema }),
+      });
+
+      const createdSchema = created.schemaDefinition ?? targetSchema;
+      setCaseId(created.id);
+      setCaseSchema(createdSchema);
+      setCaseName(created.name || caseTitle);
+      setCaseNameDraft(created.name || caseTitle);
+      setCaseStatus(created.status || 'ACTIVE');
+      setDivyank24BCE0793_selectedScenarioId(scenario.id);
+
+      const batchResponse = await request<EvidenceBatchResponse>(
+        `/cases/${encodeURIComponent(created.id)}/evidence`,
+        token,
+        {
+          method: 'POST',
+          body: JSON.stringify({ evidence: scenario.evidence }),
+        }
+      );
+
+      setEngineState(batchResponse.bestState);
+      setSelectedCandidateId(batchResponse.bestState.id);
+      setCandidates(batchResponse.candidates);
+      setRecommendation(batchResponse.ambiguityReduction);
+      setRankedRecommendations(batchResponse.evidenceRecommendations ?? (batchResponse.ambiguityReduction ? [batchResponse.ambiguityReduction] : []));
+      setBranchingDiag(batchResponse.branchingDiagnostics ?? null);
+      setEntropy({
+        before: batchResponse.ambiguity.entropyBeforeBits,
+        after: batchResponse.ambiguity.entropyAfterBits,
+        reduction: batchResponse.ambiguity.reductionBits,
+        candidateCount: batchResponse.ambiguity.candidateCountAfter,
+      });
+
+      const timestamp = new Date().toISOString();
+      const appendedEvents = Number.isSafeInteger(batchResponse.provenance.appendedEvents)
+        ? batchResponse.provenance.appendedEvents
+        : scenario.evidence.length;
+      const timelineItems = scenario.evidence.map((item, index) => ({
+        id: `${batchResponse.provenance.sequence - appendedEvents + index + 1}-${Date.now()}-${index}`,
+        table: item.table,
+        recordId: item.recordId,
+        field: item.field,
+        value: item.value,
+        at: timestamp,
+        ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}),
+        ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
+      })).reverse();
+      setTimeline(timelineItems.slice(0, 50));
+      setValue('');
+      setSourceRef('');
+      setSourceSha256('');
+      setFormErrors({});
+      setNotice(`Scenario '${scenario.title}' automatically initialized with ${scenario.evidence.length} evidence fragments committed!`);
+
+      await loadAudit(created.id, token);
+      await loadCases(token);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not automatically add evidence.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const divyank24BCE0793_autoAddQuickEvidence = async () => {
+    if (!caseId || !token || !caseSchema || loading || caseStatus === 'SEALED') return;
+    const matchingScenarios = divyank24BCE0793_scenarioList.filter(s => s.preset === caseSchema.preset);
+    const chosenScenario = matchingScenarios.find(s => s.id === divyank24BCE0793_selectedScenarioId) ?? matchingScenarios[0];
+    if (!chosenScenario) {
+      setError('No matching scenario found for the active schema preset.');
+      return;
+    }
+    await commitEvidenceBatch(
+      chosenScenario.evidence,
+      `Scenario '${chosenScenario.title}' evidence committed`,
+      false,
+      `Auto-added ${chosenScenario.evidence.length} evidence fragments from '${chosenScenario.title}'`,
     );
   };
 
@@ -1678,6 +1798,7 @@ function App() {
               </div>
               <div className="panel-heading-meta evidence-actions">
                 <span className="live-tag"><i /> LIVE INGESTION</span>
+                <button type="button" className="secondary-button" onClick={() => void divyank24BCE0793_autoAddQuickEvidence()} disabled={!caseSchema || !caseId || loading || caseStatus === 'SEALED'} title="Automatically populates sample evidence into this case"><Sparkles size={14}/> Auto-add sample evidence</button>
                 <button type="button" className="secondary-button csv-action" onClick={downloadEvidenceCsvTemplate} disabled={!caseSchema || loading}><FileSpreadsheet size={14}/> CSV template</button>
                 <button type="button" className="secondary-button csv-action" onClick={() => csvInputRef.current?.click()} disabled={!caseSchema || !caseId || loading || caseStatus === 'SEALED'}><Upload size={14}/> Import CSV</button>
                 <input ref={csvInputRef} type="file" accept=".csv,text/csv" hidden onChange={event => void handleEvidenceCsv(event)} aria-label="Import evidence CSV" />
@@ -1759,6 +1880,18 @@ function App() {
                       >
                         <Zap size={14}/> {loading ? 'Loading…' : 'Load scenario'}
                       </button>
+                      {!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && (
+                        <button
+                          type="button"
+                          aria-label={`Auto-populate case with ${divyank24BCE0793_currentScenario.title}`}
+                          className="primary-button"
+                          style={{ height: '32px', fontSize: '11px', gap: '6px', whiteSpace: 'nowrap' }}
+                          onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
+                          title={`Automatically creates a case with the '${divyank24BCE0793_currentScenario.preset}' preset and populates all ${divyank24BCE0793_currentScenario.evidence.length} evidence fragments`}
+                        >
+                          <Sparkles size={14} /> Auto-Add Evidences (New Case)
+                        </button>
+                      )}
                     </div>
                   </div>
                   {divyank24BCE0793_currentScenario && !isSyntheticWalkthroughSelected && (
@@ -1773,6 +1906,56 @@ function App() {
                       <div className="scenario-expected-note" style={{ fontSize: '11px', color: '#a78bfa' }}>
                         <strong>Expected:</strong> {divyank24BCE0793_currentScenario.expected.note}
                       </div>
+                      {caseSchema.preset !== divyank24BCE0793_currentScenario.preset && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '7px', background: 'rgba(37, 99, 235, 0.12)', border: '1px solid rgba(59, 130, 246, 0.35)', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <strong style={{ color: '#93c5fd', fontSize: '11px' }}>
+                              Preset Notice: Current case is '{caseSchema.preset}', but this scenario is for '{divyank24BCE0793_currentScenario.preset}'
+                            </strong>
+                            <small style={{ color: '#cbd5e1', fontSize: '10px' }}>
+                              Click the button on the right to automatically create a '{divyank24BCE0793_currentScenario.preset}' case with all {divyank24BCE0793_currentScenario.evidence.length} fragments loaded in 1 click!
+                            </small>
+                          </div>
+                          <button
+                            type="button"
+                            className="primary-button"
+                            style={{ height: '30px', fontSize: '11px', whiteSpace: 'nowrap', padding: '0 12px' }}
+                            onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
+                          >
+                            <Sparkles size={13} /> ⚡ Auto-Add Evidences Now
+                          </button>
+                        </div>
+                      )}
+                      {caseSchema.preset === divyank24BCE0793_currentScenario.preset && auditTotal > 0 && caseStatus !== 'SEALED' && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '7px', background: 'rgba(37, 99, 235, 0.12)', border: '1px solid rgba(59, 130, 246, 0.35)', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <strong style={{ color: '#93c5fd', fontSize: '11px' }}>
+                              Case already has {auditTotal} existing evidence event(s)
+                            </strong>
+                            <small style={{ color: '#cbd5e1', fontSize: '10px' }}>
+                              You can append this scenario's {divyank24BCE0793_currentScenario.evidence.length} fragments into this active case, or auto-launch in a fresh case.
+                            </small>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              style={{ height: '30px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
+                              onClick={() => void commitEvidenceBatch(divyank24BCE0793_currentScenario.evidence, `Appended scenario ${divyank24BCE0793_currentScenario.title}`, false, `Appended ${divyank24BCE0793_currentScenario.evidence.length} fragments for ${divyank24BCE0793_currentScenario.title}`)}
+                            >
+                              <Plus size={13} /> Append to This Case
+                            </button>
+                            <button
+                              type="button"
+                              className="primary-button"
+                              style={{ height: '30px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
+                              onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
+                            >
+                              <Sparkles size={13} /> Launch in Fresh Case
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {isSyntheticWalkthroughSelected && (

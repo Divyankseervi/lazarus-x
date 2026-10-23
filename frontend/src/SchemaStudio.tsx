@@ -1,18 +1,20 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, Check, Plus, Table2, Trash2, X } from 'lucide-react';
+import { ArrowRight, Check, Plus, Table2, Trash2, X, Sparkles } from 'lucide-react';
 import { createPresetSchema, schemaWithConstraints, validateCaseSchema, type CaseSchema, type ColumnType, type ForeignKeyDefinition, type TableDefinition } from './schemaTypes';
+import { divyank24BCE0793_EXAMPLE_SCENARIOS } from './exampleScenarios';
 
 interface SchemaStudioProps {
   open: boolean;
   busy?: boolean;
   onClose: () => void;
-  onCreate: (caseName: string, schema: CaseSchema) => Promise<void> | void;
+  onCreate: (caseName: string, schema: CaseSchema, autoScenarioId?: string) => Promise<void> | void;
 }
 
 export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaStudioProps) {
   const [preset, setPreset] = useState<'incident-response' | 'workforce-orders' | 'blank' | 'custom'>('incident-response');
   const [caseName, setCaseName] = useState('Incident reconstruction 01');
   const [schemaName, setSchemaName] = useState('Incident response records');
+  const [autoScenarioId, setAutoScenarioId] = useState<string>('none');
   const [tables, setTables] = useState<TableDefinition[]>(() => createPresetSchema('incident-response').tableDefinitions);
   const [foreignKeys, setForeignKeys] = useState<ForeignKeyDefinition[]>(() => createPresetSchema('incident-response').constraints.filter(c => c.type === 'FOREIGN_KEY') as ForeignKeyDefinition[]);
   const [validationError, setValidationError] = useState('');
@@ -70,7 +72,7 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
     if (caseName.trim().length > 100) { setValidationError('Case name must be 100 characters or fewer.'); return; }
     if (error) { setValidationError(error); return; }
     setValidationError('');
-    await onCreate(caseName.trim(), current);
+    await onCreate(caseName.trim(), current, autoScenarioId);
   };
 
   const optionsForField = (tableName: string) => tables.find(table => table.name === tableName)?.columns ?? [];
@@ -88,6 +90,41 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
           <div className="schema-studio-fields">
             <label>Case name<input value={caseName} maxLength={100} onChange={event => setCaseName(event.target.value)} placeholder="e.g. Incident response reconstruction" /></label>
             <label>Schema label<input value={schemaName} maxLength={100} onChange={event => setSchemaName(event.target.value)} placeholder="Describe the source system" /></label>
+            <label>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Sparkles size={13} style={{ color: '#3b82f6' }} /> Auto-populate with sample evidence
+              </span>
+              <select
+                aria-label="Auto-populate with sample evidence"
+                value={autoScenarioId}
+                onChange={event => {
+                  const val = event.target.value;
+                  setAutoScenarioId(val);
+                  if (val !== 'none') {
+                    const scenario = divyank24BCE0793_EXAMPLE_SCENARIOS.find(s => s.id === val);
+                    if (scenario) {
+                      switchPreset(scenario.preset);
+                      setCaseName(`${scenario.title} · Reconstruction`);
+                    }
+                  }
+                }}
+              >
+                <option value="none">None (Start with empty case)</option>
+                <optgroup label="Incident Response Scenarios">
+                  <option value="ir-clean">A) Clean incident (no conflicts)</option>
+                  <option value="ir-out-of-order">B) Out-of-order evidence (parent arrives late)</option>
+                  <option value="ir-name-conflict">C) Conflicting name from weaker source</option>
+                  <option value="ir-unique-clash">D) Duplicate id (fatal clash)</option>
+                  <option value="ir-multi-incident-cascade">H) Enterprise breach cascade (14 records, 5 relations)</option>
+                </optgroup>
+                <optgroup label="Workforce & Orders Scenarios">
+                  <option value="wf-clean">E) Workforce and orders (clean)</option>
+                  <option value="wf-missing-parent">F) Order points to unknown employee</option>
+                  <option value="wf-amount-conflict">G) Two amounts for one order</option>
+                  <option value="wf-multi-dept-enterprise">I) Enterprise supply chain & purchase orders (18 records, 3 relations)</option>
+                </optgroup>
+              </select>
+            </label>
           </div>
           <fieldset className="schema-template-picker"><legend>Start from a template</legend>
             <label><input type="radio" name="schema-preset" checked={preset === 'incident-response'} onChange={() => switchPreset('incident-response')}/><span><strong>Incident response</strong><small>Person, Device, Incident, Artifact, Observation. Recommended project walkthrough.</small></span></label>

@@ -38,6 +38,21 @@ Added one-click example scenarios to populate empty cases with pre-configured de
   - Batch commit path reused; displays banner: `Example '<title>' loaded (N fragments)`.
   - Fully accessible with `aria-label`s and existing CSS tokens.
 
+## Automated Evidence Ingestion Update — 2026-10-23
+
+Resolved workflow bottleneck where loading pre-configured scenario evidence was blocked whenever an active case had mismatched preset schemas or prior evidence:
+- **Instant Auto-Add in Active Workspace (`frontend/src/App.tsx`)**:
+  - Added dedicated `Auto-Add Evidences (New Case)` primary button directly beside `Load scenario`.
+  - Added intelligent inline action banners in the scenario description box:
+    - **Preset Mismatch Notice**: Detects when selected scenario requires a different schema preset (e.g. `workforce-orders` vs `incident-response`), and provides a single-click `[⚡ Auto-Add Evidences Now]` button that auto-creates the properly-configured case and commits all fragments automatically.
+    - **Non-Empty Case Notice**: When an active case already has evidence, provides two instant options: `[+ Append to This Case]` to seamlessly append the scenario's evidence fragments without wiping existing records, and `[🚀 Launch in Fresh Case]` to isolate the demonstration.
+  - Added `Auto-add sample evidence` quick-action button in the header of `Evidence intake · Evidence fragments`.
+- **Case Creation Auto-Populate (`frontend/src/SchemaStudio.tsx`)**:
+  - Added "Auto-populate with sample evidence" dropdown directly inside the Case Creation modal. Selecting any scenario (`ir-clean`, `ir-out-of-order`, `ir-name-conflict`, `ir-unique-clash`, `ir-multi-incident-cascade`, `wf-clean`, `wf-missing-parent`, `wf-amount-conflict`, `wf-multi-dept-enterprise`) automatically switches the preset schema, populates the case title, and commits the evidence immediately upon case creation.
+- **Full Verification**:
+  - `npm run test:frontend`: All 29 unit tests pass (100%).
+  - End-to-end browser execution verified: Scenario G ("Two amounts for one order") auto-creates "Two amounts for one order · Auto", commits 6 fragments, updates entropy to 0.993 bits, and reconstructs 2 surviving interpretations with active recommendations.
+
 ## UI & Theme Redesign — 2026-10-23 (Professional Engineering Dashboard & Decluttered Report)
 
 - **Professional Engineering Theme**:
