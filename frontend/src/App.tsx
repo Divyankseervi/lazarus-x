@@ -1107,6 +1107,29 @@ function App() {
     }
   };
 
+  const divyank24BCE0793_simpleAutoLoad = async (scenarioId: string) => {
+    if (!token) return;
+    if (scenarioId === 'synthetic-walkthrough') {
+      await loadSyntheticWalkthrough();
+      return;
+    }
+    const scenario = divyank24BCE0793_scenarioList.find(s => s.id === scenarioId);
+    if (!scenario) return;
+
+    // If current case exists, is active, and matches preset: commit directly!
+    if (caseId && caseSchema && caseSchema.preset === scenario.preset && caseStatus !== 'SEALED') {
+      await commitEvidenceBatch(
+        scenario.evidence,
+        `Scenario '${scenario.title}' auto-loaded`,
+        false,
+        `✓ Auto-loaded ${scenario.evidence.length} evidence fragments for '${scenario.title}'!`
+      );
+    } else {
+      // Otherwise auto-create matching case and populate seamlessly
+      await divyank24BCE0793_autoLaunchScenario(scenarioId);
+    }
+  };
+
   const divyank24BCE0793_autoAddQuickEvidence = async () => {
     if (!caseId || !token || !caseSchema || loading || caseStatus === 'SEALED') return;
     const matchingScenarios = divyank24BCE0793_scenarioList.filter(s => s.preset === caseSchema.preset);
@@ -1121,6 +1144,104 @@ function App() {
       false,
       `Auto-added ${chosenScenario.evidence.length} evidence fragments from '${chosenScenario.title}'`,
     );
+  };
+
+  const divyank24BCE0793_sampleFragments = useMemo(() => {
+    if (!caseSchema) return [];
+    if (caseSchema.preset === 'workforce-orders') {
+      return [
+        { label: 'Employee #1: Kiran (HR)', table: 'Employee', recordId: '1', field: 'name', value: 'Kiran', confidence: 0.95, sourceRef: 'payroll-exhibit-01' },
+        { label: 'Department #10: Engineering', table: 'Department', recordId: '10', field: 'name', value: 'Engineering', confidence: 0.98, sourceRef: 'org-chart' },
+        { label: 'Order #1: Amount 2500 (Invoice)', table: 'Order', recordId: '1', field: 'amount', value: '2500', confidence: 0.90, sourceRef: 'invoice-scan' },
+        { label: 'Order #1: EmployeeId 1 (Verified)', table: 'Order', recordId: '1', field: 'employeeId', value: '1', confidence: 0.92, sourceRef: 'purchase-order' },
+        { label: 'Order #1: Conflicting Amount 250 (Receipt)', table: 'Order', recordId: '1', field: 'amount', value: '250', confidence: 0.50, sourceRef: 'merchant-receipt' },
+        { label: 'Employee #2: Lata (Sales)', table: 'Employee', recordId: '2', field: 'name', value: 'Lata', confidence: 0.95, sourceRef: 'hr-roster' },
+      ];
+    }
+    if (caseSchema.preset === 'incident-response') {
+      return [
+        { label: 'Person #1: Asha Rao (Analyst)', table: 'Person', recordId: '1', field: 'name', value: 'Asha Rao', confidence: 0.95, sourceRef: 'manifest-01/exhibit-A' },
+        { label: 'Person #2: Ravi Kumar (Admin)', table: 'Person', recordId: '2', field: 'name', value: 'Ravi Kumar', confidence: 0.92, sourceRef: 'ad-dump' },
+        { label: 'Device #1: LAPTOP-07 (Host)', table: 'Device', recordId: '1', field: 'hostname', value: 'LAPTOP-07', confidence: 0.90, sourceRef: 'edr-telemetry' },
+        { label: 'Device #1: OwnerId 2 (Assigned)', table: 'Device', recordId: '1', field: 'ownerId', value: '2', confidence: 0.85, sourceRef: 'asset-inventory' },
+        { label: 'Incident #1: Phishing email (Critical)', table: 'Incident', recordId: '1', field: 'title', value: 'Phishing email', confidence: 0.90, sourceRef: 'siem-alert' },
+        { label: 'Artifact #1: Malicious URL (Hash)', table: 'Artifact', recordId: '1', field: 'kind', value: 'Malicious URL', confidence: 0.88, sourceRef: 'sandbox-report' },
+      ];
+    }
+    const list: Array<{ label: string; table: string; recordId: string; field: string; value: string; confidence: number; sourceRef: string }> = [];
+    caseSchema.tableDefinitions?.forEach((tbl, tIdx) => {
+      tbl.columns.forEach((col) => {
+        if (col.name === '_recordId') return;
+        const val = col.type === 'NUMBER' ? '100' : col.type === 'BOOLEAN' ? 'true' : `${tbl.name} sample ${tIdx + 1}`;
+        list.push({
+          label: `${tbl.name} #${tIdx + 1}: ${col.name} = ${val}`,
+          table: tbl.name,
+          recordId: String(tIdx + 1),
+          field: col.name,
+          value: val,
+          confidence: 0.95,
+          sourceRef: `sample:${tbl.name.toLowerCase()}`
+        });
+      });
+    });
+    return list.slice(0, 8);
+  }, [caseSchema]);
+
+  const [divyank24BCE0793_sampleFragmentIdx, setDivyank24BCE0793_sampleFragmentIdx] = useState(0);
+
+  const divyank24BCE0793_fillSampleForm = (index?: number) => {
+    if (!caseSchema || divyank24BCE0793_sampleFragments.length === 0) return;
+    const targetIdx = typeof index === 'number' ? index : divyank24BCE0793_sampleFragmentIdx % divyank24BCE0793_sampleFragments.length;
+    const sample = divyank24BCE0793_sampleFragments[targetIdx];
+    if (!sample) return;
+
+    setTable(sample.table);
+    setRecordId(sample.recordId);
+    setField(sample.field);
+    setValue(sample.value);
+    setSourceConfidence(sample.confidence);
+    setSourceRef(sample.sourceRef);
+    setValueFormat('text');
+    setFormErrors({});
+    setNotice(`Auto-filled: ${sample.table}[${sample.recordId}].${sample.field} = "${sample.value}"`);
+    if (typeof index !== 'number') {
+      setDivyank24BCE0793_sampleFragmentIdx(current => current + 1);
+    }
+  };
+
+  const divyank24BCE0793_fillAndCommitSample = async (index?: number) => {
+    if (!caseId || !token || !caseSchema || loading || caseStatus === 'SEALED') return;
+    const targetIdx = typeof index === 'number' ? index : divyank24BCE0793_sampleFragmentIdx % divyank24BCE0793_sampleFragments.length;
+    const sample = divyank24BCE0793_sampleFragments[targetIdx];
+    if (!sample) return;
+
+    divyank24BCE0793_fillSampleForm(targetIdx);
+
+    const numericVal = Number(sample.value);
+    const parsedVal = !isNaN(numericVal) && (sample.field.toLowerCase().includes('id') || sample.field === 'amount')
+      ? numericVal
+      : sample.value;
+
+    await commitEvidenceBatch(
+      [{
+        table: sample.table,
+        recordId: Number(sample.recordId),
+        field: sample.field,
+        value: parsedVal,
+        confidence: sample.confidence,
+        sourceRef: sample.sourceRef,
+      }],
+      'Sample evidence accepted',
+      false,
+      `Auto-filled & committed: ${sample.table}[${sample.recordId}].${sample.field} = "${sample.value}"`
+    );
+  };
+
+  const divyank24BCE0793_clearEvidenceForm = () => {
+    setValue('');
+    setSourceRef('');
+    setSourceSha256('');
+    setFormErrors({});
   };
 
   const loadSyntheticWalkthrough = async () => {
@@ -1866,6 +1987,16 @@ function App() {
                       </select>
                       <button
                         type="button"
+                        aria-label="1-Click Auto-Load"
+                        className="primary-button"
+                        style={{ height: '32px', fontSize: '11px', gap: '6px', whiteSpace: 'nowrap' }}
+                        onClick={() => void divyank24BCE0793_simpleAutoLoad(divyank24BCE0793_selectedScenarioId)}
+                        title="Instantly auto-loads this entire scenario in 1 click (creates matching case if needed)"
+                      >
+                        <Sparkles size={14} /> ⚡ 1-Click Auto-Load
+                      </button>
+                      <button
+                        type="button"
                         aria-label={`Load scenario ${isSyntheticWalkthroughSelected ? 'Synthetic walkthrough' : (divyank24BCE0793_currentScenario?.title ?? '')}`}
                         className="secondary-button walkthrough-button"
                         onClick={() => {
@@ -1880,18 +2011,6 @@ function App() {
                       >
                         <Zap size={14}/> {loading ? 'Loading…' : 'Load scenario'}
                       </button>
-                      {!isSyntheticWalkthroughSelected && divyank24BCE0793_currentScenario && (
-                        <button
-                          type="button"
-                          aria-label={`Auto-populate case with ${divyank24BCE0793_currentScenario.title}`}
-                          className="primary-button"
-                          style={{ height: '32px', fontSize: '11px', gap: '6px', whiteSpace: 'nowrap' }}
-                          onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
-                          title={`Automatically creates a case with the '${divyank24BCE0793_currentScenario.preset}' preset and populates all ${divyank24BCE0793_currentScenario.evidence.length} evidence fragments`}
-                        >
-                          <Sparkles size={14} /> Auto-Add Evidences (New Case)
-                        </button>
-                      )}
                     </div>
                   </div>
                   {divyank24BCE0793_currentScenario && !isSyntheticWalkthroughSelected && (
@@ -1906,52 +2025,31 @@ function App() {
                       <div className="scenario-expected-note" style={{ fontSize: '11px', color: '#a78bfa' }}>
                         <strong>Expected:</strong> {divyank24BCE0793_currentScenario.expected.note}
                       </div>
-                      {caseSchema.preset !== divyank24BCE0793_currentScenario.preset && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '7px', background: 'rgba(37, 99, 235, 0.12)', border: '1px solid rgba(59, 130, 246, 0.35)', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <strong style={{ color: '#93c5fd', fontSize: '11px' }}>
-                              Preset Notice: Current case is '{caseSchema.preset}', but this scenario is for '{divyank24BCE0793_currentScenario.preset}'
-                            </strong>
-                            <small style={{ color: '#cbd5e1', fontSize: '10px' }}>
-                              Click the button on the right to automatically create a '{divyank24BCE0793_currentScenario.preset}' case with all {divyank24BCE0793_currentScenario.evidence.length} fragments loaded in 1 click!
-                            </small>
-                          </div>
-                          <button
-                            type="button"
-                            className="primary-button"
-                            style={{ height: '30px', fontSize: '11px', whiteSpace: 'nowrap', padding: '0 12px' }}
-                            onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
-                          >
-                            <Sparkles size={13} /> ⚡ Auto-Add Evidences Now
-                          </button>
-                        </div>
-                      )}
-                      {caseSchema.preset === divyank24BCE0793_currentScenario.preset && auditTotal > 0 && caseStatus !== 'SEALED' && (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: '7px', background: 'rgba(37, 99, 235, 0.12)', border: '1px solid rgba(59, 130, 246, 0.35)', marginTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <strong style={{ color: '#93c5fd', fontSize: '11px' }}>
-                              Case already has {auditTotal} existing evidence event(s)
-                            </strong>
-                            <small style={{ color: '#cbd5e1', fontSize: '10px' }}>
-                              You can append this scenario's {divyank24BCE0793_currentScenario.evidence.length} fragments into this active case, or auto-launch in a fresh case.
-                            </small>
-                          </div>
+                      {(caseSchema.preset !== divyank24BCE0793_currentScenario.preset || (auditTotal > 0 && caseStatus !== 'SEALED')) && (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: '7px', background: 'rgba(37, 99, 235, 0.10)', border: '1px solid rgba(59, 130, 246, 0.28)', marginTop: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                          <span style={{ color: '#93c5fd', fontSize: '11px' }}>
+                            {caseSchema.preset !== divyank24BCE0793_currentScenario.preset
+                              ? `💡 Tip: Current case uses '${caseSchema.preset}'. Click '⚡ 1-Click Auto-Load' above to launch a matching '${divyank24BCE0793_currentScenario.preset}' case automatically.`
+                              : `💡 Active case already has ${auditTotal} evidence events.`}
+                          </span>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              style={{ height: '30px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
-                              onClick={() => void commitEvidenceBatch(divyank24BCE0793_currentScenario.evidence, `Appended scenario ${divyank24BCE0793_currentScenario.title}`, false, `Appended ${divyank24BCE0793_currentScenario.evidence.length} fragments for ${divyank24BCE0793_currentScenario.title}`)}
-                            >
-                              <Plus size={13} /> Append to This Case
-                            </button>
+                            {caseSchema.preset === divyank24BCE0793_currentScenario.preset && auditTotal > 0 && (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                style={{ height: '28px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
+                                onClick={() => void commitEvidenceBatch(divyank24BCE0793_currentScenario.evidence, `Appended scenario ${divyank24BCE0793_currentScenario.title}`, false, `Appended ${divyank24BCE0793_currentScenario.evidence.length} fragments for ${divyank24BCE0793_currentScenario.title}`)}
+                              >
+                                <Plus size={12} /> Append to Active Case
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="primary-button"
-                              style={{ height: '30px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
+                              style={{ height: '28px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 10px' }}
                               onClick={() => void divyank24BCE0793_autoLaunchScenario(divyank24BCE0793_selectedScenarioId)}
                             >
-                              <Sparkles size={13} /> Launch in Fresh Case
+                              <Sparkles size={12} /> Launch in Fresh Case
                             </button>
                           </div>
                         </div>
@@ -1972,6 +2070,77 @@ function App() {
               );
             })()}
             {caseStatus === 'SEALED' && <div className="sealed-alert" role="status"><Lock size={14} /> Case is sealed in the application. Evidence intake through this interface is closed; direct database access is outside this control.</div>}
+            
+            {/* Simple Auto-Fill Form Quick Toolbar */}
+            {caseId && caseSchema && caseStatus !== 'SEALED' && (
+              <div className="evidence-autofill-strip" style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'rgba(37, 99, 235, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.22)',
+                borderRadius: '8px',
+                padding: '8px 14px',
+                margin: '8px 0 10px',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 600, color: '#60a5fa', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <Sparkles size={13} /> Auto-Fill Inputs:
+                  </span>
+                  <select
+                    aria-label="Select sample evidence to auto-fill"
+                    className="secondary-button"
+                    style={{ padding: '4px 10px', fontSize: '11px', background: 'var(--panel-bg, #111827)', color: '#f3f4f6' }}
+                    onChange={(e) => {
+                      const idx = Number(e.target.value);
+                      if (!isNaN(idx)) {
+                        divyank24BCE0793_fillSampleForm(idx);
+                      }
+                    }}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>-- Pick sample fragment to auto-fill below --</option>
+                    {divyank24BCE0793_sampleFragments.map((sf, idx) => (
+                      <option key={idx} value={idx}>{sf.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    style={{ height: '28px', fontSize: '11px', gap: '5px', padding: '0 10px' }}
+                    onClick={() => divyank24BCE0793_fillSampleForm()}
+                    title="Populates the form fields below with a valid sample observation"
+                  >
+                    <Sparkles size={12} style={{ color: '#60a5fa' }} /> ✨ Fill Form Inputs
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    style={{ height: '28px', fontSize: '11px', gap: '5px', padding: '0 12px' }}
+                    onClick={() => void divyank24BCE0793_fillAndCommitSample()}
+                    disabled={!caseId || loading || caseStatus === 'SEALED'}
+                    title="Fills the form and instantly commits this sample fragment to the database"
+                  >
+                    <Plus size={13} /> 🚀 Fill &amp; Commit 1-Click
+                  </button>
+                  {value && (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      style={{ height: '28px', fontSize: '11px', padding: '0 8px' }}
+                      onClick={divyank24BCE0793_clearEvidenceForm}
+                      title="Clear current input fields"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             <form onSubmit={event => void submitEvidence(event)} className="evidence-form">
               <div className="form-control"><label htmlFor="evTable">Relation</label><select id="evTable" value={table} onChange={event => { const nextTable = event.target.value; setTable(nextTable); setField(caseSchema?.tableDefinitions?.find(definition => definition.name === nextTable)?.columns?.[0]?.name ?? 'name'); setFormErrors(current => ({ ...current, field: undefined })); }}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>
               <div className="form-control record-control"><label htmlFor="evRecord">Record locator</label><input id="evRecord" type="number" min="0" step="1" value={recordId} aria-invalid={!!displayedRecordIdError} aria-describedby={displayedRecordIdError ? 'evRecord-error' : undefined} onChange={event => { setRecordId(event.target.value); setFormErrors(current => ({ ...current, recordId: undefined })); }} required />{displayedRecordIdError && <span id="evRecord-error" className="field-error">{displayedRecordIdError}</span>}</div>

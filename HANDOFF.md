@@ -38,20 +38,21 @@ Added one-click example scenarios to populate empty cases with pre-configured de
   - Batch commit path reused; displays banner: `Example '<title>' loaded (N fragments)`.
   - Fully accessible with `aria-label`s and existing CSS tokens.
 
-## Automated Evidence Ingestion Update — 2026-10-23
+## Automated Evidence Ingestion & Auto-Fill Update — 2026-10-23
 
-Resolved workflow bottleneck where loading pre-configured scenario evidence was blocked whenever an active case had mismatched preset schemas or prior evidence:
-- **Instant Auto-Add in Active Workspace (`frontend/src/App.tsx`)**:
-  - Added dedicated `Auto-Add Evidences (New Case)` primary button directly beside `Load scenario`.
-  - Added intelligent inline action banners in the scenario description box:
-    - **Preset Mismatch Notice**: Detects when selected scenario requires a different schema preset (e.g. `workforce-orders` vs `incident-response`), and provides a single-click `[⚡ Auto-Add Evidences Now]` button that auto-creates the properly-configured case and commits all fragments automatically.
-    - **Non-Empty Case Notice**: When an active case already has evidence, provides two instant options: `[+ Append to This Case]` to seamlessly append the scenario's evidence fragments without wiping existing records, and `[🚀 Launch in Fresh Case]` to isolate the demonstration.
-  - Added `Auto-add sample evidence` quick-action button in the header of `Evidence intake · Evidence fragments`.
-- **Case Creation Auto-Populate (`frontend/src/SchemaStudio.tsx`)**:
-  - Added "Auto-populate with sample evidence" dropdown directly inside the Case Creation modal. Selecting any scenario (`ir-clean`, `ir-out-of-order`, `ir-name-conflict`, `ir-unique-clash`, `ir-multi-incident-cascade`, `wf-clean`, `wf-missing-parent`, `wf-amount-conflict`, `wf-multi-dept-enterprise`) automatically switches the preset schema, populates the case title, and commits the evidence immediately upon case creation.
+Simplified evidence intake workflows to be intuitive, clean, and accessible in 1 click:
+- **`⚡ 1-Click Auto-Load` in Example Scenarios (`frontend/src/App.tsx`)**:
+  - Added a prominent primary `⚡ 1-Click Auto-Load` button right next to the scenario dropdown.
+  - Automatically loads the chosen scenario into the active case if compatible, or auto-creates a matching case and ingests all evidence immediately if presets differ or case is sealed.
+  - Preserves the legacy `Load scenario` button and tooltip invariants for unit test suite compatibility.
+- **Form Auto-Fill Toolbar (`frontend/src/App.tsx`)**:
+  - Added an intuitive **`⚡ AUTO-FILL INPUTS:`** quick bar directly above the Evidence Intake form fields.
+  - **Sample Fragment Selector**: Dropdown pre-populated with schema-aware observations (e.g. `Employee #1: Kiran`, `Order #1: Amount 2500`, `Department #10: Engineering`, `Person #1: Asha Rao`, etc.). Selecting any item immediately fills the form fields (`Relation`, `Record locator`, `Attribute`, `Observed value`, `Source confidence`, `Source reference`).
+  - **`✨ Fill Form Inputs` Button**: Automatically cycles and fills valid sample observations into the form inputs with one click so users never have to guess what to type.
+  - **`🚀 Fill & Commit 1-Click` Button**: Populates the form fields and immediately commits the fragment into the database and provenance ledger in a single action.
 - **Full Verification**:
   - `npm run test:frontend`: All 29 unit tests pass (100%).
-  - End-to-end browser execution verified: Scenario G ("Two amounts for one order") auto-creates "Two amounts for one order · Auto", commits 6 fragments, updates entropy to 0.993 bits, and reconstructs 2 surviving interpretations with active recommendations.
+  - End-to-end browser execution verified: Tested `Fill Form Inputs` and `Fill & Commit 1-Click`, verifying that input fields populate visibly and fragments commit into the active reconstruction graph.
 
 ## UI & Theme Redesign — 2026-10-23 (Professional Engineering Dashboard & Decluttered Report)
 
