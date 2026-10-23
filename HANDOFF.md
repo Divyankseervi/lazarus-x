@@ -54,17 +54,31 @@ Simplified evidence intake workflows to be intuitive, clean, and accessible in 1
   - `npm run test:frontend`: All 29 unit tests pass (100%).
   - End-to-end browser execution verified: Tested `Fill Form Inputs` and `Fill & Commit 1-Click`, verifying that input fields populate visibly and fragments commit into the active reconstruction graph.
 
-## UI & Theme Redesign — 2026-10-23 (Professional Engineering Dashboard & Decluttered Report)
+## Evidence Intake Decluttering & Enterprise Light Theme Overhaul — 2026-10-23
 
-- **Professional Engineering Theme**:
-  - Replaced the glowing "neon cyan / sci-fi AI" dark aesthetic with a clean, high-contrast, production-ready engineering dashboard inspired by Datadog, Linear, GitHub, and Cloudflare.
-  - Design tokens updated: deep slate background (`--bg: #0b0f19`), crisp slate surfaces (`--panel: #111827`, `--panel-strong: #162032`), subtle 1px border lines (`#1e293b`), and royal cobalt blue primary actions (`#2563eb`).
-  - Removed blurry radial gradients, glowing drop shadows, and neon halos. Buttons now feature solid, crisp fills with subtle inset elevation. Status pings use solid emerald green (`#10b981`).
-- **Decluttered Forensic Report Modal (`frontend/src/ForensicReportModal.tsx`)**:
-  - Overhauled the forensic dossier view into a structured, easily scannable format.
-  - Added an **Executive Relational Recovery Scorecard Table** that summarizes each relation, reconstructed row count, identified attribute count, primary key locator (`_recordId`), and constraint consistency badge.
-  - Added relation filter pills (`All Relations`, plus one pill per reconstructed table) and a live record search filter.
-  - Monospace locator `#_recordId` tags, styled italic `NULL` state representations, clean zebra striping (`tbody tr:nth-child(even)`), and print/markdown export synchronization.
+Consolidated evidence intake into an intuitive, teacher-ready workflow and transitioned the UI from a dark aesthetic to a crisp, professional enterprise light theme:
+
+- **Evidence Intake Decluttering (`frontend/src/App.tsx`)**:
+  - Removed duplicate, confusing autofill toolbars (`AUTO-FILL INPUTS` strip and redundant header buttons).
+  - Maintained **ONE** clear, easy-to-explain demo scenario loader at the top of Evidence Intake: **Pre-configured Forensic Scenarios** with a clean scenario dropdown, `⚡ 1-Click Auto-Load` (auto-creates case or populates empty case), and the standard `Load scenario` button.
+  - Added a subtle, single `✨ Sample Row` button inside the manual intake form right next to `+ Commit fragment`, allowing single-click sample observation loading for manual demonstration without cluttering the UI.
+  - Retained all accessibility attributes, labels, and tooltips, preserving 100% test compatibility.
+- **Enterprise Light Theme System (`frontend/src/index.css`)**:
+  - Transitioned the entire color palette to a crisp, high-contrast, modern engineering SaaS light theme (Supabase Light / GitHub / Linear / Stripe Dashboard).
+  - Core design tokens:
+    - Base canvas: `--bg: #f8fafc` (clean, soft slate white)
+    - Card & panel surfaces: `--panel: #ffffff`, `--panel-strong: #f1f5f9`
+    - High-legibility text hierarchy: `--text: #0f172a` (deep slate), `--muted: #475569` (medium slate)
+    - Border lines: `--line: #e2e8f0` (refined subtle borders)
+    - Brand accent: `--accent: #2563eb` (enterprise royal blue), `--accent-subtle: rgba(37, 99, 235, 0.08)`
+  - Styled all workspace components for light mode: Topbar, Student identity pill (`Divyank Seervi (24BCE0793)`), Workspace sidebar, Evidence Intake cards, SQL Relational Tables, Provenance Ledger, Merkle Proof drawer, Forensic Report modal, and Admin Audit Trail.
+- **Full Verification**:
+  - `npm --prefix frontend run build`: Clean production build (0 TypeScript or bundler errors).
+  - `npm run test:frontend`: All 29 Vitest tests pass (100%).
+  - `npm run test:backend`: All 17 integration tests + 20 CSP/fuzzy tests + 9 engine benchmark scenarios pass (100%).
+  - `npm run typecheck:backend`: 0 errors.
+  - Live browser inspection verified via screenshot artifacts (`investigator_console_light_theme_1792763151094.png`, `active_case_relational_tables_1792763165852.png`).
+
 
 ## Enterprise SQL Data Grid Overhaul — 2026-10-23
 

@@ -5,12 +5,13 @@ import { Evidence } from './types';
 
 /**
  * LAZARUS-X Example Scenarios Engine Verification Suite
- * Authored by: Divyank Seervi (24BCE0793)
+ * Authored by: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)
+ * Course: BCSE302P Database Management Systems (L25+L26)
  */
 
 console.log('=== LAZARUS-X PRE-CONFIGURED EXAMPLE SCENARIOS VERIFICATION ===\n');
 
-const divyank24BCE0793_scenarioTests = [
+const vidushi24BCE0786_divyank24BCE0793_scenarioTests = [
     // Scenario A: Clean incident
     {
         name: 'Scenario A: Clean incident (no conflicts)',
@@ -356,9 +357,11 @@ const divyank24BCE0793_scenarioTests = [
     },
 ];
 
-for (const test of divyank24BCE0793_scenarioTests) {
+const divyank24BCE0793_scenarioTests = vidushi24BCE0786_divyank24BCE0793_scenarioTests;
+
+for (const test of vidushi24BCE0786_divyank24BCE0793_scenarioTests) {
     test.run();
     console.log(`[PASS] ${test.name}`);
 }
 
-console.log(`\nAll ${divyank24BCE0793_scenarioTests.length} example scenarios verified successfully against LazarusXEngine!`);
+console.log(`\nAll ${vidushi24BCE0786_divyank24BCE0793_scenarioTests.length} example scenarios verified successfully against LazarusXEngine!`);

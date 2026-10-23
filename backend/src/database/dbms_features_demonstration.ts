@@ -27,18 +27,20 @@ import { execSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../security/password';
 
-// Assessment Instruction 7 Mandated Identity Binding
+// Assessment Instruction 7 Mandated Identity Binding (Dual-Student Authorship)
 const divyank24BCE0793_DemoAuthor = 'Divyank Seervi';
 const divyank24BCE0793_DemoId = '24BCE0793';
-const divyank24BCE0793_DemoSlot = 'BCSE302P (L25+L26)';
-const divyank24BCE0793_DemoCourse = 'Database Management Systems';
+const vidushi24BCE0786_DemoAuthor = 'Vidushi Negi';
+const vidushi24BCE0786_DemoId = '24BCE0786';
+const teamDemoSlot = 'BCSE302P (L25+L26)';
+const teamDemoCourse = 'Database Management Systems';
 
-export async function divyank24BCE0793_runDBMSRequirements() {
+export async function divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements() {
   const timestamp = new Date().toISOString();
   console.log('========================================================================');
   console.log('   LAZARUS-X - COMPREHENSIVE DBMS REQUIREMENTS VERIFIER');
-  console.log(`   Student: ${divyank24BCE0793_DemoAuthor} | Reg No: ${divyank24BCE0793_DemoId} | Slot: ${divyank24BCE0793_DemoSlot}`);
-  console.log(`   Course: ${divyank24BCE0793_DemoCourse} | Execution Timestamp: ${timestamp}`);
+  console.log(`   Students: ${divyank24BCE0793_DemoAuthor} (${divyank24BCE0793_DemoId}) & ${vidushi24BCE0786_DemoAuthor} (${vidushi24BCE0786_DemoId})`);
+  console.log(`   Course: ${teamDemoCourse} | Slot: ${teamDemoSlot} | Timestamp: ${timestamp}`);
   console.log('========================================================================\n');
 
   // 1. Initialize Isolated Database
@@ -353,9 +355,11 @@ export async function divyank24BCE0793_runDBMSRequirements() {
   }
 }
 
-export const lazarus_runDBMSRequirements = divyank24BCE0793_runDBMSRequirements;
+export const divyank24BCE0793_runDBMSRequirements = divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements;
+export const vidushi24BCE0786_runDBMSRequirements = divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements;
+export const lazarus_runDBMSRequirements = divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements;
 
-divyank24BCE0793_runDBMSRequirements().catch(err => {
+divyank24BCE0793_vidushi24BCE0786_runDBMSRequirements().catch(err => {
   console.error('\nDBMS Requirements Runner Failed:', err);
   process.exit(1);
 });

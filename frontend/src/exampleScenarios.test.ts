@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { divyank24BCE0793_EXAMPLE_SCENARIOS, type ExampleScenario } from './exampleScenarios';
 import { createPresetSchema } from './schemaTypes';
 
-describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793)', () => {
-  const divyank24BCE0793_testScenarios: ExampleScenario[] = divyank24BCE0793_EXAMPLE_SCENARIOS;
+describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793 & Vidushi Negi · 24BCE0786)', () => {
+  const vidushi24BCE0786_divyank24BCE0793_testScenarios: ExampleScenario[] = divyank24BCE0793_EXAMPLE_SCENARIOS;
+  const divyank24BCE0793_testScenarios = vidushi24BCE0786_divyank24BCE0793_testScenarios;
 
   it('contains all 9 required scenarios with valid metadata', () => {
-    expect(divyank24BCE0793_testScenarios).toHaveLength(9);
-    const ids = divyank24BCE0793_testScenarios.map(s => s.id);
+    expect(vidushi24BCE0786_divyank24BCE0793_testScenarios).toHaveLength(9);
+    const ids = vidushi24BCE0786_divyank24BCE0793_testScenarios.map(s => s.id);
     expect(ids).toEqual([
       'ir-clean',
       'ir-out-of-order',

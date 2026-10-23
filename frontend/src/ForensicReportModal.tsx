@@ -38,6 +38,8 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
 
     const downloadMarkdown = () => {
         let md = `# LAZARUS-X FORENSIC INVESTIGATION REPORT\n\n`;
+        md += `**Investigating Team:** Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)\n`;
+        md += `**Course & Slot:** BCSE302P Database Management Systems Laboratory (Slot L25+L26)\n`;
         md += `**Case ID:** ${caseId}\n`;
         md += `**Status:** ${caseStatus} (application-level status)\n`;
         md += `**Generated:** ${new Date().toISOString()}\n`;
@@ -138,6 +140,14 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                                 <strong>RELATIONAL AUDIT DOSSIER</strong>
                                 <small>Academic Forensic Platform</small>
                             </div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--panel-strong)', borderRadius: '8px', border: '1px solid var(--line)', margin: '14px 0' }}>
+                        <Award size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
+                        <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
+                            <div><strong>Certified Investigators:</strong> Divyank Seervi (24BCE0793) &amp; Vidushi Negi (24BCE0786)</div>
+                            <div style={{ color: 'var(--muted)', fontSize: '11px' }}>Course: BCSE302P Database Management Systems Laboratory · Slot: L25+L26</div>
                         </div>
                     </div>
 

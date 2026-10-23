@@ -2,7 +2,10 @@
  * LAZARUS-X Pre-Configured Example Scenarios
  * Educational and demonstration scenarios for empty cases.
  * 
- * Authored by: Divyank Seervi (24BCE0793)
+ * Authored by:
+ *   - Divyank Seervi (24BCE0793)
+ *   - Vidushi Negi (24BCE0786)
+ * Course: BCSE302P Database Management Systems (L25+L26)
  */
 
 export type ExampleScenarioPreset = 'incident-response' | 'workforce-orders';
@@ -30,7 +33,7 @@ export interface ExampleScenario {
   evidence: ExampleScenarioFragment[];
 }
 
-export const divyank24BCE0793_EXAMPLE_SCENARIOS: ExampleScenario[] = [
+export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenario[] = [
   {
     id: 'ir-clean',
     title: 'Clean incident (no conflicts)',
@@ -329,4 +332,6 @@ export const divyank24BCE0793_EXAMPLE_SCENARIOS: ExampleScenario[] = [
   },
 ];
 
-export const exampleScenarios = divyank24BCE0793_EXAMPLE_SCENARIOS;
+export const divyank24BCE0793_EXAMPLE_SCENARIOS = divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS;
+export const vidushi24BCE0786_EXAMPLE_SCENARIOS = divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS;
+export const exampleScenarios = divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS;

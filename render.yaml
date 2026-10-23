@@ -1,0 +1,25 @@
+services:
+  # Web service deployment for LAZARUS-X Forensic Platform
+  # Authors: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)
+  - type: web
+    name: lazarus-x
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        value: file:./data/dev.db
+      - key: SEED_DEFAULT_USERS
+        value: "true"
+      - key: PROVENANCE_ENCRYPTION_KEY
+        generateValue: true
+      - key: OPERATOR_BOOTSTRAP_TOKEN
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: "*"

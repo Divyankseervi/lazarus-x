@@ -264,16 +264,23 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // System metadata & health endpoints (Assessment Instruction 7 Identity Binding)
-export const divyank24BCE0793_AuthorMetadata = {
-    studentName: 'Divyank Seervi',
-    registerNumber: '24BCE0793',
+export const divyank24BCE0793_vidushi24BCE0786_AuthorsMetadata = {
+    students: [
+        { name: 'Divyank Seervi', registerNumber: '24BCE0793' },
+        { name: 'Vidushi Negi', registerNumber: '24BCE0786' },
+    ],
+    studentNames: 'Divyank Seervi & Vidushi Negi',
+    registerNumbers: '24BCE0793, 24BCE0786',
     courseSlot: 'BCSE302P (L25+L26)',
+    course: 'Database Management Systems',
     project: 'LAZARUS-X Forensic Relational Database Reconstruction Platform',
 };
-export const lazarusAuthorMetadata = divyank24BCE0793_AuthorMetadata;
+export const divyank24BCE0793_AuthorMetadata = divyank24BCE0793_vidushi24BCE0786_AuthorsMetadata;
+export const vidushi24BCE0786_AuthorMetadata = divyank24BCE0793_vidushi24BCE0786_AuthorsMetadata;
+export const lazarusAuthorMetadata = divyank24BCE0793_vidushi24BCE0786_AuthorsMetadata;
 
 export function lazarusGetSystemBanner(): string {
-    return `[LAZARUS-X] Forensic Relational Database Reconstruction Platform | Student: Divyank Seervi (24BCE0793) | Slot: BCSE302P (L25+L26)`;
+    return `[LAZARUS-X] Forensic Relational Database Reconstruction Platform | Students: Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786) | Slot: BCSE302P (L25+L26)`;
 }
 
 export function createApp(
