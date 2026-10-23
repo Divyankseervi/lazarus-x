@@ -14,12 +14,12 @@
 - **F11 (Packaging & Clutter Removal)**: Removed `scripts/supervisor/` logs, `AUTONOMOUS_EXECUTION_LOG.md`, and `09_repository_audit.md`; updated `.env.example` to default to `NODE_ENV=development`; cleaned `backend/package.json`.
 - **F12 (External Deliverables Scope)**: Explicitly catalogued local verified components versus external hosting requirements.
 
-## Feature update — 2026-10-23 (One-Click Example Scenarios)
+## Feature update — 2026-10-23 (One-Click Example Scenarios & Multi-Row Database Recovery)
 
 Added one-click example scenarios to populate empty cases with pre-configured demonstration evidence fragments without manual typing, fully guarded and explicitly labeled as DEMO data.
 
 - **Frontend Scenario Definitions (`frontend/src/exampleScenarios.ts`)**:
-  - Implemented typed `divyank24BCE0793_EXAMPLE_SCENARIOS` export containing scenarios A through G:
+  - Implemented typed `divyank24BCE0793_EXAMPLE_SCENARIOS` export containing scenarios A through I:
     - **A (`ir-clean`)**: Preset `incident-response`, clean incident evidence (Asha Rao, Ravi Kumar, LAPTOP-07, Phishing email, artifact, observation). Engine yields 1 surviving interpretation, entropy 0.000, 0 violations.
     - **B (`ir-out-of-order`)**: Preset `incident-response`, out-of-order evidence arrival (observation first, then artifact, incident, person). Foreign keys resolve monotonically from 2 resolvable violations to 0; 1 surviving interpretation.
     - **C (`ir-name-conflict`)**: Preset `incident-response`, conflicting name for Person 1 (conf 0.9 "Asha Rao" vs conf 0.4 "A. Rao"). Generates 2 surviving interpretations; recommendation targets `Person[1].name`; top candidate preserves "Asha Rao".
@@ -27,6 +27,8 @@ Added one-click example scenarios to populate empty cases with pre-configured de
     - **E (`wf-clean`)**: Preset `workforce-orders`, clean workforce evidence (Finance, Operations, Kiran, Lata, Order 1 & 2). Engine yields 1 interpretation, 0 violations, score 1.0.
     - **F (`wf-missing-parent`)**: Preset `workforce-orders`, Order pointing to unevidenced employee 7. Retains 1 resolvable violation on `Order.employeeId` (score 0.5); guides investigator to add employee.
     - **G (`wf-amount-conflict`)**: Preset `workforce-orders`, conflicting order amount (2500 conf 0.9 vs 250 conf 0.5). Generates 2 interpretations; recommendation targets `Order[1].amount`.
+    - **H (`ir-multi-incident-cascade`)**: Preset `incident-response`, complex enterprise incident recovery scenario with **14 records across 5 distinct tables** (`Person` x4, `Device` x3, `Incident` x2, `Artifact` x3, `Observation` x2, 50 evidence fragments). Demonstrates foreign key cascading across multi-tier relational topologies under bounded AC-3 propagation.
+    - **I (`wf-multi-dept-enterprise`)**: Preset `workforce-orders`, multi-department corporate supply chain scenario with **18 records across 3 distinct tables** (`Department` x4, `Employee` x6, `Order` x8, 50 evidence fragments). Demonstrates deep multi-row relational reconstruction with complex referential constraints.
   - Every fragment sets `sourceRef: "example:<scenario-id>"` so provenance records clearly display demonstration origin.
 - **UI & Guards (`frontend/src/App.tsx`)**:
   - Replaced the single synthetic button with the Example Scenarios panel (`<select>` dropdown, scenario goal/preset card, expected note, and "Load scenario" action).
@@ -35,12 +37,18 @@ Added one-click example scenarios to populate empty cases with pre-configured de
   - Modal warning: `window.confirm("Load N EXAMPLE fragments into this case? These are demo values, not recovered evidence, and cannot be removed individually.")`.
   - Batch commit path reused; displays banner: `Example '<title>' loaded (N fragments)`.
   - Fully accessible with `aria-label`s and existing CSS tokens.
-- **Student Identity Variable Names**:
-  - Bound student registration number and name into code variables: `divyank24BCE0793_EXAMPLE_SCENARIOS`, `divyank24BCE0793_selectedScenarioId`, `divyank24BCE0793_scenarioList`, `divyank24BCE0793_loadExampleScenario`, `divyank24BCE0793_irSchema`, `divyank24BCE0793_emptyState`, `divyank24BCE0793_confirmSpy`, `divyank24BCE0793_nonEmptyAudit`.
-- **Test Coverage**:
-  - `frontend/src/exampleScenarios.test.ts`: Validates schema conformance, confidence in (0,1], ASCII sourceRef, and batch limits.
-  - `backend/src/engine/example_scenarios.test.ts`: Feeds each scenario into `LazarusXEngine` and verifies expected surviving interpretations, entropy, and fatal/resolvable violation counts.
-  - `frontend/src/App.test.tsx`: Tests rendering of scenario dropdown, details card, disabled states for mismatched preset, sealed case, non-empty ledger, and confirm cancellation.
+
+## UI & Theme Redesign — 2026-10-23 (Professional Engineering Dashboard & Decluttered Report)
+
+- **Professional Engineering Theme**:
+  - Replaced the glowing "neon cyan / sci-fi AI" dark aesthetic with a clean, high-contrast, production-ready engineering dashboard inspired by Datadog, Linear, GitHub, and Cloudflare.
+  - Design tokens updated: deep slate background (`--bg: #0b0f19`), crisp slate surfaces (`--panel: #111827`, `--panel-strong: #162032`), subtle 1px border lines (`#1e293b`), and royal cobalt blue primary actions (`#2563eb`).
+  - Removed blurry radial gradients, glowing drop shadows, and neon halos. Buttons now feature solid, crisp fills with subtle inset elevation. Status pings use solid emerald green (`#10b981`).
+- **Decluttered Forensic Report Modal (`frontend/src/ForensicReportModal.tsx`)**:
+  - Overhauled the forensic dossier view into a structured, easily scannable format.
+  - Added an **Executive Relational Recovery Scorecard Table** that summarizes each relation, reconstructed row count, identified attribute count, primary key locator (`_recordId`), and constraint consistency badge.
+  - Added relation filter pills (`All Relations`, plus one pill per reconstructed table) and a live record search filter.
+  - Monospace locator `#_recordId` tags, styled italic `NULL` state representations, clean zebra striping (`tbody tr:nth-child(even)`), and print/markdown export synchronization.
 
 ## Current state
 
@@ -51,9 +59,10 @@ Verified locally:
 - `npm --prefix frontend run build` — built cleanly, 0 errors
 - `npm run lint:frontend` — 0 errors
 - `npx vitest run` (frontend) — 4/4 test files, 29/29 tests passed (100%)
-- `npm test` (backend) — all 12 test suites passed + all 7 scenario checks passed (`Scenario A` through `Scenario G`)
+- `npm test` (backend) — all 12 test suites passed + all 9 scenario checks passed (`Scenario A` through `Scenario I`)
+- `npm run test:intake` — smoke tests passed (immutability, SHA-256 verification, extension/symlink rejection)
+- `npm run test:sqlite-analysis` — analyzer tests passed (read-only schema inspection, FK validation)
 - `npm run dbms:demo` — all 7 DBMS requirements verified (11 tables, CRUD, joins, aggregates, views, triggers, transactions, EXPLAIN QUERY PLAN, copy/restore)
-- `node scripts/verify_live_api.js` — 8/8 live server operations passed
 - `npm run test:e2e` — 3/3 Playwright browser tests passed
 
 The Investigator workspace was simplified for daily use on 2026-10-23. The primary view now emphasizes evidence intake, selected reconstruction, next-evidence guidance, and provenance status. The ambiguity-change metric, relationship graph, and recent-fragment timeline remain available through compact expandable controls and are collapsed by default. No reconstruction, provenance, export, or role-access capability was removed. The Administrator control center remains a separate dashboard.

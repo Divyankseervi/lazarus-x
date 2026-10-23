@@ -253,7 +253,7 @@ function RowGraph({ state, tables, schema }: { state: CandidateState | null; tab
   return (
     <div className="graph-scroll custom-scrollbar" aria-label="Candidate relational hypothesis graph">
       <svg className="record-graph" viewBox={`0 0 ${graph.width} ${graph.height}`} role="img" aria-label="Observed records connected by declared foreign keys">
-        <defs><linearGradient id="edgeGlow" x1="0" x2="1"><stop offset="0" stopColor="#55d6be"/><stop offset="1" stopColor="#8d82ff"/></linearGradient></defs>
+        <defs><linearGradient id="edgeGlow" x1="0" x2="1"><stop offset="0" stopColor="#3b82f6"/><stop offset="1" stopColor="#6366f1"/></linearGradient></defs>
         {tables.map((table, index) => <text key={table} x={120 + index * graph.tableGap} y="27" textAnchor="middle" className="graph-column-title">{table.toUpperCase()} · {graph.columns.get(table)?.length ?? 0}</text>)}
         {graph.edges.map(edge => {
           const from = graph.nodePositions.get(edge.from)!; const to = graph.nodePositions.get(edge.to)!;
@@ -1731,11 +1731,13 @@ function App() {
                           <option value="ir-out-of-order">B) Out-of-order evidence (parent arrives late)</option>
                           <option value="ir-name-conflict">C) Conflicting name from a weaker source</option>
                           <option value="ir-unique-clash">D) Duplicate id (fatal violation)</option>
+                          <option value="ir-multi-incident-cascade">H) Enterprise breach cascade (14 records, 5 relations)</option>
                         </optgroup>
                         <optgroup label="Workforce & Orders Preset">
                           <option value="wf-clean">E) Workforce and orders (clean)</option>
                           <option value="wf-missing-parent">F) Order points to unknown employee</option>
                           <option value="wf-amount-conflict">G) Two amounts for one order</option>
+                          <option value="wf-multi-dept-enterprise">I) Enterprise supply chain & purchase orders (18 records, 3 relations)</option>
                         </optgroup>
                         <optgroup label="General Walkthrough">
                           <option value="synthetic-walkthrough">Guided Walkthrough (Dynamic Conflict)</option>

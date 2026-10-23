@@ -5,8 +5,8 @@ import { createPresetSchema } from './schemaTypes';
 describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793)', () => {
   const divyank24BCE0793_testScenarios: ExampleScenario[] = divyank24BCE0793_EXAMPLE_SCENARIOS;
 
-  it('contains all 7 required scenarios with valid metadata', () => {
-    expect(divyank24BCE0793_testScenarios).toHaveLength(7);
+  it('contains all 9 required scenarios with valid metadata', () => {
+    expect(divyank24BCE0793_testScenarios).toHaveLength(9);
     const ids = divyank24BCE0793_testScenarios.map(s => s.id);
     expect(ids).toEqual([
       'ir-clean',
@@ -16,6 +16,8 @@ describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793)',
       'wf-clean',
       'wf-missing-parent',
       'wf-amount-conflict',
+      'ir-multi-incident-cascade',
+      'wf-multi-dept-enterprise',
     ]);
   });
 
