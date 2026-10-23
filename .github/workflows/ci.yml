@@ -10,6 +10,8 @@ jobs:
   backend-verification:
     name: Backend Test Suite & DBMS Validation
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:./ci.db
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,25 +27,53 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      - name: Generate Prisma Client
-        working-directory: backend
-        run: npx prisma generate --schema prisma/schema.prisma
-
       - name: Validate Prisma Schema
         working-directory: backend
+        env:
+          DATABASE_URL: file:./ci.db
         run: npx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate Prisma Client
+        working-directory: backend
+        env:
+          DATABASE_URL: file:./ci.db
+        run: npx prisma generate --schema prisma/schema.prisma
 
       - name: Typecheck Backend (tsc)
         working-directory: backend
         run: npx tsc --noEmit
 
-      - name: Run Backend Test Suites (Unit, Security, Merkle, Patent Claims)
+      - name: Run Backend Test Suites (Unit, Security, Merkle, Research Disclosure)
         working-directory: backend
         run: npm test
+
+      - name: Run Read-only Artifact Intake Tests
+        run: node scripts/test_ingest_artifact.js
+
+      - name: Run Read-only SQLite Structure Analyzer Tests
+        run: python3 scripts/test_analyze_sqlite.py
 
       - name: Run DBMS Course Features Demonstration
         working-directory: backend
         run: npm run dbms:demo
+
+      - name: Verify native SQLite backup and restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+          mkdir -p backend/prisma
+          sqlite3 backend/prisma/dev.db "CREATE TABLE ci_restore_probe(id INTEGER PRIMARY KEY, value TEXT NOT NULL); INSERT INTO ci_restore_probe(value) VALUES ('backup-restore-ok');"
+          tmp_dir="$(mktemp -d)"
+          trap 'rm -rf "$tmp_dir" backend/prisma/dev.db backend/prisma/dev.db-wal backend/prisma/dev.db-shm backend/prisma/dev.db-journal' EXIT
+          bash scripts/backup_database.sh "$tmp_dir/backups"
+          backup="$(find "$tmp_dir/backups" -maxdepth 1 -name 'lazarus_sqlite_*.db' -print -quit)"
+          test -n "$backup"
+          bash scripts/restore_database.sh "$backup" "$tmp_dir/restored.db"
+          test "$(sqlite3 "$tmp_dir/restored.db" 'PRAGMA integrity_check;')" = 'ok'
+          test "$(sqlite3 "$tmp_dir/restored.db" 'SELECT value FROM ci_restore_probe WHERE id=1;')" = 'backup-restore-ok'
+          echo 'Native SQLite backup, restore and data verification passed.'
 
   frontend-verification:
     name: Frontend Lint, Tests & Production Build
@@ -75,13 +105,16 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+
   end-to-end-verification:
     name: Browser End-to-End Verification
     runs-on: ubuntu-latest
     needs: [backend-verification, frontend-verification]
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js 24
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24 LTS
         uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -89,26 +122,35 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - name: Install backend dependencies
+
+      - name: Install Backend Dependencies
         working-directory: backend
         run: npm ci
+
       - name: Generate Prisma Client
         working-directory: backend
+        env:
+          DATABASE_URL: file:./e2e-ci.db
         run: npx prisma generate --schema prisma/schema.prisma
-      - name: Install frontend dependencies
+
+      - name: Install Frontend Dependencies
         working-directory: frontend
         run: npm ci
-      - name: Install Playwright browser
+
+      - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
-      - name: Run browser workflow
-        working-directory: frontend
+
+      - name: Run isolated browser end-to-end flow
         run: npm run test:e2e
 
   docker-verification:
     name: Docker Container Build & Docker Hub Pipeline
     runs-on: ubuntu-latest
     needs: [backend-verification, frontend-verification, end-to-end-verification]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -118,16 +160,45 @@ jobs:
 
       - name: Build Docker Container Image
         run: |
-          docker build -t divya23bce1042/lazarus-x:latest -t lazarus-x:ci-test .
+          docker build -t lazarus-x:ci-test .
+
+      - name: Smoke-test the container in restricted mode
+        run: |
+          set -euo pipefail
+          KEY="$(openssl rand -hex 32)"
+          docker run -d --rm --name lazarus-x-smoke \
+            --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=64m \
+            --tmpfs /app/backend/prisma/data:rw,nosuid,nodev,noexec,size=64m,mode=0777 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            -p 127.0.0.1:31337:3000 \
+            -e NODE_ENV=production -e PORT=3000 \
+            -e DATABASE_URL=file:./data/dev.db \
+            -e PROVENANCE_ENCRYPTION_KEY="$KEY" \
+            -e CORS_ORIGINS=http://localhost:31337 \
+            -e HOME=/tmp/lazarus-home -e npm_config_cache=/tmp/npm-cache -e XDG_CACHE_HOME=/tmp/cache \
+            lazarus-x:ci-test
+          trap 'docker stop lazarus-x-smoke >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:31337/api/health/ready >/dev/null; then
+              curl --fail --silent http://127.0.0.1:31337/api/info >/dev/null
+              echo "Container health and API info smoke tests passed."
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs lazarus-x-smoke
+          exit 1
 
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
       - name: Push Container to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         run: |
-          docker push divya23bce1042/lazarus-x:latest
+          docker tag lazarus-x:ci-test "${DOCKERHUB_USERNAME}/lazarus-x:latest"
+          docker push "${DOCKERHUB_USERNAME}/lazarus-x:latest"

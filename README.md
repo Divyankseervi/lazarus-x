@@ -1,319 +1,217 @@
-# LAZARUS-X: Forensic Relational Database Reconstruction & Cryptographic Provenance Platform
+# LAZARUS-X
 
-[![CI/CD Pipeline](https://github.com/lazarus-forensics/lazarus-x/actions/workflows/ci.yml/badge.svg)](https://github.com/lazarus-forensics/lazarus-x)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/Language-TypeScript%205-blue)](https://www.typescriptlang.org/)
-[![Prisma ORM](https://img.shields.io/badge/ORM-Prisma%205.11-2D3748)](https://www.prisma.io/)
-[![React 19](https://img.shields.io/badge/Frontend-React%2019%20%2F%20Vite-61DAFB)](https://react.dev/)
-[![Patent Status](https://img.shields.io/badge/Patent-Pending%20(25%20Claims)-purple)](research/PATENT_SPECIFICATION_FORMAL.md)
-[![Academic Assessment](https://img.shields.io/badge/VIT%20SCOPE-BCSE302P%20(33%2F30%20Marks)-success)](docs/BCSE302P_LAB_ASSESSMENT_REPORT.md)
+**Forensic relational-database reconstruction prototype with tamper-evident provenance**
 
----
+LAZARUS-X is a research/academic web application for exploring reconstruction of incomplete relational records. It combines a constraint-propagation engine, ranked candidate states, entropy-guided evidence suggestions, a cryptographic provenance ledger, and an investigation dashboard. It is an academic prototype—not a certified forensic product. Hash integrity supports later byte-identity checks; it does not prove the origin, authenticity, chain-of-custody completeness, or legal admissibility of evidence.
 
-## 📌 Executive Summary
+## Core capabilities
 
-**LAZARUS-X** is an enterprise-grade forensic relational database reconstruction engine designed to recover corrupted, incomplete, and out-of-order relational database records following storage failure, ransomware corruption, or deliberate anti-forensic tampering.
+- **Reconstruction engine:** bounded candidate-state search, constraint propagation, uniqueness/foreign-key checks, delayed handling of unresolved references, and fuzzy value comparison.
+- **Ambiguity reduction:** normalized heuristic candidate weights, entropy estimates, and expected-information-gain suggestions for additional evidence. These are decision-support scores, not calibrated probabilities of historical truth.
+- **Tamper-evident provenance:** per-case chained hashes, keyed commitments, Merkle-tree checkpoints and inclusion proofs, audit export, and case sealing.
+- **Schema-first case workbench:** each case stores a validated target schema; create cases in Schema Studio, submit typed scalar observations manually or import validated CSV batches, inspect ranked candidate hypotheses and their conflicts, then use entropy-guided next-observation suggestions. The synthetic walkthrough submits explicitly labelled synthetic evidence rather than prefilling a disconnected demo form.
+- **Relational application:** Prisma ORM and SQLite, role-aware API authorization, hashed session tokens, password hashing, rate limits and request-size limits.
+- **Operations:** liveness/readiness endpoints, Prometheus-format metrics, Docker packaging, GitHub Actions checks, and native SQLite backup/restore utilities.
+- **Read-only artifact handling:** computes/verifies SHA-256 manifests for supported SQLite-related files and inspects SQLite schema, columns, foreign keys, row counts, and optional integrity status without exporting row values. These tools are separate from the reconstruction solver; neither tool recovers deleted rows or proves original provenance.
 
-Unlike traditional recovery tools that rely on heuristic record scraping or unverified raw carving, LAZARUS-X pairs an **algorithmic Constraint Satisfaction Problem (CSP/AC-3) propagation engine** with **active Shannon entropy disambiguation** and an **RFC 6962 verifiable cryptographic Merkle tree ledger**, ensuring that recovered candidate hypotheses maintain mathematical consistency and an audit-ready evidence history.
+## Core workflow and limitations
 
----
+Read [`docs/CORE_IDEA_REALIGNMENT.md`](docs/CORE_IDEA_REALIGNMENT.md) before presenting the project. The core problem is hypothesis reconstruction from incomplete, potentially out-of-order field observations under a declared relational schema. The dashboard flow is: **define schema → submit observations → compare surviving hypotheses → collect the next discriminating observation → verify provenance**. The engine does not infer a schema from raw bytes or perform deleted-row/WAL recovery. Custom target relation states are reconstructed in memory and their schema is stored with the case; they are not materialized as newly created physical SQLite tables.
 
-## 🎓 Academic Assessment Mapping
+Candidate percentages and source confidence are heuristic decision-support values, not calibrated probabilities of historical truth. Optional source hashes are investigator-supplied metadata; verify them against a separately generated artifact manifest if needed.
 
-This project satisfies all requirements for the **Lab Internal Assessment Test 8, 9 & 10** for the **Database Systems Lab (BCSE302P)** at the School of Computer Science and Engineering (SCOPE), Vellore Institute of Technology (VIT).
+## Technology stack
 
-| Assessment Field | Details |
-| :--- | :--- |
-| **Course Code & Title** | **BCSE302P — Database Systems Lab** |
-| **Assessment mapping** | See `docs/REQUIREMENTS_TRACEABILITY.md` for implementation evidence and local validation commands. |
-| **External requirements** | Repository privacy, collaborators, cloud hosting, Docker Hub publication, and DNS require account-owner configuration and are not claimed as locally verified. |
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js 24 LTS (or 22.12+) and TypeScript |
+| API | Express 5 |
+| Database / ORM | SQLite and Prisma 5.11 |
+| Frontend | React 19, Vite, TypeScript |
+| Tests | Node assertions, backend test scripts, Vitest, Playwright configuration |
+| Delivery | Docker / Docker Compose / GitHub Actions |
 
----
+**Database scope:** the checked-in Prisma schema and runtime URL resolver target SQLite. PostgreSQL is not enabled by changing `DATABASE_URL`; that requires a deliberate provider/schema migration, regenerated client, provider-specific migrations, and integration tests. SQLite does not implement native stored procedures. Case sealing uses application-level transactional logic; SQL views and triggers are demonstrated where supported by the target engine.
 
-## 🏛️ System Architecture
+## Quick start (Windows PowerShell)
 
-```mermaid
-graph TD
-    subgraph Ingestion ["1. Forensic Ingestion"]
-        A[Corrupted Storage Fragments] --> B[Evidence Intake API / UI]
-        B --> C[HMAC Event Derivation]
-    end
+1. Install Node.js 24 LTS (recommended) or Node.js 22.12+ and Git. Node.js 20 reached end of life in April 2026; the current Vite toolchain also needs a newer Node release.
+2. Copy `backend/.env.example` to `backend/.env`.
+3. Generate a new random key:
 
-    subgraph Engine ["2. Algorithmic Reconstruction Engine"]
-        C --> D[Scalar Domain Store]
-        D --> E[AC-3 Arc Consistency Propagation]
-        E --> F[Restricted Damerau-Levenshtein Metric]
-        F --> G[Delayed Pruning Engine]
-        G --> H[Candidate Interpretation Cluster]
-    end
-
-    subgraph ActiveLearning ["3. Active Disambiguation"]
-        H --> I[Shannon Entropy Calculator: H]
-        I --> J[Information Gain: IG = H - H|τ]
-        J --> K[Recommended Next Evidence Probes]
-    end
-
-    subgraph Provenance ["4. Cryptographic Provenance Ledger"]
-        C --> L[Monotonic SHA-256 Event Chain]
-        L --> M[RFC 6962 Binary Merkle Tree]
-        M --> N[Inclusion Proofs O log N]
-        N --> O[Fail-Closed Immutable Case Sealing]
-    end
-
-    subgraph Interface ["5. Enterprise Presentation Tier"]
-        H --> P[Unified Single-Port Web Dashboard]
-        K --> P
-        O --> P
-        P --> Q[Court-Ready Forensic Dossier & Attestation]
-    end
-```
-
----
-
-## ✨ Comprehensive Features Explained
-
-### 1. Bounded CSP & AC-3 Arc Consistency Propagation
-* Resolves circular foreign keys, composite foreign keys (`MATCH FULL`), and deep parent-child relational chains without combinatorial state explosion.
-* Enforces domain integrity, uniqueness, and cross-table referential constraints deterministically.
-* Cyclic references propagate monotonically, reaching the identical valid fixed point regardless of arrival order.
-
-### 2. Restricted Damerau-Levenshtein Fuzzy Compatibility
-* Compensates for minor bit-flips, transcription typos, and character transpositions in corrupted scalar fields.
-* Evaluates candidate string compatibility within a bounded threshold with formal mathematical penalty attribution ($O(1)$ lookup for cutoff pairs).
-
-### 3. Active Learning & Shannon Entropy Minimization
-* Calculates the exact Shannon entropy of the surviving candidate space:
-  $$H(X) = -\sum_{i=1}^{n} P(x_i) \log_2 P(x_i)$$
-* Ranks unobserved attributes by expected **Information Gain**:
-  $$IG(X, \tau) = H(X) - H(X \mid \tau)$$
-* Directs forensic examiners to the exact record and attribute that will maximize ambiguity reduction with the minimum evidence acquisition cost.
-
-### 4. Dual-Layer Cryptographic Ledger & RFC 6962 Merkle Tree
-* **Layer 1 (Event Chain):** Monotonic SHA-256 hash chaining of all ingested fragments with HMAC masking to prevent dictionary attacks against sensitive data.
-* **Layer 2 (Merkle Tree):** RFC 6962 binary Merkle tree computing an immutable root hash across envelope commitments, generating $O(\log N)$ cryptographic inclusion proofs that verify independently in zero-trust client environments.
-
-### 5. Fail-Closed Cryptographic Case Sealing
-* Transitioning a case to `SEALED` status computes the final Merkle root and anchors an immutable checkpoint manifest.
-* Protected by both database triggers (`trg_seal_immutability_guard`) and backend middleware, rejecting any further writes with fail-closed security.
-
-### 6. Court-Ready Forensic Dossier Generation
-* Generates attestation manifests complete with case metadata, SHA-256 chain heads, Merkle root hashes, and candidate consensus tables for legal chain-of-custody submission.
-
-### 7. 11 Normalized Relational Tables (3NF & BCNF)
-* Derived from a formal Entity-Relationship (ER) model without partial or transitive dependencies:
-  1. `User` (Single users table maintaining all identities via `role` column)
-  2. `Session` (Secure session tokens with 24-hour TTL and SHA-256 digests)
-  3. `AuditLog` (Tamper-evident system actions and administrative compliance)
-  4. `ReconstructionCase` (Forensic case envelope and cryptographic head container)
-  5. `EvidenceFragment` (Observed scalar fragments across target relations)
-  6. `EvidenceProvenanceEntry` (Cryptographic append-only ledger events)
-  7. `CandidateReconstruction` (Ranked candidate relational hypotheses)
-  8. `ConstraintEvaluation` (AC-3 constraint satisfaction audit records)
-  9. `Department` (Target domain organizational divisions benchmark relation)
-  10. `Employee` (Target domain personnel records linked via FK to Department)
-  11. `Order` (Target domain commercial transactions linked via FK to Employee)
-
-### 8. Database Views, Triggers, Stored Procedures & Transactions
-* **SQL View:** `vw_case_activity_summary` joining cases, owners, and evidence metrics.
-* **Triggers:**
-  - `trg_audit_evidence_insert`: Automatically logs audit events upon evidence insertion.
-  - `trg_seal_immutability_guard`: Aborts evidence insertion attempts on sealed cases.
-* **Stored Procedure / Transaction:** `sp_seal_forensic_case` atomically calculates Merkle roots, transitions status to `SEALED`, and creates audit checkpoints.
-* **Query Optimization:** Compound B-tree indexes (`[caseId, id]`) verified using `EXPLAIN QUERY PLAN`.
-
-### 9. Role-Based Access Control (RBAC) & BCrypt Security
-* Complies strictly with the **Single Users Table Rule** (`User.role` differentiating `INVESTIGATOR` vs `ADMIN`).
-* Cryptographic BCrypt password hashing (Cost factor 12) with zero plaintext storage, timing-safe verification, and legacy scrypt migration safety.
-* Parameterized Prisma queries preventing SQL injection across all endpoints.
-
-### 10. Native Database Backup & Recovery Scripts
-* Native cross-platform backup scripts supporting PostgreSQL (`pg_dump`/`pg_restore`) and SQLite (`sqlite3 .backup`):
-  - Linux/macOS: `scripts/backup_database.sh`
-  - Windows: `scripts/backup_database.bat`
-
-### 11. Publishing-Ready Enterprise UI (GitHub / Linear Theme)
-* Split-hero landing page with live engine architecture showcase and **1-Click Evaluator Presets**.
-* **Real-time Case Search & Filtering:** Case search by name or UUID, status filter pills (`ALL`, `ACTIVE`, `SEALED`), and paginated sidebar navigation.
-* Interactive Schema DAG canvas, Candidate Conflict Matrix, Timeline Scrubber, and Merkle Proof drawer.
-* Single-port unified architecture serving both API and frontend SPA on `http://localhost:3000`.
-
----
-
-## 🌐 Live Deployment & Evaluator Access
-
-| Resource | Target Link / Identifier | Notes |
-| :--- | :--- | :--- |
-| **Live Deployed App** | [https://lazarus-x-forensics.onrender.com](https://lazarus-x-forensics.onrender.com) | Fullstack cloud deployment |
-| **Docker Hub Image** | `docker pull divya23bce1042/lazarus-x:latest` | Automated CI/CD container artifact |
-| **Local Port** | `http://localhost:3000` | Unified production container |
-
-> [!TIP]
-> **1-Click Evaluator Presets Available on Login Screen:**
-> - **Chief Auditor (Admin)**: `admin@lazarus-forensics.org` / `AdminSecret#2026`
-> - **Field Investigator**: `investigator@agency.org` / `InvestigatorSecret#2026`
-
----
-
-## 🚀 Quick Start Guide
-
-### Prerequisites
-* **Node.js:** v18.0.0 or higher (v20+ recommended)
-* **npm:** v9.0.0 or higher
-* **Git**
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/lazarus-forensics/lazarus-x.git
-   cd lazarus-x
+   ```powershell
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
 
-2. **Install backend dependencies:**
-   ```bash
-   cd backend
-   npm install
+   Paste the 64-character result into `PROVENANCE_ENCRYPTION_KEY` in `backend/.env`. Never use a public/example key or commit `.env`.
+4. From the repository root, install dependencies:
+
+   ```powershell
+   npm run install:all
    ```
 
-3. **Install frontend dependencies:**
-   ```bash
-   cd ../frontend
-   npm install
+5. Build, validate and test:
+
+   ```powershell
+   npm run validate:db
+   npm run typecheck:backend
+   npm run build:frontend
+   npm test
    ```
 
-4. **Build the production frontend bundle:**
-   ```bash
-   npm run build
+6. Start the app:
+
+   ```powershell
+   npm start
    ```
 
-5. **Start the Unified Production Server:**
-   ```bash
-   cd ../backend
-   npm run start
-   ```
+Open `http://localhost:3000`. The start command builds the frontend, applies the Prisma schema to the configured local SQLite file, and starts the API. Register an investigator account in the UI.
 
-6. **Open in your browser:**
-   👉 **[http://localhost:3000](http://localhost:3000)**
+The authentication entry points are separated by role:
 
----
+- `http://localhost:3000/investigator-login` — investigator registration and login.
+- `http://localhost:3000/admin-login` — administrator login for an operator-provisioned account.
 
-## 🔑 Pre-Configured Test Credentials
+Both portals use the same `User` table and backend session endpoint. The selected portal must match the authenticated role; public registration cannot create an administrator.
 
-For rapid evaluation, the application provides one-click login buttons on the landing page, or you may enter the credentials manually:
+After authentication the roles receive separate dashboards:
 
-| Account Type | Email | Password | Role | Permissions |
-| :--- | :--- | :--- | :--- | :--- |
-| **Investigator** | `23bce1042@vitstudent.ac.in` | `Password123!456` | `INVESTIGATOR` | Ingest evidence, analyze candidates, export reports |
-| **Chief Auditor** | `admin@lazarus-forensics.org` | `AdminSecret#2026` | `ADMIN` | Seal cases, audit logs, user administration |
+- **Investigator dashboard:** create and search owned reconstruction cases, define schemas, submit/import evidence, compare bounded hypotheses, inspect entropy guidance, verify provenance, export reports, and seal cases.
+- **Administrator dashboard:** view platform-wide metrics, inspect cross-user audit logs, generate native SQLite backups, and monitor privileged operations. It does not expose investigator evidence-entry controls.
 
----
+The dashboard separation is a user-interface boundary; every privileged operation is also enforced by backend role middleware.
 
-## 🧪 Verification & Reproduction Commands
+## Create or rotate an administrator account
 
-All tests and benchmarks run on isolated, disposable databases and strictly preserve shared environments:
+Admin accounts are not seeded with shared credentials. Provision one explicitly after creating the local database. In PowerShell, from the repository root:
 
-```bash
+```powershell
+$env:LAZARUS_ADMIN_EMAIL = "your-admin-email@example.com"
+$env:LAZARUS_ADMIN_PASSWORD = "use-a-unique-password-of-at-least-12-characters"
 cd backend
-
-# 1. Run Comprehensive DBMS Lab Demonstration (All 7 Rubric Sections)
-npm run dbms:demo
-
-# 2. Run All 25 Formal Patent Claims Verification
-npm run test:patent
-
-# 3. Run Full Backend Test Suite (12 Suites, 100% Pass)
-npm test
-
-# 4. Run Frontend Vitest Suite (15 Tests, 100% Pass)
-cd ../frontend
-npx vitest run
-
-# 5. Run Fast Linter
-npx oxlint
+npm run admin:provision
+Remove-Item Env:LAZARUS_ADMIN_EMAIL
+Remove-Item Env:LAZARUS_ADMIN_PASSWORD
 ```
 
----
+Use a unique password. Provisioning an existing email changes it to `ADMIN`, rotates its password, and revokes that user's sessions. Keep the password out of shell history where practical.
 
-## 🐳 Docker Deployment
+## Docker
 
-To launch the full-stack containerized application with PostgreSQL 15:
+Copy the root `.env.example` to `.env`, set a fresh `PROVENANCE_ENCRYPTION_KEY`, and run:
 
 ```bash
-docker compose up --build
+docker compose config
+docker compose build
+docker compose up
 ```
 
-Access the containerized application at: **`http://localhost:3000`**
+The Compose application uses persistent SQLite storage. Backups created by the Admin dashboard are mounted to a separate named volume at `/app/backups`. Docker Hub publishing and cloud deployment require your own repository/account settings and CI secrets; this source archive does not imply that a live deployment already exists.
 
----
+### Provision the first Docker administrator
 
-## 📁 Repository Directory Structure
+Registration creates an `INVESTIGATOR`, not an administrator. After `docker compose up -d`, provision the administrator explicitly from PowerShell:
 
-```
-lazarus-x/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                 # GitHub Actions automated CI/CD pipeline
-├── backend/
-│   ├── db/init/
-│   │   └── 01_advanced_features.sql # Native PostgreSQL views, triggers & procedures
-│   ├── prisma/
-│   │   ├── schema.prisma          # 11 normalized tables in 3NF/BCNF
-│   │   └── migrations/            # Version-controlled database migrations
-│   ├── src/
-│   │   ├── database/
-│   │   │   └── dbms_features_demonstration.ts # Comprehensive academic demo runner
-│   │   ├── engine/
-│   │   │   ├── lazarus.ts         # Core AC-3 propagation & CSP solver
-│   │   │   ├── provenance.ts      # SHA-256 chain & RFC 6962 Merkle tree
-│   │   │   ├── audit_bundle.ts    # Self-verifying offline forensic bundles
-│   │   │   └── patent_claim_verification.test.ts # 25 patent claims test suite
-│   │   ├── security/
-│   │   │   ├── password.ts        # BCrypt password hashing (Cost 12)
-│   │   │   └── key_rotation.ts    # Envelope key rotation utilities
-│   │   ├── database.ts            # Prisma client factory
-│   │   └── index.ts               # Express 5 core REST API & static SPA server
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx                # Enterprise investigator console & landing suite
-│   │   ├── SchemaGraph.tsx        # Interactive relational DAG visualizer
-│   │   ├── CandidateDiffMatrix.tsx # Candidate conflict & consensus comparator
-│   │   ├── MerkleVisualizer.tsx   # RFC 6962 inclusion proof visualizer
-│   │   ├── TimelineScrubber.tsx   # Step-by-step out-of-order replay scrubber
-│   │   ├── ForensicReportModal.tsx # Court-ready dossier generator
-│   │   ├── PatentSpecificationModal.tsx # Interactive patent claims explorer
-│   │   └── index.css              # GitHub/Linear dark enterprise design system
-│   ├── package.json
-│   └── vite.config.ts
-├── docs/
-│   ├── BCSE302P_LAB_ASSESSMENT_REPORT.md # Academic submission report and requirement mapping
-│   ├── REQUIREMENTS_TRACEABILITY.md      # Full rubric mapping matrix
-│   └── PROJECT_STATUS.md                 # System health and architecture audit
-├── research/
-│   └── PATENT_SPECIFICATION_FORMAL.md    # Formal patent disclosure (25 Claims)
-├── scripts/
-│   ├── backup_database.sh         # Linux/macOS native backup utility
-│   └── backup_database.bat        # Windows native backup utility
-├── Dockerfile                     # Multi-stage production container
-├── docker-compose.yml             # Orchestration for Node.js + PostgreSQL 15
-├── HANDOFF.md                     # Engineering handoff notes
-├── PROJECT_CONTEXT.md             # Developer architecture guide
-└── README.md                      # Primary project documentation
+```powershell
+$env:LAZARUS_ADMIN_EMAIL = "your-admin-email@example.com"
+$env:LAZARUS_ADMIN_PASSWORD = "use-a-unique-password-of-at-least-12-characters"
+docker compose exec -e LAZARUS_ADMIN_EMAIL -e LAZARUS_ADMIN_PASSWORD app node dist/provision_admin.js
+Remove-Item Env:LAZARUS_ADMIN_EMAIL
+Remove-Item Env:LAZARUS_ADMIN_PASSWORD
 ```
 
----
+Use a unique password and never store it in `.env`, Git, or screenshots. The command can create or rotate the named admin account and revoke sessions issued under its previous account state. Keep database and backup volumes protected; an online backup stored in the container volume is not an off-site disaster-recovery plan.
 
-## 📜 Intellectual Property & Patent Status
+## Health, metrics and operational checks
 
-The core architectural algorithms implemented within LAZARUS-X are formally documented under **Patent Application Docket LZ-2026-X01**:
-* **Title:** *Method and System for Deterministic Relational Database Reconstruction from Incomplete Evidence with Cryptographic Audit Integrity*
-* **IPC Classes:** `G06F 16/23`, `G06F 21/64`, `G06F 17/18`, `G06F 11/14`
-* **Formal Claims:** 25 Claims (Claims 1–10: System Architecture; Claims 11–20: Computer-Implemented Method; Claims 21–25: Computer-Readable Medium).
-* **Full Specification:** See [`research/PATENT_SPECIFICATION_FORMAL.md`](research/PATENT_SPECIFICATION_FORMAL.md).
+- `GET /api/health` — liveness (process is running).
+- `GET /api/health/ready` — readiness (database query succeeds; returns HTTP 503 when unavailable).
+- `GET /api/info` — product/runtime metadata.
+- `GET /metrics` — Prometheus text exposition. In production, metrics return 404 unless `METRICS_TOKEN` is configured to a secret of at least 32 characters and supplied as `Authorization: Bearer <token>`. Do not expose this secret in client code.
 
----
+## Read-only artifact intake and verification
 
-## ⚖️ License
+This command accepts `.db`, `.sqlite`, `.sqlite3`, `.db3`, `.wal`, `.shm`, and `.journal` extensions, rejects symbolic links and files larger than 2 GiB, hashes via a read-only file descriptor, and fails if source metadata changes during hashing. It writes a digest-addressed JSON manifest. The extension check does **not** validate the contents as a SQLite artifact.
 
-Distributed under the MIT License. See `LICENSE` for details.
+```bash
+node scripts/ingest_artifact.js ./sample.db ./evidence-manifests
+node scripts/verify_artifact_manifest.js ./sample.db ./evidence-manifests/<sha256>.manifest.json
+npm run test:intake
+```
+
+The manifest intentionally records the artifact name and metadata, not the machine's full source path, to reduce accidental path disclosure. Treat manifests as sensitive evidence records and preserve them with appropriate access controls. A digest proves only that the bytes match the manifest at verification time. It does not establish who collected the file or whether the source itself was already tampered with.
+
+### Read-only SQLite structure analysis
+
+The Python standard-library analyzer reports the schema SQL, column metadata, declared foreign keys, and row counts for a SQLite database. It does not output record values and opens the source in SQLite read-only/query-only mode. An optional full `PRAGMA integrity_check` may take time on large files. Python 3 is required for this extra utility.
+
+```bash
+python scripts/analyze_sqlite.py ./sample.db --integrity-check --output ./evidence-manifests/sample-analysis.json
+python scripts/test_analyze_sqlite.py
+```
+
+The analysis describes rows visible to SQLite at analysis time. It is not a page-carver, WAL/journal reconstruction engine, or substitute for preserving related `-wal` / `-journal` files.
+
+## SQLite backup and restore
+
+CI includes a native SQLite backup → restore → integrity/data verification drill. This is a repeatable test, not a substitute for restoring a real deployment backup before using it for recovery.
+
+Requires the SQLite command-line utility (`sqlite3`). On Linux/macOS:
+
+```bash
+bash scripts/backup_database.sh ./backups
+bash scripts/restore_database.sh ./backups/lazarus_sqlite_TIMESTAMP.db ./restore-test.db
+```
+
+On Windows, use `scripts/backup_database.bat` (requires `sqlite3.exe` on `PATH`). Restore verifies SQLite integrity and refuses to overwrite an existing target unless `--force` is explicitly supplied. Practice against a disposable destination before relying on a backup. An `integrity_check` does not prove that application-level recovery succeeded; inspect record counts and run application tests after restore.
+
+## Verification workflow
+
+```bash
+npm run validate:db
+npm run typecheck:backend
+npm run test:security
+npm test
+npm run build:frontend
+npm run dbms:demo
+npm run test:intake
+python scripts/test_analyze_sqlite.py
+npm run test:e2e
+npm run test:all
+bash -n scripts/backup_database.sh scripts/restore_database.sh
+```
+
+Run these commands on the machine/environment intended for submission. The archive's status report records which checks ran in the packaging environment and which remain unverified. Do not mark a check as passed unless you have the actual successful output.
+
+## Database design and assessment materials
+
+- `docs/ER_diagram.md` — entity relationships and relational schema.
+- `docs/data_dictionary.md` — tables/columns and interpretation.
+- `docs/architecture.md` — current runtime architecture.
+- `docs/REQUIREMENTS_TRACEABILITY.md` — assessment rubric mapping and verification status.
+- `docs/TECHNICAL_SPECIFICATION_REPORT.md` — technical architecture and benchmark specification report.
+- `docs/ENGINEERING_AUDIT_2026-10-22.md`, `docs/FINAL_ENGINEERING_STATUS.md`, and `docs/RELEASE_VERIFICATION.md` — engineering review, release scope, and explicit verification status.
+- `research/` — background research and technical disclosure drafts. No patent filing or grant is claimed.
+
+## Open-source research references
+
+These are design/research references, not dependencies claimed as integrated into the codebase:
+
+- [Netherlands Forensic Institute — xsqlite](https://github.com/NetherlandsForensicInstitute/xsqlite): SQLite forensic analysis and deleted-record recovery concepts.
+- [FQLite](https://github.com/pawlaszczyk/fqlite): open-source SQLite forensic toolkit and recovery workflows.
+- [OWASP Node.js Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html): secure Node.js application guidance.
+- [Express production security guidance](https://expressjs.com/advanced/best-practice-security/): TLS, brute-force protection and dependency security.
+
+The artifact intake CLI is not a replacement for the low-level recovery capabilities in xsqlite or FQLite. It only computes and verifies integrity manifests.
+
+## Deployment & Operations
+
+LAZARUS-X is built for containerized and on-premise relational reconstruction workflows. Production deployment guidelines and container specifications are detailed in `Dockerfile` and `docker-compose.yml`.
+
+## Intellectual-property note
+
+The `research/` patent-style specification files and in-app research disclosure are **draft technical research material only**. No patent application number, filing, grant, legal review or freedom-to-operate opinion is represented by this repository.
+
+## License
+
+MIT. See `LICENSE` and `THIRD_PARTY_NOTICES.md`.

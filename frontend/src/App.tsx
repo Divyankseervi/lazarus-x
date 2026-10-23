@@ -1,17 +1,18 @@
-import { Component, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { MerkleVisualizer } from './MerkleVisualizer';
 import { SchemaGraph } from './SchemaGraph';
 import { TimelineScrubber } from './TimelineScrubber';
 import { CandidateDiffMatrix } from './CandidateDiffMatrix';
 import { ForensicReportModal } from './ForensicReportModal';
-import { PatentSpecificationModal } from './PatentSpecificationModal';
 import { AuditLogsModal } from './AuditLogsModal';
-import { ERDiagramModal } from './ERDiagramModal';
+import { SchemaStudio } from './SchemaStudio';
+import { createPresetSchema, createWalkthroughEvidence, hasWalkthroughConflictTarget, type CaseSchema } from './schemaTypes';
+import { parseEvidenceCsv, type ImportedEvidenceFragment } from './evidenceCsv';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Scale, Boxes, Check, ChevronDown, CircleAlert,
-  ClipboardCheck, Cpu, Database, Edit2, Fingerprint, GitBranch, GraduationCap, KeyRound, Loader2, Lock, LogOut, Mail, Split,
-  Plus, RefreshCw, Search, Shield, ShieldCheck, TimerReset, Trash2, Zap, Target, Table,
+  Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Boxes, ChevronDown, CircleAlert,
+  ClipboardCheck, Cpu, Database, Edit2, Fingerprint, FileSpreadsheet, GitBranch, GraduationCap, KeyRound, Loader2, Lock, LogOut, Mail, Split,
+  Plus, RefreshCw, Search, Shield, ShieldCheck, Sparkles, TimerReset, Trash2, Upload, Zap,
 } from 'lucide-react';
 import {
   deriveEnvelopeMerkleProofDetails,
@@ -24,7 +25,6 @@ import {
 } from './provenanceVerifier';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
-const TABLES = ['Department', 'Employee', 'Order'] as const;
 
 type CandidateState = {
   id: string;
@@ -105,6 +105,8 @@ type EvidenceTimelineItem = {
   field: string;
   value: string | number | boolean | null;
   at: string;
+  sourceRef?: string;
+  sourceSha256?: string;
 };
 
 type AppError = Error & { code?: string };
@@ -211,66 +213,61 @@ export class CaseViewErrorBoundary extends Component<{ children: ReactNode; onRe
   }
 }
 
-function RowGraph({ state }: { state: CandidateState | null }) {
+function RowGraph({ state, tables, schema }: { state: CandidateState | null; tables: string[]; schema: CaseSchema | null }) {
   const graph = useMemo(() => {
-    const rows = TABLES.flatMap(table => (state?.data?.[table] ?? []).slice(0, 24).map((row, index) => ({
-      key: `${table}:${String(row._recordId ?? index)}`,
-      table,
-      row,
-      index,
-    })));
-    const columns = new Map<string, typeof rows>();
-    for (const table of TABLES) columns.set(table, rows.filter(row => row.table === table));
-    const yFor = (index: number) => 72 + index * 82;
-    const nodePositions = new Map(rows.map(node => [node.key, {
-      x: node.table === 'Department' ? 150 : node.table === 'Employee' ? 470 : 790,
-      y: yFor(node.index),
-    }]));
+    const columns = new Map<string, Array<{ key: string; table: string; row: Record<string, unknown>; index: number }>>();
+    for (const table of tables) {
+      columns.set(table, (state?.data?.[table] ?? []).slice(0, 16).map((row, index) => ({
+        key: `${table}:${String(row._recordId ?? index)}`, table, row, index,
+      })));
+    }
+    const tableGap = 250;
+    const width = Math.max(540, tables.length * tableGap + 60);
+    const maxRows = Math.max(1, ...Array.from(columns.values(), items => items.length));
+    const height = Math.max(260, 110 + (maxRows - 1) * 76);
+    const tableIndex = new Map(tables.map((table, index) => [table, index]));
+    const nodePositions = new Map<string, { x: number; y: number }>();
+    for (const [table, rows] of columns) rows.forEach(node => nodePositions.set(node.key, {
+      x: 120 + (tableIndex.get(table) ?? 0) * tableGap,
+      y: 74 + node.index * 76,
+    }));
     const edges: Array<{ from: string; to: string }> = [];
-    const employeeRows = columns.get('Employee') ?? [];
-    const departmentRows = columns.get('Department') ?? [];
-    const orderRows = columns.get('Order') ?? [];
-    for (const employee of employeeRows) {
-      const target = departmentRows.find(row => row.row.id !== undefined && String(row.row.id) === String(employee.row.departmentId));
-      if (target) edges.push({ from: employee.key, to: target.key });
+    for (const constraint of schema?.constraints ?? []) {
+      if (constraint.type !== 'FOREIGN_KEY' || !constraint.targetTable) continue;
+      const fromField = constraint.fields?.[0] ?? constraint.field;
+      const toField = constraint.targetFields?.[0] ?? constraint.targetField ?? 'id';
+      for (const source of columns.get(constraint.table) ?? []) {
+        const sourceValue = source.row[fromField];
+        if (sourceValue === undefined || sourceValue === null) continue;
+        const target = (columns.get(constraint.targetTable) ?? []).find(candidate => candidate.row[toField] !== undefined && String(candidate.row[toField]) === String(sourceValue));
+        if (target) edges.push({ from: source.key, to: target.key });
+      }
     }
-    for (const order of orderRows) {
-      const target = employeeRows.find(row => row.row.id !== undefined && String(row.row.id) === String(order.row.employeeId));
-      if (target) edges.push({ from: order.key, to: target.key });
-    }
-    const maxRows = Math.max(1, ...Array.from(columns.values(), column => column.length));
-    return { rows, columns, nodePositions, edges, height: Math.max(260, 112 + (maxRows - 1) * 82) };
-  }, [state]);
+    const rows = Array.from(columns.values()).flat();
+    return { rows, columns, nodePositions, edges, height, width, tableGap };
+  }, [state, tables, schema]);
 
-  if (!state) return <div className="graph-empty">Initialize or open a case to map its surviving records.</div>;
-  if (graph.rows.length === 0) return <div className="graph-empty">No observed records yet. Add fragments to build the relational map.</div>;
-
+  if (!state) return <div className="graph-empty">Define a target schema, then submit partial record observations.</div>;
+  if (graph.rows.length === 0) return <div className="graph-empty">No record fragments have been observed yet. The graph will emerge as evidence is added.</div>;
   return (
-    <div className="graph-scroll custom-scrollbar" aria-label="Reconstructed relational graph">
-      <svg className="record-graph" viewBox={`0 0 940 ${graph.height}`} role="img" aria-label="Department, employee, and order record graph">
-        <defs>
-          <linearGradient id="edgeGlow" x1="0" x2="1"><stop offset="0" stopColor="#55d6be" /><stop offset="1" stopColor="#8d82ff" /></linearGradient>
-        </defs>
-        {TABLES.map((table, index) => <text key={table} x={[150, 470, 790][index]} y="27" textAnchor="middle" className="graph-column-title">{table.toUpperCase()} · {graph.columns.get(table)?.length ?? 0}</text>)}
+    <div className="graph-scroll custom-scrollbar" aria-label="Candidate relational hypothesis graph">
+      <svg className="record-graph" viewBox={`0 0 ${graph.width} ${graph.height}`} role="img" aria-label="Observed records connected by declared foreign keys">
+        <defs><linearGradient id="edgeGlow" x1="0" x2="1"><stop offset="0" stopColor="#55d6be"/><stop offset="1" stopColor="#8d82ff"/></linearGradient></defs>
+        {tables.map((table, index) => <text key={table} x={120 + index * graph.tableGap} y="27" textAnchor="middle" className="graph-column-title">{table.toUpperCase()} · {graph.columns.get(table)?.length ?? 0}</text>)}
         {graph.edges.map(edge => {
-          const from = graph.nodePositions.get(edge.from)!;
-          const to = graph.nodePositions.get(edge.to)!;
-          return <path key={`${edge.from}-${edge.to}`} d={`M ${from.x - 64} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x + 64} ${to.y}`} className="graph-edge" />;
+          const from = graph.nodePositions.get(edge.from)!; const to = graph.nodePositions.get(edge.to)!;
+          return <path key={`${edge.from}->${edge.to}`} d={`M ${from.x - 70} ${from.y} C ${(from.x + to.x) / 2} ${from.y}, ${(from.x + to.x) / 2} ${to.y}, ${to.x + 70} ${to.y}`} className="graph-edge"/>;
         })}
         {graph.rows.map(node => {
           const point = graph.nodePositions.get(node.key)!;
-          const label = node.row.name ?? node.row.amount ?? node.row.id ?? `record ${String(node.row._recordId ?? node.index + 1)}`;
+          const displayField = schema?.tableDefinitions?.find(table => table.name === node.table)?.columns.find(column => column.name !== 'id')?.name;
+          const label = (displayField ? node.row[displayField] : undefined) ?? node.row.name ?? node.row.title ?? node.row.hostname ?? node.row.id ?? `record ${String(node.row._recordId ?? node.index + 1)}`;
           const identifier = node.row.id ?? node.row._recordId ?? node.index + 1;
-          return (
-            <g key={node.key} transform={`translate(${point.x} ${point.y})`} className={`graph-node graph-node-${node.table.toLowerCase()}`}>
-              <rect x="-68" y="-27" width="136" height="54" rx="13" />
-              <text x="0" y="-4" textAnchor="middle" className="graph-node-label">{String(label).slice(0, 17)}</text>
-              <text x="0" y="13" textAnchor="middle" className="graph-node-meta">record {String(identifier)}</text>
-            </g>
-          );
+          const index = tables.indexOf(node.table);
+          return <g key={node.key} transform={`translate(${point.x} ${point.y})`} className={`graph-node graph-node-generic graph-node-${Math.max(0, index) % 5}`}><rect x="-72" y="-26" width="144" height="52" rx="12"/><text x="0" y="-3" textAnchor="middle" className="graph-node-label">{String(label).slice(0, 19)}</text><text x="0" y="14" textAnchor="middle" className="graph-node-meta">record {String(identifier)}</text></g>;
         })}
       </svg>
-      <div className="graph-legend"><span><i className="legend-dot department" />Department</span><span><i className="legend-dot employee" />Employee</span><span><i className="legend-dot order" />Order</span><span className="muted">Showing up to 24 records per relation</span></div>
+      <div className="graph-legend">{tables.map((table, index) => <span key={table}><i className={`legend-dot graph-legend-dot-${index % 5}`}/>{table}</span>)}<span className="muted">Showing up to 16 rows per relation · only observed references are connected</span></div>
     </div>
   );
 }
@@ -304,20 +301,128 @@ function CandidateMap({ candidates, total, selectedId, onSelect }: {
   );
 }
 
+type AdminOverview = {
+  cases: number;
+  evidenceFragments: number;
+  auditLogs: number;
+  users: number;
+  administrators: number;
+  generatedAt: string;
+};
+
+function AdministratorDashboard({
+  token,
+  email,
+  onLogout,
+  onBackup,
+}: {
+  token: string;
+  email: string;
+  onLogout: () => void;
+  onBackup: () => void;
+}) {
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadOverview = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setOverview(await request<AdminOverview>('/admin/overview', token));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load administrator overview.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadOverview();
+  }, [loadOverview]);
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>ADMINISTRATOR CONTROL CENTER</small></div></div>
+        <div className="topbar-right">
+          <div className="system-pill"><span className="status-light" /> ADMIN ENGINE ONLINE</div>
+          <div className="user-pill"><span className="avatar">{email.slice(0, 1).toUpperCase()}</span><span>{email}</span><span className="role-tag">ADMIN</span></div>
+          <button className="icon-button" aria-label="Log out" title="Log out" onClick={onLogout}><LogOut size={17} /></button>
+        </div>
+      </header>
+      <main className="workspace admin-dashboard">
+        <aside className="sidebar admin-sidebar">
+          <div className="sidebar-head"><div><span className="eyebrow">ADMINISTRATION</span><h2>System controls</h2></div><ShieldCheck size={22} /></div>
+          <button type="button" className="new-case-button" onClick={() => setAuditOpen(true)}><ClipboardCheck size={15} /> Audit trail</button>
+          <button type="button" className="secondary-button full-width" onClick={onBackup}><Database size={15} /> Native database backup</button>
+          <div className="sidebar-footer"><Shield size={15} /><span>Privileged actions are enforced by the API.</span></div>
+        </aside>
+        <section className="main-column">
+          <div className="page-heading">
+            <div>
+              <div className="eyebrow">ROLE-BASED ADMINISTRATION <span className="eyebrow-line" /></div>
+              <h1>Administrator dashboard</h1>
+              <p>Monitor platform-wide database activity, audit events, users, and recovery operations.</p>
+            </div>
+            <div className="heading-actions">
+              <button type="button" className="secondary-button" onClick={() => void loadOverview()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh overview</button>
+              <button type="button" className="secondary-button" onClick={onBackup}><Database size={15} /> Backup database</button>
+            </div>
+          </div>
+          {error && <div className="banner banner-error" role="alert"><CircleAlert size={16} />{error}</div>}
+          <section className="panel admin-hero-panel">
+            <div className="panel-heading"><div className="panel-title"><span className="panel-icon violet-icon"><ShieldCheck size={17} /></span><div><h2>Privileged operations</h2><p>This dashboard is intentionally separate from investigator reconstruction work.</p></div></div><span className="live-tag"><i /> ADMIN ONLY</span></div>
+            <div className="admin-feature-grid">
+              <article><Database size={20} /><strong>Backup and recovery</strong><span>Generate a native SQLite backup and verify database integrity.</span><button type="button" className="secondary-button" onClick={onBackup}>Run backup</button></article>
+              <article><ClipboardCheck size={20} /><strong>Cross-user audit visibility</strong><span>Review application events across all investigators with filters and pagination.</span><button type="button" className="secondary-button" onClick={() => setAuditOpen(true)}>Open audit trail</button></article>
+              <article><Activity size={20} /><strong>System monitoring</strong><span>Inspect counts for users, cases, evidence fragments, and audit records.</span><button type="button" className="secondary-button" onClick={() => void loadOverview()}>Refresh metrics</button></article>
+            </div>
+          </section>
+          <section className="admin-metric-grid" aria-label="Administrator system metrics">
+            {[
+              ['Registered users', overview?.users ?? 0, 'Single Users table'],
+              ['Administrators', overview?.administrators ?? 0, 'Provisioned operators'],
+              ['Reconstruction cases', overview?.cases ?? 0, 'All owners'],
+              ['Evidence fragments', overview?.evidenceFragments ?? 0, 'Committed observations'],
+              ['Audit events', overview?.auditLogs ?? 0, 'Cross-user visibility'],
+            ].map(([label, value, hint]) => <article className="admin-metric-card" key={label}><span>{label}</span><strong>{loading ? '…' : value}</strong><small>{hint}</small></article>)}
+          </section>
+        </section>
+      </main>
+      <AuditLogsModal isOpen={auditOpen} onClose={() => setAuditOpen(false)} currentUser={{ id: email, email, role: 'ADMIN' }} apiBase={API_BASE} token={token} />
+    </div>
+  );
+}
+
+const DEFAULT_PORTAL_CREDENTIALS = {
+  INVESTIGATOR: {
+    email: 'investigator@lazarus.local',
+    password: 'Investigator2026!',
+  },
+  ADMIN: {
+    email: 'admin@lazarus.local',
+    password: 'Admin2026!Pass',
+  },
+} as const;
+
 function App() {
+  const initialPortal: 'INVESTIGATOR' | 'ADMIN' = window.location.pathname === '/admin-login' ? 'ADMIN' : 'INVESTIGATOR';
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
+  const [authPortal, setAuthPortal] = useState<'INVESTIGATOR' | 'ADMIN'>(initialPortal);
+  const [authEmail, setAuthEmail] = useState<string>(DEFAULT_PORTAL_CREDENTIALS[initialPortal].email);
+  const [authPassword, setAuthPassword] = useState<string>(DEFAULT_PORTAL_CREDENTIALS[initialPortal].password);
   const [registerMode, setRegisterMode] = useState(false);
   const [caseId, setCaseId] = useState<string | null>(null);
+  const [caseSchema, setCaseSchema] = useState<CaseSchema | null>(null);
+  const [schemaStudioOpen, setSchemaStudioOpen] = useState(false);
   const [caseStatus, setCaseStatus] = useState<string>('ACTIVE');
   const [graphViewMode, setGraphViewMode] = useState<'row' | 'schema'>('row');
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [patentModalOpen, setPatentModalOpen] = useState(false);
   const [auditLogsModalOpen, setAuditLogsModalOpen] = useState(false);
-  const [erModalOpen, setErModalOpen] = useState(false);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [diffViewOpen, setDiffViewOpen] = useState(false);
 
@@ -361,50 +466,6 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  };
-
-  const exportTableAsSQL = (relationName: string, rows: Record<string, unknown>[]) => {
-    if (!rows || rows.length === 0) return;
-    const headers = Object.keys(rows[0]!).filter(k => k !== '_recordId');
-    const sqlStatements = rows.map(row => {
-      const vals = headers.map(h => {
-        const val = row[h];
-        if (val === null || val === undefined) return 'NULL';
-        if (typeof val === 'number') return String(val);
-        if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
-        return `'${String(val).replace(/'/g, "''")}'`;
-      });
-      return `INSERT INTO "${relationName}" (${headers.map(h => `"${h}"`).join(', ')}) VALUES (${vals.join(', ')});`;
-    });
-    const sqlContent = `-- LAZARUS-X Forensic Relational Reconstruction Export\n-- Table: ${relationName} | Tuples: ${rows.length}\n-- Generated: ${new Date().toISOString()}\n\nBEGIN TRANSACTION;\n${sqlStatements.join('\n')}\nCOMMIT;\n`;
-    const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${relationName}_reconstructed_${Date.now()}.sql`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const inferSqlType = (column: string, rows: Array<Record<string, unknown>>): string => {
-    const colLower = column.toLowerCase();
-    if (colLower === 'id') return 'INTEGER';
-    if (colLower.endsWith('id')) return 'INTEGER [FK]';
-    if (colLower === 'salary' || colLower === 'amount' || colLower === 'budget' || colLower === 'price') return 'DECIMAL(10,2)';
-    if (colLower === 'email') return 'VARCHAR(255)';
-    if (colLower === 'status') return 'VARCHAR(32)';
-    if (colLower.includes('date') || colLower.includes('time') || colLower.endsWith('at')) return 'TIMESTAMP';
-    for (const r of rows) {
-      const v = r[column];
-      if (v !== undefined && v !== null) {
-        if (typeof v === 'number') return Number.isInteger(v) ? 'INTEGER' : 'DECIMAL';
-        if (typeof v === 'boolean') return 'BOOLEAN';
-        if (typeof v === 'string') return v.length > 50 ? 'TEXT' : 'VARCHAR(128)';
-      }
-    }
-    return 'VARCHAR(64)';
   };
 
   const triggerAdminBackup = async () => {
@@ -464,14 +525,20 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [table, setTable] = useState<string>('Department');
+  const [table, setTable] = useState<string>('Person');
   const [recordId, setRecordId] = useState('1');
   const [field, setField] = useState('name');
   const [value, setValue] = useState('');
   const [sourceConfidence, setSourceConfidence] = useState(1);
+  const [sourceRef, setSourceRef] = useState('');
+  const [sourceSha256, setSourceSha256] = useState('');
   const [valueFormat, setValueFormat] = useState<'text' | 'json'>('text');
-  const [formErrors, setFormErrors] = useState<{ recordId?: string; field?: string; value?: string; confidence?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ recordId?: string; field?: string; value?: string; confidence?: string; sourceRef?: string; sourceSha256?: string }>({});
   const [timeline, setTimeline] = useState<EvidenceTimelineItem[]>([]);
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
+  const TABLES = caseSchema?.tables ?? [];
+  const selectedTableDefinition = caseSchema?.tableDefinitions?.find(definition => definition.name === table);
+  const selectedColumnDefinition = selectedTableDefinition?.columns.find(column => column.name === field);
 
   const normalizedField = field.trim();
   const numericRecordId = Number(recordId);
@@ -543,6 +610,9 @@ function App() {
       const session = await request<{ token: string; role: string; email: string }>('/auth/login', undefined, {
         method: 'POST', body: JSON.stringify({ email: authEmail, password: authPassword }),
       });
+      if (session.role !== authPortal) {
+        throw new Error(`This account belongs to the ${session.role.toLowerCase()} portal. Choose the matching login page.`);
+      }
       setToken(session.token);
       setEmail(session.email);
       setRole(session.role);
@@ -555,8 +625,19 @@ function App() {
     }
   };
 
+  const switchAuthPortal = (nextPortal: 'INVESTIGATOR' | 'ADMIN') => {
+    setAuthPortal(nextPortal);
+    setRegisterMode(false);
+    setError('');
+    setAuthEmail(DEFAULT_PORTAL_CREDENTIALS[nextPortal].email);
+    setAuthPassword(DEFAULT_PORTAL_CREDENTIALS[nextPortal].password);
+    window.history.replaceState({}, '', nextPortal === 'ADMIN' ? '/admin-login' : '/investigator-login');
+  };
+
   const resetCase = () => {
     setCaseId(null);
+    setCaseSchema(null);
+    setSchemaStudioOpen(false);
     setCaseName('');
     setIsEditingCaseName(false);
     setCaseNameDraft('');
@@ -625,11 +706,13 @@ function App() {
         id: string;
         name?: string;
         status?: string;
+        schemaDefinition?: CaseSchema;
         bestState: CandidateState;
         candidates: CandidateSummary[];
         ambiguityReduction: Recommendation;
         evidenceRecommendations?: NonNullable<Recommendation>[];
         branchingDiagnostics?: BranchingDiagnostics;
+        recentEvidence?: Array<{ id: string; sequence: number; table: string; recordId: number; field: string; value: string | number | boolean | null; sourceRef?: string; sourceSha256?: string; at: string }>;
         ambiguity: { entropyBits: number; candidateCount: number };
       }>(`/cases/${encodeURIComponent(id)}`, token);
       setCaseId(state.id);
@@ -637,6 +720,14 @@ function App() {
       setCaseNameDraft(state.name || 'Untitled Case');
       setIsEditingCaseName(false);
       setCaseStatus(state.status || 'ACTIVE');
+      // Old API responses predate per-case schemas; their behavior was the legacy workforce demo.
+      const openedSchema = state.schemaDefinition
+        ? { ...state.schemaDefinition, tableDefinitions: state.schemaDefinition.tableDefinitions ?? state.schemaDefinition.tables.map(name => ({ name, columns: [] })) }
+        : createPresetSchema('workforce-orders');
+      setCaseSchema(openedSchema);
+      const firstTable = openedSchema.tables[0] ?? 'Department';
+      setTable(firstTable);
+      setField(openedSchema.tableDefinitions?.find(definition => definition.name === firstTable)?.columns?.[0]?.name ?? 'name');
       setEngineState(state.bestState);
       setSelectedCandidateId(state.bestState.id);
       setCandidates(state.candidates);
@@ -644,7 +735,7 @@ function App() {
       setRankedRecommendations(state.evidenceRecommendations ?? (state.ambiguityReduction ? [state.ambiguityReduction] : []));
       setBranchingDiag(state.branchingDiagnostics ?? null);
       setEntropy({ after: state.ambiguity.entropyBits, candidateCount: state.ambiguity.candidateCount });
-      setTimeline([]);
+      setTimeline((state.recentEvidence ?? []).map(item => ({ id: item.id || String(item.sequence), table: item.table, recordId: item.recordId, field: item.field, value: item.value, at: item.at, ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}) })));
       setProofStatus(null);
       setProofInspection(null);
       await loadAudit(state.id, token);
@@ -656,14 +747,20 @@ function App() {
     }
   };
 
-  const createCase = async () => {
+  const createCase = async (caseNameInput: string, schemaInput: CaseSchema) => {
     if (!token) return;
     setLoading(true);
     setError('');
     try {
-      const created = await request<{ id: string; name?: string; status?: string; bestState: CandidateState; candidates: CandidateSummary[] }>('/cases', token, { method: 'POST', body: '{}' });
+      const created = await request<{ id: string; name?: string; status?: string; schemaDefinition?: CaseSchema; bestState: CandidateState; candidates: CandidateSummary[] }>('/cases', token, { method: 'POST', body: JSON.stringify({ name: caseNameInput, schemaDefinition: schemaInput }) });
+      // Legacy/mocked servers omit schemaDefinition and create the historical workforce schema.
+      const createdSchema = created.schemaDefinition ?? createPresetSchema('workforce-orders');
       setCaseId(created.id);
-      setCaseName(created.name || 'Untitled Case');
+      setCaseSchema(createdSchema);
+      setSchemaStudioOpen(false);
+      setTable(createdSchema.tables[0] ?? 'Person');
+      setField(createdSchema.tableDefinitions?.find(definition => definition.name === createdSchema.tables[0])?.columns?.[0]?.name ?? 'id');
+      setCaseName(created.name || caseNameInput || 'Untitled Case');
       setCaseNameDraft(created.name || 'Untitled Case');
       setIsEditingCaseName(false);
       setCaseStatus(created.status || 'ACTIVE');
@@ -680,7 +777,7 @@ function App() {
       setAuditTotal(0);
       setProofStatus(null);
       setProofInspection(null);
-      setNotice('New reconstruction case initialized.');
+      setNotice(`New reconstruction case initialized. ${createdSchema.tables.length} declared relations are ready for partial evidence and hypothesis comparison.`);
       await loadCases(token);
       await loadAudit(created.id, token);
     } catch (cause) {
@@ -690,11 +787,129 @@ function App() {
     }
   };
 
+  type EvidenceBatchResponse = {
+    bestState: CandidateState;
+    candidates: CandidateSummary[];
+    ambiguityReduction: Recommendation;
+    evidenceRecommendations?: NonNullable<Recommendation>[];
+    branchingDiagnostics?: BranchingDiagnostics;
+    ambiguity: { entropyBeforeBits: number; entropyAfterBits: number; reductionBits: number; candidateCountAfter: number };
+    provenance: { sequence: number; appendedEvents: number };
+  };
+
+  const commitEvidenceBatch = async (
+    evidence: ImportedEvidenceFragment[],
+    successMessage: string,
+    replaceTimeline = false,
+  ) => {
+    if (!caseId || !token || evidence.length === 0) return;
+    setLoading(true);
+    setError('');
+    setNotice('');
+    let commitSucceeded = false;
+    let committedSequence: number | undefined;
+    try {
+      const response = await request<EvidenceBatchResponse>(`/cases/${encodeURIComponent(caseId)}/evidence`, token, {
+        method: 'POST', body: JSON.stringify({ evidence }),
+      });
+      commitSucceeded = true;
+      committedSequence = response.provenance.sequence;
+      setEngineState(response.bestState);
+      setSelectedCandidateId(response.bestState.id);
+      setCandidates(response.candidates);
+      setRecommendation(response.ambiguityReduction);
+      setRankedRecommendations(response.evidenceRecommendations ?? (response.ambiguityReduction ? [response.ambiguityReduction] : []));
+      setBranchingDiag(response.branchingDiagnostics ?? null);
+      setEntropy({ before: response.ambiguity.entropyBeforeBits, after: response.ambiguity.entropyAfterBits, reduction: response.ambiguity.reductionBits, candidateCount: response.ambiguity.candidateCountAfter });
+      const timestamp = new Date().toISOString();
+      const appendedEvents = Number.isSafeInteger(response.provenance.appendedEvents) ? response.provenance.appendedEvents : evidence.length;
+      const timelineItems = evidence.map((item, index) => ({
+        id: `${response.provenance.sequence - appendedEvents + index + 1}-${Date.now()}-${index}`,
+        table: item.table, recordId: item.recordId, field: item.field, value: item.value, at: timestamp, ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
+      })).reverse();
+      setTimeline(current => (replaceTimeline ? timelineItems : [...timelineItems, ...current]).slice(0, 50));
+      setValue('');
+      setSourceRef('');
+      setSourceSha256('');
+      setFormErrors({});
+      setNotice(`${successMessage} · ${evidence.length} fragment(s) · ledger sequence ${response.provenance.sequence}`);
+      // The evidence commit is durable before the secondary UI refreshes run. If a
+      // refresh fails, don't tell the investigator to submit the same evidence again.
+      await loadAudit(caseId, token);
+      await loadCases(token);
+    } catch (cause) {
+      if (commitSucceeded) {
+        setError(`Evidence was committed at ledger sequence ${committedSequence}, but a follow-up display refresh failed. Reopen the case to refresh its state; do not resubmit the same batch.`);
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Evidence could not be accepted.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const csvCell = (value: string | number | boolean | null) => {
+    const text = value === null ? '' : String(value);
+    return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+
+  const downloadEvidenceCsvTemplate = () => {
+    if (!caseSchema) return;
+    const rows: Array<Array<string | number | boolean | null>> = [['table', 'recordId', 'field', 'value', 'confidence', 'sourceRef', 'sourceSha256']];
+    const exampleValues = new Map<string, string | number | boolean | null>();
+    caseSchema.tableDefinitions.forEach((definition, index) => {
+      for (const column of definition.columns) {
+        let example: string | number | boolean | null;
+        if (column.type === 'NUMBER') example = /id$/i.test(column.name) || column.unique ? index + 1 : 100 + index;
+        else if (column.type === 'BOOLEAN') example = true;
+        else if (column.name.toLowerCase() === 'sha256') example = '0'.repeat(64); // format-only template placeholder, not a real artifact digest
+        else if (/name|hostname|title|role|severity|finding/i.test(column.name)) example = `Example ${definition.name} ${column.name}`;
+        else example = `sample-${definition.name.toLowerCase()}-${column.name.toLowerCase()}`;
+        exampleValues.set(`${definition.name}.${column.name}`, example);
+      }
+    });
+    for (const constraint of caseSchema.constraints) {
+      if (constraint.type !== 'FOREIGN_KEY' || !constraint.targetTable || !constraint.targetField) continue;
+      const targetValue = exampleValues.get(`${constraint.targetTable}.${constraint.targetField}`);
+      if (targetValue !== undefined) exampleValues.set(`${constraint.table}.${constraint.field}`, targetValue);
+    }
+    caseSchema.tableDefinitions.forEach((definition, index) => {
+      for (const column of definition.columns) {
+        rows.push([definition.name, index + 1, column.name, exampleValues.get(`${definition.name}.${column.name}`) ?? '', 0.95, '', '']);
+      }
+    });
+    const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `lazarus-evidence-template-${caseSchema.preset || 'custom'}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleEvidenceCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !caseSchema || !caseId || !token) return;
+    if (file.size > 512 * 1024) { setError('CSV file must be 512 KiB or smaller so the resulting request fits the API request limit.'); return; }
+    try {
+      const parsed = parseEvidenceCsv(await file.text(), caseSchema);
+      const approved = window.confirm(`Import ${parsed.length} evidence fragments from “${file.name}” into ${caseName}? This is a single batch transaction; accepted fragments become part of the case ledger and cannot be individually removed. Review your CSV before continuing.`);
+      if (!approved) return;
+      await commitEvidenceBatch(parsed, `Imported ${file.name}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not parse evidence CSV.');
+      setNotice('');
+    }
+  };
+
   const submitEvidence = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!caseId || !token) return;
     const numericRecordId = Number(recordId);
-    const nextErrors: { recordId?: string; field?: string; value?: string; confidence?: string } = {};
+    const nextErrors: { recordId?: string; field?: string; value?: string; confidence?: string; sourceRef?: string; sourceSha256?: string } = {};
     if (recordId.trim() === '' || !Number.isSafeInteger(numericRecordId) || numericRecordId < 0) {
       nextErrors.recordId = 'Record locator must be a non-negative whole number.';
     }
@@ -704,6 +919,8 @@ function App() {
     if (!Number.isFinite(sourceConfidence) || sourceConfidence <= 0 || sourceConfidence > 1) {
       nextErrors.confidence = 'Source confidence must be greater than 0 and at most 1.';
     }
+    if (sourceRef.trim().length > 256 || /[\u0000-\u001f\u007f]/.test(sourceRef)) nextErrors.sourceRef = 'Source reference must be a printable label of at most 256 characters.';
+    if (sourceSha256.trim() && !/^[a-f0-9]{64}$/i.test(sourceSha256.trim())) nextErrors.sourceSha256 = 'Source SHA-256 must contain exactly 64 hexadecimal characters.';
 
     let evidenceValue: string | number | boolean | null;
     if (valueFormat === 'json') {
@@ -714,9 +931,10 @@ function App() {
         evidenceValue = value;
       }
     } else {
-      const numericFields = new Set(['id', 'departmentId', 'employeeId', 'amount']);
       const numericValue = Number(value);
-      evidenceValue = numericFields.has(normalizedField) && value.trim() !== '' && Number.isFinite(numericValue) ? numericValue : value;
+      if (selectedColumnDefinition?.type === 'NUMBER' && value.trim() !== '' && Number.isFinite(numericValue)) evidenceValue = numericValue;
+      else if (selectedColumnDefinition?.type === 'BOOLEAN' && ['true', 'false'].includes(value.trim().toLowerCase())) evidenceValue = value.trim().toLowerCase() === 'true';
+      else evidenceValue = value;
     }
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors);
@@ -724,41 +942,27 @@ function App() {
       return;
     }
     setFormErrors({});
-    setLoading(true);
-    setError('');
-    setNotice('');
-    try {
-      const response = await request<{
-        bestState: CandidateState;
-        candidates: CandidateSummary[];
-        ambiguityReduction: Recommendation;
-        evidenceRecommendations?: NonNullable<Recommendation>[];
-        branchingDiagnostics?: BranchingDiagnostics;
-        ambiguity: { entropyBeforeBits: number; entropyAfterBits: number; reductionBits: number; candidateCountAfter: number };
-        provenance: { sequence: number; appendedEvents: number };
-      }>(`/cases/${encodeURIComponent(caseId)}/evidence`, token, {
-        method: 'POST',
-        body: JSON.stringify({ evidence: [{ table, recordId: numericRecordId, field: normalizedField, value: evidenceValue, confidence: sourceConfidence }] }),
-      });
-      const item = { id: `${response.provenance.sequence}-${Date.now()}`, table, recordId: numericRecordId, field: normalizedField, value: evidenceValue, at: new Date().toISOString() };
-      setEngineState(response.bestState);
-      setSelectedCandidateId(response.bestState.id);
-      setCandidates(response.candidates);
-      setRecommendation(response.ambiguityReduction);
-      setRankedRecommendations(response.evidenceRecommendations ?? (response.ambiguityReduction ? [response.ambiguityReduction] : []));
-      setBranchingDiag(response.branchingDiagnostics ?? null);
-      setEntropy({ before: response.ambiguity.entropyBeforeBits, after: response.ambiguity.entropyAfterBits, reduction: response.ambiguity.reductionBits, candidateCount: response.ambiguity.candidateCountAfter });
-      setTimeline(current => [item, ...current].slice(0, 50));
-      setValue('');
-      setFormErrors({});
-      setNotice(`Evidence accepted · ledger sequence ${response.provenance.sequence}`);
-      await loadAudit(caseId, token);
-      await loadCases(token);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Evidence could not be accepted.');
-    } finally {
-      setLoading(false);
+    await commitEvidenceBatch([{ table, recordId: numericRecordId, field: normalizedField, value: evidenceValue, confidence: sourceConfidence, ...(sourceRef.trim() ? { sourceRef: sourceRef.trim() } : {}), ...(sourceSha256.trim() ? { sourceSha256: sourceSha256.trim().toLowerCase() } : {}) }], 'Evidence accepted');
+  };
+
+  const loadSyntheticWalkthrough = async () => {
+    if (!caseId || !token || !caseSchema || loading || caseStatus === 'SEALED') return;
+    if (auditTotal > 0) {
+      setError('The synthetic walkthrough can only be loaded into a case with an empty evidence ledger. Create a fresh case to keep the demonstration reproducible.');
+      return;
     }
+    if (!hasWalkthroughConflictTarget(caseSchema)) {
+      setError('The synthetic ambiguity walkthrough needs at least one non-unique field. Add a non-unique field in Schema Studio and create a new case.');
+      return;
+    }
+    const evidence = createWalkthroughEvidence(caseSchema);
+    if (evidence.length === 0) {
+      setError('This schema has no suitable fields for the walkthrough. Add declared fields in Schema Studio and create a new case.');
+      return;
+    }
+    const confirmed = window.confirm(`Load ${evidence.length} SYNTHETIC evidence fragments into “${caseName}”? This deliberately introduces one conflicting value to demonstrate candidate ambiguity. These are example values, not recovered/source evidence, and cannot be removed individually.`);
+    if (!confirmed) return;
+    await commitEvidenceBatch(evidence, `Synthetic walkthrough loaded across ${caseSchema.tables.length} relations`, true);
   };
 
   const openCandidate = async (candidateId: string) => {
@@ -806,7 +1010,7 @@ function App() {
         throw new Error(payload?.error || 'Could not seal case.');
       }
       setCaseStatus('SEALED');
-      setNotice(`Case ${caseId} has been cryptographically sealed and frozen.`);
+      setNotice(`Case ${caseId} is sealed in LAZARUS-X. Evidence intake through this application is blocked; direct database access remains outside this control.`);
       await loadAudit(caseId, token);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Failed to seal case.');
@@ -943,6 +1147,8 @@ function App() {
     setCaseTotal(0);
     setCaseTotalPages(1);
     resetCase();
+    setAuthEmail(DEFAULT_PORTAL_CREDENTIALS[authPortal].email);
+    setAuthPassword(DEFAULT_PORTAL_CREDENTIALS[authPortal].password);
   };
 
   useEffect(() => {
@@ -959,7 +1165,7 @@ function App() {
               <span className="brand-icon"><Cpu size={26} /></span>
               <div>
                 <strong>LAZARUS<span>−</span>X</strong>
-                <span className="hero-version-pill">v2.4.0 (PATENT PENDING)</span>
+                <span className="hero-version-pill">v2.4.0 · RESEARCH DRAFT</span>
               </div>
             </div>
 
@@ -970,7 +1176,7 @@ function App() {
               </div>
               <h1>Relational database reconstruction from corrupted &amp; out-of-order evidence.</h1>
               <p>
-                An algorithmic constraint satisfaction (AC-3) inference platform with active Shannon entropy disambiguation and RFC 6962 verifiable cryptographic custody.
+                This platform does not recover deleted bytes directly from disk. It takes analyst-supplied fragments, builds competing relational hypotheses, checks declared constraints, recommends the next observation that could distinguish them, and records accepted evidence in a tamper-evident ledger.
               </p>
             </div>
 
@@ -979,21 +1185,21 @@ function App() {
                 <div className="cap-icon-wrap"><Cpu size={18} /></div>
                 <div>
                   <strong>Bounded CSP &amp; AC-3 Solver</strong>
-                  <p>Monotonically prunes inconsistent hypotheses without combinatorial state explosion.</p>
+                  <p>AC-3 propagation reduces the search space; explicit work limits reject oversized searches instead of silently truncating them.</p>
                 </div>
               </div>
               <div className="hero-cap-card">
                 <div className="cap-icon-wrap violet-icon"><Activity size={18} /></div>
                 <div>
                   <strong>Predictive Shannon Branching</strong>
-                  <p>Ranks queries by exact Information Gain: <code>IG(X, τ) = H(X) − H(X | τ)</code>.</p>
+                  <p>Ranks candidate follow-up observations by expected information gain under heuristic state weights.</p>
                 </div>
               </div>
               <div className="hero-cap-card">
                 <div className="cap-icon-wrap cyan-icon"><ShieldCheck size={18} /></div>
                 <div>
                   <strong>RFC 6962 Merkle Provenance</strong>
-                  <p>Dual-layer cryptographic ledger with HMAC masking and court-admissible audit manifests.</p>
+                  <p>Dual-layer cryptographic ledger with HMAC masking and independently verifiable audit manifests.</p>
                 </div>
               </div>
             </div>
@@ -1001,8 +1207,8 @@ function App() {
             <div className="hero-academic-attribution">
               <Award size={15} className="text-amber" />
               <div>
-                <strong>BCSE302P Database Systems Lab · Fall 2026–27</strong>
-                <small>School of Computer Science &amp; Engineering (SCOPE), VIT · Faculty: Dr. V. SIVAKUMAR</small>
+                <strong>LAZARUS-X Forensic Platform</strong>
+                <small>Relational Database Reconstruction & Cryptographic Provenance</small>
               </div>
             </div>
           </div>
@@ -1014,47 +1220,89 @@ function App() {
               <span className="auth-env-badge">ENTERPRISE GATEWAY</span>
             </div>
 
-            <h2>{registerMode ? 'Create Investigator Workspace' : 'Welcome to Lazarus−X'}</h2>
-            <p className="subtle">Sign in to restore verified evidence chains or launch a forensic investigation.</p>
+            <div className="auth-portal-switch" role="tablist" aria-label="Choose login portal">
+              <button
+                type="button"
+                className={authPortal === 'INVESTIGATOR' ? 'primary-button' : 'secondary-button'}
+                role="tab"
+                aria-selected={authPortal === 'INVESTIGATOR'}
+                onClick={() => switchAuthPortal('INVESTIGATOR')}
+              >
+                Investigator Login
+              </button>
+              <button
+                type="button"
+                className={authPortal === 'ADMIN' ? 'primary-button' : 'secondary-button'}
+                role="tab"
+                aria-selected={authPortal === 'ADMIN'}
+                onClick={() => switchAuthPortal('ADMIN')}
+              >
+                Administrator Login
+              </button>
+            </div>
 
-            {/* Quick Demo Access Bar for Evaluators & Reviewers */}
-            {!registerMode && (
-              <div className="demo-presets-panel">
-                <div className="demo-presets-header">
-                  <Zap size={13} />
-                  <span>ONE-CLICK EVALUATOR ACCESS:</span>
-                </div>
-                <div className="demo-presets-row">
-                  <button
-                    type="button"
-                    className="demo-preset-chip"
-                    onClick={() => {
-                      setAuthEmail('23bce1042@vitstudent.ac.in');
-                      setAuthPassword('Password123!456');
-                    }}
-                    title="Autofill candidate investigator credentials"
-                  >
-                    <Fingerprint size={13} />
-                    <span><b>Investigator</b> (23BCE1042)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="demo-preset-chip"
-                    onClick={() => {
-                      setAuthEmail('admin@lazarus-forensics.org');
-                      setAuthPassword('AdminSecret#2026');
-                    }}
-                    title="Autofill chief auditor admin credentials"
-                  >
-                    <Shield size={13} />
-                    <span><b>Chief Auditor</b> (Admin)</span>
-                  </button>
-                </div>
+            <h2>
+              {registerMode
+                ? 'Create Investigator Workspace'
+                : authPortal === 'ADMIN' ? 'Administrator Console Login' : 'Investigator Workspace Login'}
+            </h2>
+            <p className="subtle">
+              {authPortal === 'ADMIN'
+                ? 'Sign in to manage backups, audit visibility, and privileged case operations.'
+                : 'Sign in to collect evidence, compare hypotheses, and verify provenance.'}
+            </p>
+
+            <div className="demo-presets-panel">
+              <div className="demo-presets-header">
+                <Sparkles size={13} />
+                <span>PRESET DEFAULT CREDENTIALS</span>
               </div>
-            )}
+              <div className="demo-presets-row">
+                <button
+                  type="button"
+                  className={`demo-preset-chip ${authPortal === 'INVESTIGATOR' && !registerMode ? 'active' : ''}`}
+                  onClick={() => {
+                    if (authPortal !== 'INVESTIGATOR') {
+                      switchAuthPortal('INVESTIGATOR');
+                    } else {
+                      setRegisterMode(false);
+                      setAuthEmail(DEFAULT_PORTAL_CREDENTIALS.INVESTIGATOR.email);
+                      setAuthPassword(DEFAULT_PORTAL_CREDENTIALS.INVESTIGATOR.password);
+                    }
+                  }}
+                  title="Preset default Investigator credentials"
+                >
+                  <Cpu size={14} />
+                  <div>
+                    <strong>Investigator</strong>
+                    <small style={{ display: 'block', opacity: 0.75, fontSize: '10px' }}>investigator@lazarus.local</small>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className={`demo-preset-chip ${authPortal === 'ADMIN' ? 'active' : ''}`}
+                  onClick={() => {
+                    if (authPortal !== 'ADMIN') {
+                      switchAuthPortal('ADMIN');
+                    } else {
+                      setRegisterMode(false);
+                      setAuthEmail(DEFAULT_PORTAL_CREDENTIALS.ADMIN.email);
+                      setAuthPassword(DEFAULT_PORTAL_CREDENTIALS.ADMIN.password);
+                    }
+                  }}
+                  title="Preset default Administrator credentials"
+                >
+                  <ShieldCheck size={14} />
+                  <div>
+                    <strong>Administrator</strong>
+                    <small style={{ display: 'block', opacity: 0.75, fontSize: '10px' }}>admin@lazarus.local</small>
+                  </div>
+                </button>
+              </div>
+            </div>
 
             <form onSubmit={event => { event.preventDefault(); void authenticate(registerMode); }} className="auth-form">
-              <label htmlFor="authEmail">Investigator email</label>
+              <label htmlFor="authEmail">{authPortal === 'ADMIN' ? 'Administrator email' : 'Investigator email'}</label>
               <div className="input-wrap">
                 <Mail size={16} />
                 <input id="authEmail" type="email" autoComplete="email" placeholder="investigator@agency.org" value={authEmail} onChange={event => setAuthEmail(event.target.value)} required />
@@ -1071,9 +1319,26 @@ function App() {
                 <ArrowRight size={16} />
               </button>
             </form>
-            <button className="text-button auth-switch" onClick={() => { setRegisterMode(!registerMode); setError(''); }}>
-              {registerMode ? 'Already have access? Sign in' : 'Need an investigator account? Register'}
-            </button>
+            {authPortal === 'INVESTIGATOR' && (
+              <button
+                type="button"
+                className="text-button auth-switch"
+                onClick={() => {
+                  const nextMode = !registerMode;
+                  setRegisterMode(nextMode);
+                  setError('');
+                  if (!nextMode) {
+                    setAuthEmail(DEFAULT_PORTAL_CREDENTIALS.INVESTIGATOR.email);
+                    setAuthPassword(DEFAULT_PORTAL_CREDENTIALS.INVESTIGATOR.password);
+                  } else {
+                    setAuthEmail('');
+                    setAuthPassword('');
+                  }
+                }}
+              >
+                {registerMode ? 'Already have access? Sign in' : 'Need an investigator account? Register'}
+              </button>
+            )}
             <div className="auth-foot">
               <ShieldCheck size={13} /> BCrypt KDF (Cost 12) · Tamper-Evident Session Tokens · Zero Secrets in Code
             </div>
@@ -1083,15 +1348,19 @@ function App() {
     );
   }
 
+  if (role === 'ADMIN') {
+    return <AdministratorDashboard token={token} email={email} onLogout={() => void logout()} onBackup={() => void triggerAdminBackup()} />;
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>INVESTIGATOR CONSOLE</small></div></div>
         <div className="topbar-right">
-          <div className="student-pill" title="BCSE302P Database Systems Lab · Slot L25+L26 · Faculty: Dr. V. SIVAKUMAR">
+          <div className="system-version-pill" title="LAZARUS-X Platform">
             <GraduationCap size={13} />
-            <span>DIVYA · 23BCE1042</span>
-            <span className="slot-tag">L25+L26</span>
+            <span>LAZARUS-X</span>
+            <span className="slot-tag">v2.4</span>
           </div>
           <div className="system-pill"><span className="status-light" /> ENGINE ONLINE</div>
           <button
@@ -1120,8 +1389,8 @@ function App() {
 
       <main className="workspace">
         <aside className="sidebar">
-          <div className="sidebar-head"><div><span className="eyebrow">WORKSPACE</span><h2>Case files</h2></div><button className="square-button" onClick={createCase} disabled={loading} aria-label="Create new case" title="Create new case"><Plus size={18} /></button></div>
-          <button className="new-case-button" onClick={createCase} disabled={loading}><Plus size={15} /> New reconstruction</button>
+          <div className="sidebar-head"><div><span className="eyebrow">WORKSPACE</span><h2>Case files</h2></div><button className="square-button" onClick={() => setSchemaStudioOpen(true)} disabled={loading} aria-label="Create new case" title="Create new case"><Plus size={18} /></button></div>
+          <button className="new-case-button" onClick={() => setSchemaStudioOpen(true)} disabled={loading}><Plus size={15} /> New reconstruction</button>
 
           {/* Search Bar */}
           <div className="case-search-wrap">
@@ -1242,7 +1511,7 @@ function App() {
         <section className="main-column">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">FORENSIC WORKSPACE <span className="eyebrow-line" /></div>
+              <div className="eyebrow">RECONSTRUCTION WORKSPACE <span className="eyebrow-line" /></div>
               {caseId ? (
                 isEditingCaseName ? (
                   <form onSubmit={handleRenameCase} className="rename-case-form">
@@ -1274,7 +1543,7 @@ function App() {
                   </div>
                 )
               ) : (
-                <h1>Investigation workspace</h1>
+                <h1>Reconstruction overview</h1>
               )}
               <p>{caseId ? `UUID: ${caseId}` : 'Select a case or create a new reconstruction to begin.'}</p>
             </div>
@@ -1283,27 +1552,12 @@ function App() {
                 <>
                   <button
                     type="button"
-                    className="secondary-button er-btn"
-                    onClick={() => setErModalOpen(true)}
-                    title="Inspect 11-table Relational ER Diagram and Data Dictionary"
-                  >
-                    <Database size={14} className="text-blue" /> ER Diagram &amp; Schema
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button patent-btn"
-                    onClick={() => setPatentModalOpen(true)}
-                    title="Inspect formal patent claims & technical specifications"
-                  >
-                    <Scale size={14} className="text-amber" /> Patent Claims
-                  </button>
-                  <button
-                    type="button"
                     className="secondary-button dossier-btn"
+                    aria-label="Forensic dossier — Export reconstruction report"
                     onClick={() => setReportModalOpen(true)}
-                    title="Generate court-ready forensic dossier and attestation"
+                    title="Export an investigation report with ledger and candidate summaries"
                   >
-                    <Award size={14} className="text-cyan" /> Forensic Dossier
+                    <Award size={14} className="text-cyan" /> <span aria-label="Forensic dossier">Export reconstruction report</span>
                   </button>
                   <button
                     type="button"
@@ -1319,7 +1573,7 @@ function App() {
               {caseId && (caseStatus === 'SEALED' ? (
                 <span className="sealed-status-badge" aria-label="Case is sealed"><Lock size={13} /> SEALED &amp; FROZEN</span>
               ) : (
-                <button className="secondary-button seal-button" onClick={() => void sealCase()} disabled={!caseId || loading || caseStatus === "SEALED"} title="Cryptographically seal case for court presentation"><Lock size={13} /> Seal case</button>
+                <button className="secondary-button seal-button" onClick={() => void sealCase()} disabled={!caseId || loading || caseStatus === "SEALED"} title="Seal the case in this application and block further evidence intake"><Lock size={13} /> Seal case</button>
               ))}
               <button className="secondary-button" onClick={() => caseId && token && void openCase(caseId)} disabled={!caseId || loading}>
                 <RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh
@@ -1328,106 +1582,75 @@ function App() {
           </div>
           {(error || notice) && <div className={`banner ${error ? 'banner-error' : 'banner-success'}`} role={error ? 'alert' : 'status'}>{error ? <CircleAlert size={16} /> : <BadgeCheck size={16} />}{error || notice}<button onClick={() => { setError(''); setNotice(''); }} aria-label="Dismiss message">×</button></div>}
 
-          <div className="metric-grid">
-            <article className="metric-card"><span className="metric-icon teal"><GitBranch size={17} /></span><span className="metric-label">SURVIVING INTERPRETATIONS</span><strong>{entropy.candidateCount.toLocaleString()}</strong><small>Exact states below configured limits</small></article>
-            <article className="metric-card"><span className="metric-icon violet"><Activity size={17} /></span><span className="metric-label">CANDIDATE ENTROPY</span><strong>{entropy.after.toFixed(3)} <em>bits</em></strong><small>{entropy.before !== undefined ? `${entropy.reduction! >= 0 ? '−' : '+'}${Math.abs(entropy.reduction!).toFixed(3)} bits after latest evidence` : 'Relative heuristic weights'}</small></article>
+          <nav className="reconstruction-pipeline" aria-label="Reconstruction workflow">
+            <div className={`pipeline-step ${caseSchema ? 'pipeline-done' : 'pipeline-current'}`}><span>01</span><div><strong>Define schema</strong><small>{caseSchema ? `${caseSchema.tables.length} relations · ${caseSchema.constraints.filter(c => c.type === 'FOREIGN_KEY').length} FK links` : 'Choose relations and constraints'}</small></div></div>
+            <ArrowRight size={14}/>
+            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-done' : caseSchema ? 'pipeline-current' : ''}`}><span>02</span><div><strong>Collect fragments</strong><small>{auditTotal} provenance events committed</small></div></div>
+            <ArrowRight size={14}/>
+            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-current' : ''}`}><span>03</span><div><strong>Compare hypotheses</strong><small>{entropy.candidateCount} surviving state(s)</small></div></div>
+            <ArrowRight size={14}/>
+            <div className={`pipeline-step ${auditValid ? 'pipeline-done' : ''}`}><span>04</span><div><strong>Verify custody</strong><small>{auditValid ? 'Ledger verified' : 'Inspect provenance when ready'}</small></div></div>
+          </nav>
+
+          <div className="metric-grid primary-metrics">
+            <article className="metric-card"><span className="metric-icon teal"><GitBranch size={17} /></span><span className="metric-label">SURVIVING INTERPRETATIONS</span><strong>{entropy.candidateCount.toLocaleString()}</strong><small>Materialized candidate states under search limits</small></article>
+            <article className="metric-card"><span className="metric-icon violet"><Activity size={17} /></span><span className="metric-label">CANDIDATE ENTROPY</span><strong>{entropy.after.toFixed(3)} <em>bits</em></strong><small>Derived from heuristic candidate weights; not calibrated truth probability</small></article>
             <article className="metric-card"><span className="metric-icon amber"><Fingerprint size={17} /></span><span className="metric-label">PROVENANCE EVENTS</span><strong>{auditTotal.toLocaleString()}</strong><small className={auditValid === false ? 'text-danger' : ''}>{auditValid === false ? 'Integrity check needs review' : auditValid ? 'Server and page commitment verified' : 'Awaiting ledger check'}</small></article>
-            <article className="metric-card"><span className="metric-icon blue"><TimerReset size={17} /></span><span className="metric-label">AMBIGUITY CHANGE</span><strong>{entropy.reduction === undefined ? '—' : `${entropy.reduction >= 0 ? '−' : '+'}${Math.abs(entropy.reduction).toFixed(3)}`} <em>bits</em></strong><small>{entropy.reduction === undefined ? 'Submit evidence to measure change' : entropy.reduction >= 0 ? 'Entropy reduced' : 'New evidence introduced ambiguity'}</small></article>
           </div>
+          <details className="secondary-metrics">
+            <summary><TimerReset size={14} /> More metrics <span>Ambiguity change</span><ChevronDown size={14} /></summary>
+            <div className="metric-grid">
+              <article className="metric-card"><span className="metric-icon blue"><TimerReset size={17} /></span><span className="metric-label">AMBIGUITY CHANGE</span><strong>{entropy.reduction === undefined ? '—' : `${entropy.reduction >= 0 ? '−' : '+'}${Math.abs(entropy.reduction).toFixed(3)}`} <em>bits</em></strong><small>{entropy.reduction === undefined ? 'Submit evidence to measure change' : `${entropy.reduction >= 0 ? '−' : '+'}${Math.abs(entropy.reduction).toFixed(3)} bits after latest evidence · ${entropy.reduction >= 0 ? 'Entropy reduced' : 'New evidence introduced ambiguity'}`}</small></article>
+            </div>
+          </details>
 
           <section className="panel evidence-panel">
             <div className="panel-heading">
               <div className="panel-title">
                 <span className="panel-icon"><Database size={17} /></span>
                 <div>
-                  <h2>Evidence intake</h2>
-                  <p>Submit observed values, including contradictions, as separate fragments.</p>
+                  <h2>Evidence intake · Evidence fragments</h2>
+                  <p>Record one source observation at a time. Conflicting observations remain visible as competing hypotheses.</p>
                 </div>
               </div>
-              <div className="panel-heading-meta">
+              <div className="panel-heading-meta evidence-actions">
                 <span className="live-tag"><i /> LIVE INGESTION</span>
+                <button type="button" className="secondary-button csv-action" onClick={downloadEvidenceCsvTemplate} disabled={!caseSchema || loading}><FileSpreadsheet size={14}/> CSV template</button>
+                <button type="button" className="secondary-button csv-action" onClick={() => csvInputRef.current?.click()} disabled={!caseSchema || !caseId || loading || caseStatus === 'SEALED'}><Upload size={14}/> Import CSV</button>
+                <input ref={csvInputRef} type="file" accept=".csv,text/csv" hidden onChange={event => void handleEvidenceCsv(event)} aria-label="Import evidence CSV" />
               </div>
             </div>
 
-            {/* Quick Benchmark Scenarios Toolbar */}
-            {caseId && (
-              <div className="quick-benchmarks-bar">
-                <div className="benchmarks-header">
-                  <Database size={13} className="text-amber" />
-                  <span>ONE-CLICK FORENSIC BENCHMARKS:</span>
-                </div>
-                <div className="benchmarks-buttons">
-                  <button
-                    type="button"
-                    className="benchmark-btn"
-                    disabled={loading || caseStatus === 'SEALED'}
-                    onClick={() => {
-                      setTable('Employee');
-                      setRecordId('21');
-                      setField('salary');
-                      setValue('145000');
-                      setValueFormat('text');
-                      setSourceConfidence(0.5);
-                    }}
-                    title="Load contradictory salary evidence ($145,000 vs $142,000) for Employee #21 to evaluate Shannon entropy spike"
-                  >
-                    <Activity size={12} /> Disputed Salary (Entropy Spike)
-                  </button>
-                  <button
-                    type="button"
-                    className="benchmark-btn"
-                    disabled={loading || caseStatus === 'SEALED'}
-                    onClick={() => {
-                      setTable('Employee');
-                      setRecordId('21');
-                      setField('salary');
-                      setValue('142000');
-                      setValueFormat('text');
-                      setSourceConfidence(0.95);
-                    }}
-                    title="Submit authentic audit salary observation to collapse candidate ambiguity"
-                  >
-                    <Check size={12} /> Resolve Variance (Confidence 0.95)
-                  </button>
-                  <button
-                    type="button"
-                    className="benchmark-btn"
-                    disabled={loading || caseStatus === 'SEALED'}
-                    onClick={() => {
-                      setTable('Order');
-                      setRecordId('101');
-                      setField('employeeId');
-                      setValue('21');
-                      setValueFormat('text');
-                      setSourceConfidence(0.98);
-                    }}
-                    title="Assert referential foreign key constraint linking Order #101 to Employee #21 (AC-3 Solver)"
-                  >
-                    <GitBranch size={12} /> Foreign Key Link (AC-3 Solver)
-                  </button>
-                </div>
+            {caseId && caseSchema && (
+              <div className="walkthrough-strip">
+                <div className="walkthrough-copy"><span className="walkthrough-kicker"><Sparkles size={13}/> GUIDED WALKTHROUGH</span><strong>See the reconstruction loop with synthetic data</strong><small>Loads linked sample records plus one deliberate conflict. This is demo input, not recovered evidence.</small></div>
+                <button type="button" className="secondary-button walkthrough-button" onClick={() => void loadSyntheticWalkthrough()} disabled={loading || caseStatus === 'SEALED' || auditTotal > 0}><Zap size={14}/>{auditTotal > 0 ? 'Use a fresh case to replay demo' : loading ? 'Loading scenario…' : 'Load synthetic scenario'}</button>
               </div>
             )}
-            {caseStatus === 'SEALED' && <div className="sealed-alert" role="status"><Lock size={14} /> Case is cryptographically sealed for custody presentation. Evidence intake is closed.</div>}
+            {caseStatus === 'SEALED' && <div className="sealed-alert" role="status"><Lock size={14} /> Case is sealed in the application. Evidence intake through this interface is closed; direct database access is outside this control.</div>}
             <form onSubmit={event => void submitEvidence(event)} className="evidence-form">
-              <div className="form-control"><label htmlFor="evTable">Relation</label><select id="evTable" value={table} onChange={event => setTable(event.target.value)}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>
+              <div className="form-control"><label htmlFor="evTable">Relation</label><select id="evTable" value={table} onChange={event => { const nextTable = event.target.value; setTable(nextTable); setField(caseSchema?.tableDefinitions?.find(definition => definition.name === nextTable)?.columns?.[0]?.name ?? 'name'); setFormErrors(current => ({ ...current, field: undefined })); }}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>
               <div className="form-control record-control"><label htmlFor="evRecord">Record locator</label><input id="evRecord" type="number" min="0" step="1" value={recordId} aria-invalid={!!displayedRecordIdError} aria-describedby={displayedRecordIdError ? 'evRecord-error' : undefined} onChange={event => { setRecordId(event.target.value); setFormErrors(current => ({ ...current, recordId: undefined })); }} required />{displayedRecordIdError && <span id="evRecord-error" className="field-error">{displayedRecordIdError}</span>}</div>
-              <div className="form-control"><label htmlFor="evField">Attribute</label><input id="evField" value={field} onChange={event => { setField(event.target.value); setFormErrors(current => ({ ...current, field: undefined })); }} placeholder="e.g. name" maxLength={256} aria-invalid={!!displayedFieldError} aria-describedby={displayedFieldError ? 'evField-error' : undefined} required />{displayedFieldError && <span id="evField-error" className="field-error">{displayedFieldError}</span>}</div>
+              <div className="form-control"><label htmlFor="evField">Attribute</label>{selectedTableDefinition && selectedTableDefinition.columns.length > 0 ? <select id="evField" value={field} onChange={event => { setField(event.target.value); setFormErrors(current => ({ ...current, field: undefined })); }} aria-invalid={!!displayedFieldError} required><option value="_recordId" hidden>Internal record identity</option>{selectedTableDefinition.columns.map(column => <option key={column.name} value={column.name}>{column.name} · {column.type}{column.required ? ' · required' : ''}{column.unique ? ' · unique' : ''}</option>)}</select> : <input id="evField" value={field} onChange={event => { setField(event.target.value); setFormErrors(current => ({ ...current, field: undefined })); }} placeholder="e.g. name" maxLength={256} aria-invalid={!!displayedFieldError} aria-describedby={displayedFieldError ? 'evField-error' : undefined} required />}{displayedFieldError && <span id="evField-error" className="field-error">{displayedFieldError}</span>}</div>
               <div className="form-control"><label htmlFor="evValueFormat">Value format</label><select id="evValueFormat" value={valueFormat} onChange={event => { setValueFormat(event.target.value as 'text' | 'json'); setFormErrors(current => ({ ...current, value: undefined })); }}><option value="text">Text</option><option value="json">JSON scalar</option></select></div>
               <div className="form-control value-control"><label htmlFor="evValue">Observed value</label><input id="evValue" value={value} onChange={event => { setValue(event.target.value); setFormErrors(current => ({ ...current, value: undefined })); }} placeholder={valueFormat === 'json' ? 'e.g. "Ada", 42, true, null' : 'Enter a fragment'} maxLength={8192} aria-invalid={!!displayedValueError} aria-describedby={displayedValueError ? 'evValue-error' : undefined} required />{displayedValueError && <span id="evValue-error" className="field-error">{displayedValueError}</span>}</div>
               <div className="form-control confidence-control"><label htmlFor="evConfidence" title="Investigator-assessed heuristic, not a calibrated probability">Source confidence · heuristic</label><input id="evConfidence" type="number" min="0.01" max="1" step="0.01" value={sourceConfidence} aria-invalid={!!displayedConfidenceError} aria-describedby={displayedConfidenceError ? 'evConfidence-error' : 'evConfidence-hint'} onChange={event => { setSourceConfidence(Number(event.target.value)); setFormErrors(current => ({ ...current, confidence: undefined })); }} />{displayedConfidenceError ? <span id="evConfidence-error" className="field-error">{displayedConfidenceError}</span> : <span id="evConfidence-hint" className="field-hint">0 &lt; confidence ≤ 1</span>}</div>
+              <div className="form-control source-reference-control"><label htmlFor="evSourceRef">Source reference · optional</label><input id="evSourceRef" value={sourceRef} onChange={event => { setSourceRef(event.target.value); setFormErrors(current => ({ ...current, sourceRef: undefined })); }} placeholder="e.g. manifest-02 / exhibit A" maxLength={256} aria-invalid={!!formErrors.sourceRef} aria-describedby={formErrors.sourceRef ? 'evSourceRef-error' : undefined} />{formErrors.sourceRef ? <span id="evSourceRef-error" className="field-error">{formErrors.sourceRef}</span> : <span className="field-hint">A short exhibit/manifest label, not a local file path.</span>}</div>
+              <div className="form-control source-hash-control"><label htmlFor="evSourceSha256">Source SHA-256 · optional</label><input id="evSourceSha256" value={sourceSha256} onChange={event => { setSourceSha256(event.target.value); setFormErrors(current => ({ ...current, sourceSha256: undefined })); }} placeholder="64 hex characters from the manifest" maxLength={64} spellCheck={false} aria-invalid={!!formErrors.sourceSha256} aria-describedby={formErrors.sourceSha256 ? 'evSourceSha256-error' : undefined} />{formErrors.sourceSha256 ? <span id="evSourceSha256-error" className="field-error">{formErrors.sourceSha256}</span> : <span className="field-hint">Records a digest from a separate manifest; this field does not re-hash the source file.</span>}</div>
               <button className="primary-button commit-button" type="submit" disabled={!caseId || loading || caseStatus === 'SEALED'}><Plus size={16} /> Commit fragment</button>
             </form>
             <div className="evidence-footnote"><ShieldCheck size={13} /> Each accepted fragment is written with its provenance event in one database transaction.</div>
           </section>
 
+          <details className="collapsible-panel">
+            <summary><GitBranch size={15} /> Schema and relationship graph <span>Optional visual analysis</span><ChevronDown size={15} /></summary>
           <section className="panel graph-panel">
             <div className="panel-heading">
               <div className="panel-title">
                 <span className="panel-icon violet-icon"><GitBranch size={17} /></span>
                 <div>
-                  <h2>{graphViewMode === 'schema' ? 'Relational schema & lineage DAG' : 'Relational hypothesis graph'}</h2>
-                  <p>{graphViewMode === 'schema' ? 'Target domain tables and foreign-key constraint graph.' : 'Edges show foreign-key matches in the selected candidate.'}</p>
+                  <h2>{graphViewMode === 'schema' ? 'Declared schema & constraints' : 'Candidate relational hypothesis graph'}</h2>
+                  <p>{graphViewMode === 'schema' ? 'The exact case schema used by the solver; fields and links are not hard-coded to a demo domain.' : 'Edges are drawn only when an observed source value matches a target value under a declared foreign key.'}</p>
                 </div>
               </div>
               <div className="graph-heading-controls">
@@ -1439,11 +1662,11 @@ function App() {
               </div>
             </div>
             {graphViewMode === 'schema' ? (
-              <SchemaGraph tables={[...TABLES]} engineData={engineState?.data} selectedTable={table} onSelectTable={name => setTable(name)} />
+              <SchemaGraph tables={[...TABLES]} schema={caseSchema} engineData={engineState?.data} selectedTable={table} onSelectTable={name => setTable(name)} />
             ) : (
               <>
                 <CandidateMap candidates={candidates} total={entropy.candidateCount} selectedId={selectedCandidateId} onSelect={id => void openCandidate(id)} />
-                <RowGraph state={engineState} />
+                <RowGraph state={engineState} tables={TABLES} schema={caseSchema} />
               </>
             )}
             <div className="candidate-strip">
@@ -1455,14 +1678,15 @@ function App() {
               {engineState && candidates.length === 0 && <span className="muted small">Candidate summary will appear after the first materialization.</span>}
             </div>
           </section>
+          </details>
 
           <section className="panel selected-state-panel">
             <div className="panel-heading">
               <div className="panel-title">
                 <span className="panel-icon amber-icon"><Boxes size={17} /></span>
                 <div>
-                  <h2>{diffViewOpen ? 'Candidate Conflict & Consensus Matrix' : 'Selected reconstruction'}</h2>
-                  <p>{diffViewOpen ? 'Cell-level comparison across surviving interpretations.' : 'Observed fields in the currently selected candidate.'}</p>
+                  <h2>{diffViewOpen ? 'Candidate Field Inspection' : 'Selected reconstruction'}</h2>
+                  <p>{diffViewOpen ? 'Highlights conflicts surfaced by ranked probes; unmarked fields are not guaranteed to agree across every candidate.' : 'Observed fields in the currently selected candidate.'}</p>
                 </div>
               </div>
               <div className="state-panel-actions">
@@ -1513,25 +1737,10 @@ function App() {
                     const rows = tableFilterQuery.trim()
                       ? allRows.filter(r => Object.entries(r).some(([k, v]) => String(v).toLowerCase().includes(tableFilterQuery.toLowerCase()) || k.toLowerCase().includes(tableFilterQuery.toLowerCase())))
                       : allRows;
-
-                    // Extract all unique attribute columns across all rows for this relation
-                    const allCols = Array.from(new Set(allRows.flatMap(r => Object.keys(r).filter(k => k !== '_recordId'))));
-                    const sortedCols = allCols.sort((a, b) => {
-                      if (a === 'id') return -1;
-                      if (b === 'id') return 1;
-                      if (a.toLowerCase().endsWith('id')) return -1;
-                      if (b.toLowerCase().endsWith('id')) return 1;
-                      return a.localeCompare(b);
-                    });
-
                     return (
                       <article className="relation-card" key={relation}>
                         <div className="relation-title">
-                          <div className="relation-name-group">
-                            <Table size={13} className="text-cyan" />
-                            <span className="relation-name">{relation}</span>
-                            <span className="relation-schema-tag">public.{relation}</span>
-                          </div>
+                          <span>{relation}</span>
                           <div className="relation-title-right">
                             <span className="row-count-badge">{rows.length}{tableFilterQuery ? ` / ${allRows.length}` : ''} rows</span>
                             {rows.length > 0 && (
@@ -1552,135 +1761,65 @@ function App() {
                                 >
                                   JSON
                                 </button>
-                                <button
-                                  type="button"
-                                  className="table-export-btn"
-                                  onClick={() => exportTableAsSQL(relation, rows)}
-                                  title={`Export ${relation} records as SQL INSERT statements`}
-                                >
-                                  SQL
-                                </button>
                               </div>
                             )}
                           </div>
                         </div>
                         {rows.length === 0 ? (
-                          <p className="empty-relation">{allRows.length > 0 ? 'No matching rows found for query' : 'No observed tuples in relation'}</p>
+                          <p className="empty-relation">{allRows.length > 0 ? 'No matching rows found' : 'No observed rows'}</p>
                         ) : (
-                          <div className="relation-data-grid-wrap">
-                            <table className="relation-data-grid">
-                              <thead>
-                                <tr>
-                                  <th className="th-locator" title="Record Locator Index">#</th>
-                                  {sortedCols.map(col => {
-                                    const isPk = col === 'id' || col.toLowerCase() === `${relation.toLowerCase()}id`;
-                                    const isFk = col.toLowerCase().endsWith('id') && !isPk;
-                                    const sqlType = inferSqlType(col, allRows);
-                                    return (
-                                      <th key={col} className="th-col">
-                                        <div className="col-header-meta">
-                                          <span className="col-name">{col}</span>
-                                          {isPk && <span className="col-badge pk-badge" title="Primary Key">PK</span>}
-                                          {isFk && <span className="col-badge fk-badge" title="Foreign Key constraint">FK</span>}
-                                          <span className="col-type-tag">{sqlType}</span>
-                                        </div>
-                                      </th>
-                                    );
-                                  })}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rows.map((row, index) => {
-                                  const rowId = String(row._recordId ?? index + 1);
-                                  return (
-                                    <tr key={`${relation}-${rowId}`} className="data-grid-row">
-                                      <td className="td-locator">{rowId.padStart(2, '0')}</td>
-                                      {sortedCols.map(col => {
-                                        const val = row[col];
-                                        const isDisputed = rankedRecommendations.some(
-                                          r => r.table === relation && String(r.recordId) === rowId && r.field === col
-                                        );
-                                        const isNull = val === undefined || val === null;
-
-                                        return (
-                                          <td
-                                            key={col}
-                                            className={`td-val ${isNull ? 'td-null' : ''} ${isDisputed ? 'td-disputed' : ''}`}
-                                            title={
-                                              isDisputed
-                                                ? `Disputed attribute across candidate states. Click to probe.`
-                                                : `Record ${rowId} · ${col}: ${String(val)} (Click to acquire fragment)`
-                                            }
-                                            onClick={() => {
-                                              setTable(relation);
-                                              setRecordId(rowId);
-                                              setField(col);
-                                              if (!isNull) setValue(String(val));
-                                              document.getElementById('evValue')?.focus();
-                                            }}
-                                          >
-                                            {isNull ? (
-                                              <span className="null-indicator">NULL</span>
-                                            ) : typeof val === 'boolean' ? (
-                                              <span className={`bool-pill ${val ? 'bool-true' : 'bool-false'}`}>{String(val)}</span>
-                                            ) : isDisputed ? (
-                                              <span className="disputed-cell-val">
-                                                <span className="conflict-dot" />
-                                                {String(val)}
-                                              </span>
-                                            ) : (
-                                              <span className="cell-text">{String(val)}</span>
-                                            )}
-                                          </td>
-                                        );
-                                      })}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                          rows.map((row, index) => (
+                            <div className="record-row" key={`${relation}-${String(row._recordId ?? index)}`}>
+                              <span className="record-index">{String(row._recordId ?? index + 1).padStart(2, '0')}</span>
+                              <code>
+                                {Object.entries(row)
+                                  .filter(([key]) => key !== '_recordId')
+                                  .map(([key, item]) => `${key}: ${String(item)}`)
+                                  .join(' · ') || 'No observed attributes'}
+                              </code>
+                            </div>
+                          ))
                         )}
                       </article>
                     );
                   })}
                 </div>
               )
-            ) : <div className="empty-case-state"><Database size={20} className="text-cyan" />Select or initialize a case file to inspect reconstructed relations.</div>}
+            ) : <div className="empty-case-state"><Sparkles size={19} />Start with a new case or select an existing case file.</div>}
           </section>
         </section>
         </CaseViewErrorBoundary>
 
         <aside className="right-column">
           <section className="panel intel-panel">
-            <div className="tab-bar"><button className={auditTab === 'guidance' ? 'active' : ''} onClick={() => setAuditTab('guidance')}><Target size={14} /> Active Probes</button><button className={auditTab === 'ledger' ? 'active' : ''} onClick={() => setAuditTab('ledger')}><Fingerprint size={14} /> Provenance</button></div>
+            <div className="tab-bar"><button className={auditTab === 'guidance' ? 'active' : ''} onClick={() => setAuditTab('guidance')}><Sparkles size={14} /> Next evidence</button><button className={auditTab === 'ledger' ? 'active' : ''} onClick={() => setAuditTab('ledger')}><Fingerprint size={14} /> Provenance</button></div>
             <AnimatePresence mode="wait">
               {auditTab === 'guidance' ? <motion.div key="guidance" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="guidance-content">
-                <div className="guidance-heading"><span className="panel-icon violet-icon"><Activity size={17} /></span><div><h2>Predictive evidence</h2><p>Entropy-ranked forensic probes</p></div></div>
+                <div className="guidance-heading"><span className="panel-icon violet-icon"><Activity size={17} /></span><div><h2>Next useful observation</h2><p>Ranked by expected ambiguity reduction</p></div></div>
                 {branchingDiag && (
                   <div className="branching-diagnostics-badge">
                     <span>DISPUTED ATTRIBUTES: <b>{branchingDiag.disputedAttributesCount}</b></span>
                     <span>PRIOR ENTROPY: <b>{branchingDiag.priorEntropyBits.toFixed(3)} bits</b></span>
                   </div>
                 )}
-                {recommendation ? <div className="recommendation-card"><div className="rec-topline"><span>PRIMARY FORENSIC PROBE</span><span className="gain-badge">+{recommendation.expectedInformationGain.toFixed(3)} bits</span></div><div className="rec-target"><span>{recommendation.table}</span><strong>Record {recommendation.recordId}</strong><em>{recommendation.field}</em></div>
+                {recommendation ? <div className="recommendation-card"><div className="rec-topline"><span>NEXT OBSERVATION TO COLLECT</span><span className="gain-badge">+{recommendation.expectedInformationGain.toFixed(3)} bits</span></div><div className="rec-target"><span>{recommendation.table}</span><strong>Record {recommendation.recordId}</strong><em>{recommendation.field}</em></div>
                 {recommendation.candidateValues && recommendation.candidateValues.length > 0 && (
                   <div className="candidate-values-preview">
-                    <span className="preview-label">PREDICTED OUTCOMES:</span>
+                    <span className="preview-label">CANDIDATE VALUES:</span>
                     <div className="preview-chips">
                       {recommendation.candidateValues.map((cv, idx) => (
                         <span key={idx} className="preview-chip" title={`${cv.candidateCount} surviving interpretation(s)`}>
                           <code>{String(cv.value)}</code>
-                          <small>{(cv.probability * 100).toFixed(0)}%</small>
+                          <small title="Normalized heuristic candidate weight—not a calibrated probability">{(cv.probability * 100).toFixed(0)}%*</small>
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                <p>{recommendation.explanation || 'Collect an independent observation for this disputed field to distinguish surviving interpretations.'}</p><button className="secondary-button full-width" onClick={() => { setTable(recommendation.table); setRecordId(String(recommendation.recordId)); setField(recommendation.field); document.getElementById('evValue')?.focus(); }}><ArrowDownToLine size={15} /> Acquire this evidence</button></div> : <div className="guidance-empty"><Target size={24} /><strong>AC-3 Fixed-Point Consensus Reached</strong><span>{engineState ? 'Zero unresolved attribute variance detected across candidates. All foreign key constraints satisfied.' : 'Open a case and submit evidentiary fragments to trigger Shannon entropy ranking.'}</span></div>}
+                <p>{recommendation.explanation || 'Collect an independent observation for this disputed field to distinguish surviving interpretations.'}</p><button className="secondary-button full-width" onClick={() => { setTable(recommendation.table); setRecordId(String(recommendation.recordId)); setField(recommendation.field); document.getElementById('evValue')?.focus(); }}><ArrowDownToLine size={15} /> Acquire this evidence</button></div> : <div className="guidance-empty"><Sparkles size={25} /><strong>Model is waiting for a useful query</strong><span>{engineState ? 'One surviving interpretation has no disputed field to query.' : 'Open a case and submit fragments to surface the next best evidence.'}</span></div>}
                 {rankedRecommendations.length > 1 && (
                   <div className="ranked-probes">
-                    <span className="ranked-probes-label">ALTERNATIVE FORENSIC PROBES</span>
+                    <span className="ranked-probes-label">OTHER DISCRIMINATING OBSERVATIONS</span>
                     <div className="ranked-probes-list">
                       {rankedRecommendations.slice(1, 4).map((alt, idx) => (
                         <div key={idx} className="ranked-probe-item">
@@ -1760,19 +1899,14 @@ function App() {
             </AnimatePresence>
           </section>
 
-          <section className="panel timeline-panel"><div className="panel-heading compact-heading"><div className="panel-title"><span className="panel-icon teal-icon"><TimerReset size={16} /></span><div><h2>Recent fragments</h2><p>This session · latest 50</p></div></div><span className="timeline-count">{timeline.length}</span></div><div className="timeline-list custom-scrollbar">{timeline.map(item => <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="timeline-item"><span className="timeline-dot" /><div><div className="timeline-value"><b>{item.table}[{item.recordId}].{item.field}</b><span>{String(item.value)}</span></div><small>{new Date(item.at).toLocaleTimeString()}</small></div></motion.div>)}{timeline.length === 0 && <div className="timeline-empty">Accepted fragments from this session appear here.</div>}</div></section>
+          <details className="collapsible-panel timeline-details">
+            <summary><TimerReset size={15} /> Recent fragments <span>{timeline.length} from this session</span><ChevronDown size={15} /></summary>
+            <section className="panel timeline-panel"><div className="panel-heading compact-heading"><div className="panel-title"><span className="panel-icon teal-icon"><TimerReset size={16} /></span><div><h2>Recent fragments</h2><p>This session · latest 50</p></div></div><span className="timeline-count">{timeline.length}</span></div><div className="timeline-list custom-scrollbar">{timeline.map(item => <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="timeline-item"><span className="timeline-dot" /><div><div className="timeline-value"><b>{item.table}[{item.recordId}].{item.field}</b><span>{String(item.value)}</span></div><small>{new Date(item.at).toLocaleTimeString()}{item.sourceRef ? ` · Source: ${item.sourceRef}` : ''}{item.sourceSha256 ? ` · SHA-256: ${item.sourceSha256.slice(0, 12)}…` : ''}</small></div></motion.div>)}{timeline.length === 0 && <div className="timeline-empty">Accepted fragments from this session appear here.</div>}</div></section>
+          </details>
 
           <div className="system-foot"><span className="status-light" /> BOUNDED SEARCH ACTIVE <span className="foot-separator">·</span> MAX 10K CANDIDATES</div>
         </aside>
-      <PatentSpecificationModal
-        isOpen={patentModalOpen}
-        onClose={() => setPatentModalOpen(false)}
-        caseId={caseId || ''}
-        entropyBits={entropy.after}
-        candidateCount={candidates.length}
-        auditHead={auditHead}
-        caseStatus={caseStatus}
-      />
+      <SchemaStudio open={schemaStudioOpen} busy={loading} onClose={() => setSchemaStudioOpen(false)} onCreate={createCase} />
       <ForensicReportModal
         isOpen={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
@@ -1791,10 +1925,6 @@ function App() {
         currentUser={{ id: email, email, role }}
         apiBase={API_BASE}
         token={token}
-      />
-      <ERDiagramModal
-        isOpen={erModalOpen}
-        onClose={() => setErModalOpen(false)}
       />
       </main>
     </div>

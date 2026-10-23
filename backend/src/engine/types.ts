@@ -22,9 +22,27 @@ export interface Constraint {
     targetEvidenceComplete?: boolean;
 }
 
+export type ColumnType = 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'ANY';
+
+export interface ColumnDefinition {
+    name: string;
+    type: ColumnType;
+    required?: boolean;
+    unique?: boolean;
+}
+
+export interface TableDefinition {
+    name: string;
+    columns: ColumnDefinition[];
+}
+
 export interface Schema {
+    name?: string;
+    preset?: string;
     tables: string[];
     constraints: Constraint[];
+    /** Declared fields/types. Missing on legacy cases to preserve prior behavior. */
+    tableDefinitions?: TableDefinition[];
 }
 
 export interface CandidateState {
@@ -73,6 +91,10 @@ export interface Evidence {
     value: any;
     /** Optional source confidence in (0, 1]; omitted confidence is treated as 1.0. */
     confidence?: number;
+    /** Human-safe identifier for the source artifact/manifest, not an absolute path. */
+    sourceRef?: string;
+    /** Optional SHA-256 digest tying a fragment to a preserved source artifact. */
+    sourceSha256?: string;
 }
 
 export interface EvidenceProcessOptions {

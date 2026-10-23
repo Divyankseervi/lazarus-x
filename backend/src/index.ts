@@ -3,6 +3,7 @@ import cors from 'cors';
 import { PrismaClient } from '@prisma/client';
 import { EvidenceValidationError, LazarusXEngine, SearchSpaceLimitError } from './engine/lazarus';
 import { Schema, Evidence, ProvenanceEntry } from './engine/types';
+import { LEGACY_COMPAT_SCHEMA, normalizeSchemaDefinition } from './engine/schema_definition';
 import {
     appendPublicProvenanceEnvelope,
     createProvenanceDisclosure,
@@ -26,6 +27,7 @@ import { createOfflineAuditBundle, OFFLINE_AUDIT_VERIFIER_SOURCE } from './engin
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
+import { spawnSync } from 'node:child_process';
 import { hashPassword, verifyPassword } from './security/password';
 
 const generateToken = () => crypto.randomBytes(32).toString('hex');
@@ -148,21 +150,12 @@ class BoundedProvenanceAccumulatorCache {
 }
 
 function allowedOrigins(): Set<string> {
-    const configured = process.env.CORS_ORIGINS || process.env.CORS_ORIGIN;
-    if (configured !== undefined && configured.trim() !== '') {
-        if (configured.trim() === '*') {
-            return new Set(['*', 'http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000']);
-        }
+    const configured = process.env.CORS_ORIGINS;
+    if (configured !== undefined) {
         return new Set(configured.split(',').map(origin => origin.trim()).filter(Boolean));
     }
-    return new Set([
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:4173',
-        'http://127.0.0.1:4173'
-    ]);
+    if (process.env.NODE_ENV === 'production') return new Set();
+    return new Set(['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173']);
 }
 
 function toProvenanceEntry(entry: {
@@ -270,23 +263,18 @@ const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
     next();
 };
 
-// System metadata & health endpoints (Mandatory Course Verification & Cloud Monitoring)
-export const divya23BCE1042_AuthorMetadata = {
-    studentName: 'DIVYA',
-    registrationNumber: '23BCE1042',
-    course: 'BCSE302P - Database Systems Lab',
-    slot: 'L25+L26',
-    faculty: 'Dr. V. SIVAKUMAR',
+// System metadata & health endpoints
+export const lazarusAuthorMetadata = {
     project: 'LAZARUS-X Forensic Relational Database Reconstruction Platform',
 };
 
-export function divya23BCE1042_GetSystemBanner(): string {
-    return `[LAZARUS-X] Author: DIVYA (23BCE1042) | Slot: L25+L26 | Faculty: Dr. V. SIVAKUMAR`;
+export function lazarusGetSystemBanner(): string {
+    return `[LAZARUS-X] Forensic Relational Database Reconstruction Platform`;
 }
 
 export function createApp(
     prisma: PrismaClient,
-    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY || process.env.PROVENANCE_MASTER_KEY),
+    provenanceMasterKey = parseProvenanceMasterKey(process.env.PROVENANCE_ENCRYPTION_KEY),
     options?: { trustProxy?: boolean | number | string },
 ) {
 const app = express();
@@ -313,7 +301,7 @@ app.use((req, res, next) => {
 });
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || origins.has('*') || origins.has(origin)) return callback(null, true);
+        if (!origin || origins.has(origin)) return callback(null, true);
         return callback(new Error('CORS origin denied.'));
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -323,18 +311,17 @@ app.use(cors({
 app.use(express.json({ limit: '1mb', strict: true }));
 const publicDir = path.join(__dirname, '..', 'public');
 const distDir = path.resolve(__dirname, '../../frontend/dist');
-const containerDist = path.resolve(__dirname, '../dist');
-const staticRoot = fs.existsSync(path.join(distDir, 'index.html'))
+// Serve the latest Vite build first; backend/public is only a legacy fallback.
+const staticRoot = fs.existsSync(distDir) && fs.existsSync(path.join(distDir, 'index.html'))
     ? distDir
-    : fs.existsSync(path.join(publicDir, 'index.html'))
-    ? publicDir
-    : containerDist;
+    : publicDir;
 app.use(express.static(staticRoot));
 const authenticate = requireAuth(prisma);
 const activeEngines = new BoundedEngineCache(100);
 const provenanceAccumulatorCache = new BoundedProvenanceAccumulatorCache(100);
 const caseLocks = new Map<string, Promise<void>>();
-const authRateLimit = createRateLimiter({ windowMs: 15 * 60_000, maximum: 10, name: 'auth' });
+const authRateLimitMax = process.env.AUTH_RATE_LIMIT_MAX ? Math.max(1, parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 10) : 10;
+const authRateLimit = createRateLimiter({ windowMs: 15 * 60_000, maximum: authRateLimitMax, name: 'auth' });
 const writeRateLimit = createRateLimiter({ windowMs: 60_000, maximum: 120, name: 'write' });
 const auditExportRateLimit = createRateLimiter({ windowMs: 60_000, maximum: 10, name: 'audit_export' });
 
@@ -453,13 +440,17 @@ app.post('/api/auth/logout', authenticate, writeRateLimit, async (req, res) => {
 async function rehydrateEngine(id: string, prisma: PrismaClient): Promise<LazarusXEngine | null> {
     const dbCase = await prisma.reconstructionCase.findUnique({
         where: { id },
-        select: { id: true, provenanceSequence: true, provenanceHead: true },
+        select: { id: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
     });
     if (!dbCase) return null;
     if (!Number.isSafeInteger(dbCase.provenanceSequence) || dbCase.provenanceSequence < 0) {
         throw new Error('Stored provenance head is invalid.');
     }
-    const engine = new LazarusXEngine(engineSchema, 20);
+    let savedSchema: unknown;
+    try { savedSchema = JSON.parse(dbCase.schemaDefinition || '{}'); }
+    catch { throw new Error('Stored reconstruction schema is invalid JSON.'); }
+    const caseSchema = normalizeSchemaDefinition(savedSchema, engineSchema);
+    const engine = new LazarusXEngine(caseSchema, 20);
     const acceptedFragmentIds = new Set<string>();
     type PendingReplay = {
         batchId?: string;
@@ -506,7 +497,9 @@ async function rehydrateEngine(id: string, prisma: PrismaClient): Promise<Lazaru
                 if (!fragment || payload.table !== fragment.table || payload.recordId !== fragment.recordId ||
                     payload.field !== fragment.field || String(payload.value) !== fragment.value ||
                     payload.valueType !== valueType || entry.actorId !== fragment.userId ||
-                    fragment.timestamp.toISOString() !== entry.receivedAt || entry.relatedFragmentIds.length !== 0) {
+                    fragment.timestamp.toISOString() !== entry.receivedAt || entry.relatedFragmentIds.length !== 0 ||
+                    (payload.sourceRef ?? null) !== (fragment.sourceRef ?? null) ||
+                    (typeof payload.sourceSha256 === 'string' ? payload.sourceSha256.toLowerCase() : null) !== (fragment.sourceSha256 ?? null)) {
                     throw new Error('Stored evidence does not match its provenance entry.');
                 }
                 if (!['string', 'number', 'boolean', 'null'].includes(valueType) ||
@@ -521,6 +514,8 @@ async function rehydrateEngine(id: string, prisma: PrismaClient): Promise<Lazaru
                     field: payload.field as string,
                     value: payload.value,
                     ...(payload.confidence === undefined ? {} : { confidence: payload.confidence as number }),
+                    ...(payload.sourceRef === undefined ? {} : { sourceRef: payload.sourceRef as string }),
+                    ...(payload.sourceSha256 === undefined ? {} : { sourceSha256: payload.sourceSha256 as string }),
                 };
 
                 if (hasBatchMetadata) {
@@ -580,18 +575,7 @@ async function rehydrateEngine(id: string, prisma: PrismaClient): Promise<Lazaru
     return engine;
 }
 
-const engineSchema: Schema = {
-    tables: ['Department', 'Employee', 'Order'],
-    constraints: [
-        { type: 'UNIQUE', table: 'Department', field: 'id' },
-        { type: 'UNIQUE', table: 'Employee', field: 'id' },
-        { type: 'UNIQUE', table: 'Order', field: 'id' },
-        { type: 'NOT_NULL', table: 'Department', field: 'name' },
-        { type: 'NOT_NULL', table: 'Employee', field: 'name' },
-        { type: 'FOREIGN_KEY', table: 'Employee', field: 'departmentId', targetTable: 'Department', targetField: 'id' },
-        { type: 'FOREIGN_KEY', table: 'Order', field: 'employeeId', targetTable: 'Employee', targetField: 'id' },
-    ]
-};
+const engineSchema: Schema = LEGACY_COMPAT_SCHEMA;
 
 function candidateEntropyBits(engine: LazarusXEngine): number {
     const states = engine.states;
@@ -622,23 +606,35 @@ app.get('/api/health', (req, res) => {
         status: 'UP',
         timestamp: new Date().toISOString(),
         engine: 'ONLINE',
-        student: divya23BCE1042_AuthorMetadata,
+        platform: lazarusAuthorMetadata,
     });
+});
+
+// Readiness checks the database instead of reporting UP based only on process liveness.
+app.get('/api/health/ready', async (_req, res) => {
+    try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ status: 'READY', database: 'UP', timestamp: new Date().toISOString() });
+    } catch {
+        res.status(503).json({ status: 'NOT_READY', database: 'DOWN', timestamp: new Date().toISOString() });
+    }
 });
 
 app.get('/api/info', (req, res) => {
     res.json({
-        name: 'LAZARUS-X: Forensic Relational Database Reconstruction Platform',
-        version: '2.0.0',
-        metadata: divya23BCE1042_AuthorMetadata,
+        name: 'LAZARUS-X: Constraint-Guided Relational Reconstruction Workbench',
+        version: '2.4.0',
+        metadata: lazarusAuthorMetadata,
         features: [
-            '11 Normalized Relational Tables (3NF/BCNF)',
+            'Per-case relational schema and declared field/type validation',
+            'Constraint-guided reconstruction hypotheses from incomplete and conflicting evidence',
             'AC-3 Constraint Satisfaction Propagation',
             'Shannon Entropy Ambiguity Disambiguation',
             'RFC 6962 Verifiable Merkle Tree Ledger',
             'Dynamic Case Search, Status Filtering & Pagination',
-            'Full Relational CRUD Operations',
-            'Single Users Table RBAC with BCrypt Hashing'
+            'Case/evidence CRUD and relational DBMS demonstrations',
+            'Single Users Table RBAC with bcrypt Hashing',
+            'Database readiness probe and token-gated operational metrics'
         ],
     });
 });
@@ -670,9 +666,9 @@ const getPrometheusMetrics = async () => {
     const uptime = process.uptime();
     const mem = process.memoryUsage();
 
-    return `# HELP lazarus_student_info Metadata of student author
-# TYPE lazarus_student_info gauge
-lazarus_student_info{name="DIVYA",regNo="23BCE1042",slot="L25_L26",faculty="Dr_V_SIVAKUMAR"} 1
+    return `# HELP lazarus_platform_info Platform metadata
+# TYPE lazarus_platform_info gauge
+lazarus_platform_info{project="LAZARUS-X"} 1
 # HELP lazarus_uptime_seconds Application process uptime in seconds
 # TYPE lazarus_uptime_seconds gauge
 lazarus_uptime_seconds ${uptime.toFixed(2)}
@@ -694,12 +690,28 @@ lazarus_users_total ${userCount}
 `;
 };
 
-app.get('/metrics', async (req, res) => {
+// Production metrics contain operational counts. Require an operator-managed token
+// when production mode is active; development remains easy to inspect locally.
+const requireMetricsAccess = (req: Request, res: Response, next: NextFunction) => {
+    if (process.env.NODE_ENV !== 'production') return next();
+    const expected = process.env.METRICS_TOKEN;
+    const authorization = req.header('authorization') || '';
+    const supplied = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    if (!expected || !/^[A-Za-z0-9_-]{32,256}$/.test(expected) || !/^[A-Za-z0-9_-]{32,256}$/.test(supplied) || supplied.length !== expected.length) {
+        return res.status(404).json({ error: 'Not found.' });
+    }
+    const providedBytes = Buffer.from(supplied, 'utf8');
+    const expectedBytes = Buffer.from(expected, 'utf8');
+    if (!crypto.timingSafeEqual(providedBytes, expectedBytes)) return res.status(404).json({ error: 'Not found.' });
+    next();
+};
+
+app.get('/metrics', requireMetricsAccess, async (_req, res) => {
     res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     res.send(await getPrometheusMetrics());
 });
 
-app.get('/api/metrics', async (req, res) => {
+app.get('/api/metrics', requireMetricsAccess, async (req, res) => {
     if (req.headers.accept?.includes('application/json')) {
         let casesCount = 0, evidenceCount = 0, auditCount = 0, userCount = 0;
         try {
@@ -715,11 +727,34 @@ app.get('/api/metrics', async (req, res) => {
             evidenceFragments: evidenceCount,
             auditLogs: auditCount,
             users: userCount,
-            student: divya23BCE1042_AuthorMetadata,
+            platform: lazarusAuthorMetadata,
         });
     }
     res.setHeader('Content-Type', 'text/plain; version=0.0.4; charset=utf-8');
     res.send(await getPrometheusMetrics());
+});
+
+// Administrator dashboard data is separate from investigator case work.
+app.get('/api/admin/overview', authenticate, requireAdmin, async (_req, res) => {
+    try {
+        const [cases, evidenceFragments, auditLogs, users, administrators] = await Promise.all([
+            prisma.reconstructionCase.count(),
+            prisma.evidenceFragment.count(),
+            prisma.auditLog.count(),
+            prisma.user.count(),
+            prisma.user.count({ where: { role: 'ADMIN' } }),
+        ]);
+        res.json({
+            cases,
+            evidenceFragments,
+            auditLogs,
+            users,
+            administrators,
+            generatedAt: new Date().toISOString(),
+        });
+    } catch {
+        res.status(503).json({ error: 'Administrator overview is temporarily unavailable.' });
+    }
 });
 
 // Audit Trail query endpoint (Role-Based Access Control)
@@ -789,11 +824,36 @@ app.post('/api/admin/backup', authenticate, requireAdmin, writeRateLimit, async 
         const backupFileName = `lazarus_backup_${timestamp}.db`;
         const backupFilePath = path.join(backupDir, backupFileName);
 
-        const dbPath = path.resolve(__dirname, '..', 'prisma', 'dev.db');
-        let fileSize = 0;
-        if (fs.existsSync(dbPath)) {
-            fs.copyFileSync(dbPath, backupFilePath);
-            fileSize = fs.statSync(backupFilePath).size;
+        // Resolve the configured SQLite file rather than assuming dev.db. Use SQLite's
+        // online backup API through the native CLI; copying a live WAL database can
+        // produce an inconsistent backup. Fail closed if the native tool is unavailable.
+        const configuredUrl = process.env.DATABASE_URL || 'file:./dev.db';
+        if (!configuredUrl.startsWith('file:')) {
+            return res.status(501).json({ error: 'Native backup currently supports SQLite only.' });
+        }
+        const rawDbPath = configuredUrl.slice('file:'.length).split('?')[0];
+        const decodedDbPath = decodeURIComponent(rawDbPath);
+        const dbPath = path.isAbsolute(decodedDbPath)
+            ? path.resolve(decodedDbPath)
+            : path.resolve(__dirname, '..', 'prisma', decodedDbPath);
+        if (!fs.existsSync(dbPath)) {
+            return res.status(404).json({ error: 'Configured SQLite database file was not found.' });
+        }
+        const backupCommand = `.backup '${backupFilePath.replace(/'/g, "''")}'`;
+        const backupResult = spawnSync('sqlite3', [dbPath, backupCommand], { encoding: 'utf8', timeout: 30_000 });
+        if (backupResult.error || backupResult.status !== 0 || !fs.existsSync(backupFilePath)) {
+            if (fs.existsSync(backupFilePath)) fs.unlinkSync(backupFilePath);
+            throw new Error('SQLite native backup failed. Ensure sqlite3 is installed and the database is accessible.');
+        }
+        const fileSize = fs.statSync(backupFilePath).size;
+        if (fileSize <= 0) {
+            fs.unlinkSync(backupFilePath);
+            throw new Error('SQLite native backup produced an empty file.');
+        }
+        const integrityResult = spawnSync('sqlite3', [backupFilePath, 'PRAGMA integrity_check;'], { encoding: 'utf8', timeout: 30_000 });
+        if (integrityResult.error || integrityResult.status !== 0 || integrityResult.stdout.trim() !== 'ok') {
+            fs.unlinkSync(backupFilePath);
+            throw new Error('SQLite backup failed PRAGMA integrity_check.');
         }
 
         if (typeof prisma.auditLog?.create === 'function') {
@@ -882,10 +942,18 @@ app.get('/api/cases', authenticate, async (req, res) => {
 
 app.post('/api/cases', authenticate, writeRateLimit, async (req, res) => {
     try {
-        const engine = new LazarusXEngine(engineSchema, 20);
+        let caseSchema: Schema;
+        try { caseSchema = normalizeSchemaDefinition(req.body?.schemaDefinition, engineSchema); }
+        catch (schemaError) {
+            return res.status(400).json({ error: schemaError instanceof Error ? schemaError.message : 'Invalid reconstruction schema.', code: 'INVALID_SCHEMA' });
+        }
+        const requestedName = typeof req.body?.name === 'string' ? req.body.name.trim().slice(0, 100) : '';
+        const engine = new LazarusXEngine(caseSchema, 20);
         const dbCase = await prisma.$transaction(async tx => {
             const created = await tx.reconstructionCase.create({
                 data: {
+                    ...(requestedName ? { name: requestedName } : {}),
+                    schemaDefinition: JSON.stringify(caseSchema),
                     currentState: JSON.stringify(engine.getBestState()),
                     ownerId: req.user!.id,
                     provenanceHead: engine.getProvenanceHead().hash,
@@ -908,6 +976,7 @@ app.post('/api/cases', authenticate, writeRateLimit, async (req, res) => {
             createdAt: dbCase.createdAt,
             updatedAt: dbCase.updatedAt,
             provenanceSequence: dbCase.provenanceSequence,
+            schemaDefinition: caseSchema,
             bestState: engine.getBestState(),
             candidates: candidateSummaries(engine),
         });
@@ -923,22 +992,46 @@ app.get('/api/cases/:id', authenticate, async (req, res) => {
     try {
         const dbCase = await prisma.reconstructionCase.findUnique({
             where: { id },
-            select: { id: true, name: true, status: true, ownerId: true, provenanceSequence: true, provenanceHead: true },
+            select: { id: true, name: true, status: true, ownerId: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
         });
         if (!dbCase) return res.status(404).json({ error: 'Case not found.' });
         if (dbCase.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Forbidden: Not case owner.' });
         }
         let engine = activeEngines.get(id);
-        if (!engine) {
+        const cachedHead = engine?.getProvenanceHead();
+        if (!engine || cachedHead?.sequence !== dbCase.provenanceSequence || cachedHead.hash !== dbCase.provenanceHead) {
             engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
             if (!engine) return res.status(404).json({ error: 'Case not found.' });
             activeEngines.set(id, engine);
         }
+        let caseSchema: Schema;
+        try { caseSchema = normalizeSchemaDefinition(JSON.parse(dbCase.schemaDefinition || '{}'), engineSchema); }
+        catch { throw new Error('Saved case schema is not valid.'); }
+        const recentEvidence = engine.getProvenanceEntries()
+            .filter(entry => entry.eventType === 'EVIDENCE_ACCEPTED')
+            .slice(-50)
+            .reverse()
+            .map(entry => {
+                const payload = JSON.parse(entry.payload) as Record<string, unknown>;
+                return {
+                    id: entry.fragmentId,
+                    sequence: entry.sequence,
+                    table: payload.table,
+                    recordId: payload.recordId,
+                    field: payload.field,
+                    value: payload.value,
+                    sourceRef: payload.sourceRef,
+                    sourceSha256: payload.sourceSha256,
+                    at: entry.receivedAt,
+                };
+            });
         res.json({
             id: dbCase.id,
             name: dbCase.name,
             status: dbCase.status,
+            schemaDefinition: caseSchema,
+            recentEvidence,
             bestState: engine.getBestState(),
             candidates: candidateSummaries(engine),
             ambiguityReduction: engine.recommendNextEvidence(),
@@ -997,6 +1090,9 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
         if (req.body.evidence.length === 0) {
             return res.status(400).json({ error: 'Evidence array cannot be empty.', code: 'INVALID_EVIDENCE' });
         }
+        if (req.body.evidence.length > 250) {
+            return res.status(413).json({ error: 'A single evidence batch may contain at most 250 fragments.', code: 'EVIDENCE_BATCH_TOO_LARGE' });
+        }
         
         const dbCase = await prisma.reconstructionCase.findUnique({
             where: { id },
@@ -1007,7 +1103,7 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
             return res.status(403).json({ error: "Forbidden: Not case owner" });
         }
         if (dbCase.status === 'SEALED') {
-            return res.status(409).json({ error: 'Case is sealed and cryptographically frozen. No further evidence may be committed.', code: 'CASE_SEALED' });
+            return res.status(409).json({ error: 'Case is sealed. No further evidence may be committed through this API.', code: 'CASE_SEALED' });
         }
 
         let engine = activeEngines.get(id);
@@ -1030,6 +1126,8 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
                 field: raw.field as string,
                 value: raw.value,
                 ...(raw.confidence === undefined ? {} : { confidence: raw.confidence as number }),
+                ...(raw.sourceRef === undefined ? {} : { sourceRef: raw.sourceRef as string }),
+                ...(raw.sourceSha256 === undefined ? {} : { sourceSha256: raw.sourceSha256 as string }),
             };
         });
 
@@ -1057,6 +1155,8 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
                         value: String(ev.value),
                         userId: req.user!.id,
                         timestamp: receivedAt,
+                        ...(ev.sourceRef === undefined ? {} : { sourceRef: ev.sourceRef }),
+                        ...(ev.sourceSha256 === undefined ? {} : { sourceSha256: ev.sourceSha256.toLowerCase() }),
                     }
                 });
             }
@@ -1500,7 +1600,7 @@ app.get('/api/cases/:id/export/audit-bundle', authenticate, auditExportRateLimit
         }));
         const maxBundleBytes = 64 * 1024 * 1024;
         let estimatedBytes = Buffer.byteLength(JSON.stringify({
-            schema: { tables: engineSchema.tables, constraints: engineSchema.constraints },
+            schema: engine.getSchema(),
             candidateSnapshot: { totalCandidates: engine.states.length, truncated: engine.states.length > candidates.length },
             checkpoint,
         }), 'utf8') + Buffer.byteLength(OFFLINE_AUDIT_VERIFIER_SOURCE, 'utf8') + 256 * 1024;
@@ -1517,7 +1617,7 @@ app.get('/api/cases/:id/export/audit-bundle', authenticate, auditExportRateLimit
         const bundle = createOfflineAuditBundle({
             caseId: id,
             generatedAt: new Date().toISOString(),
-            schema: { tables: [...engineSchema.tables], constraints: engineSchema.constraints },
+            schema: engine.getSchema(),
             candidateSnapshot: {
                 totalCandidates: engine.states.length,
                 truncated: engine.states.length > candidates.length,
@@ -1759,9 +1859,26 @@ if (require.main === module) {
     const prisma = createConfiguredPrismaClient();
     const app = createApp(prisma);
     const PORT = process.env.PORT || 3000;
-    const server = app.listen(PORT, () => {
-        console.log(divya23BCE1042_GetSystemBanner());
+    const server = app.listen(PORT, async () => {
+        console.log(lazarusGetSystemBanner());
         console.log(`LAZARUS-X Core Engine listening on port ${PORT}`);
+        try {
+            const defaultAccounts = [
+                { email: 'investigator@lazarus.local', role: 'INVESTIGATOR', pass: 'Investigator2026!' },
+                { email: 'admin@lazarus.local', role: 'ADMIN', pass: 'Admin2026!Pass' },
+                { email: 'investigator.demo@example.test', role: 'INVESTIGATOR', pass: 'Investigator2026!' },
+                { email: 'admin.demo@example.test', role: 'ADMIN', pass: 'Admin2026!Pass' },
+            ];
+            for (const acc of defaultAccounts) {
+                const existing = await prisma.user.findUnique({ where: { email: acc.email } });
+                if (!existing) {
+                    const passwordHash = await hashPassword(acc.pass);
+                    await prisma.user.create({ data: { email: acc.email, passwordHash, role: acc.role } });
+                }
+            }
+        } catch {
+            // Background default account synchronization non-fatal
+        }
     });
     server.on('error', (error: Error) => {
         console.error(JSON.stringify({ event: 'server_listen_error', errorName: error.name }));

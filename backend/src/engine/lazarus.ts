@@ -16,6 +16,7 @@ import {
     Schema,
 } from './types';
 import { appendProvenanceEntry, canonicalJson, PROVENANCE_GENESIS_HASH } from './provenance';
+import { normalizeSchemaDefinition } from './schema_definition';
 
 type DomainValue = string | number | boolean | null;
 interface DomainEntry {
@@ -313,6 +314,8 @@ export class LazarusXEngine {
         public maxProvenanceEntries: number = 100_000,
         public maxProvenanceBytes: number = 64 * 1024 * 1024
     ) {
+        try { schema = normalizeSchemaDefinition(schema, schema); }
+        catch (error) { throw new EvidenceValidationError(error instanceof Error ? error.message : 'Invalid reconstruction schema.'); }
         for (const [name, value] of Object.entries({
             topK, maxMaterializedStates, maxMaterializedUnits, maxEvidencePerBatch,
             maxPropagationRevisions, maxFuzzyComparisons, maxProvenanceEntries, maxProvenanceBytes,
@@ -334,6 +337,9 @@ export class LazarusXEngine {
         const tableNames = new Set(schema.tables);
         const seenConstraintIds = new Set<string>();
         this.schema = {
+            ...(schema.name ? { name: schema.name } : {}),
+            ...(schema.preset ? { preset: schema.preset } : {}),
+            ...(schema.tableDefinitions ? { tableDefinitions: JSON.parse(JSON.stringify(schema.tableDefinitions)) } : {}),
             tables: [...schema.tables],
             constraints: schema.constraints.map(constraint => {
                 if (constraint.type !== 'FOREIGN_KEY') return { ...constraint, id: getConstraintId(constraint) };
@@ -437,6 +443,8 @@ export class LazarusXEngine {
             stagedEvidence.push({
                 id: evidence.id, table: evidence.table, recordId: evidence.recordId, field: evidence.field,
                 value: evidence.value, ...(evidence.confidence === undefined ? {} : { confidence: evidence.confidence }),
+                ...(evidence.sourceRef === undefined ? {} : { sourceRef: evidence.sourceRef }),
+                ...(evidence.sourceSha256 === undefined ? {} : { sourceSha256: evidence.sourceSha256.toLowerCase() }),
             });
         }
 
@@ -544,6 +552,8 @@ export class LazarusXEngine {
                     value: evidence.value,
                     valueType: evidence.value === null ? 'null' : typeof evidence.value,
                     ...(evidence.confidence === undefined ? {} : { confidence: evidence.confidence }),
+                    ...(evidence.sourceRef === undefined ? {} : { sourceRef: evidence.sourceRef }),
+                    ...(evidence.sourceSha256 === undefined ? {} : { sourceSha256: evidence.sourceSha256.toLowerCase() }),
                     ...(includeBatchMetadata ? { batchId, batchIndex, batchSize: stagedEvidence.length } : {}),
                 });
                 appendEntry(appendProvenanceEntry(previousEntry, {
@@ -604,13 +614,19 @@ export class LazarusXEngine {
                 evidence.confidence <= 0 || evidence.confidence > 1)) {
             throw new EvidenceValidationError('Evidence confidence must be a finite number greater than 0 and at most 1.');
         }
+        if (evidence.sourceRef !== undefined && (typeof evidence.sourceRef !== 'string' || evidence.sourceRef.trim().length === 0 || evidence.sourceRef.length > 256 || /[\u0000-\u001f\u007f]/.test(evidence.sourceRef))) {
+            throw new EvidenceValidationError('Source reference must be a printable label of at most 256 characters. Use a manifest ID or exhibit label, not a local file path.');
+        }
+        if (evidence.sourceSha256 !== undefined && (typeof evidence.sourceSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(evidence.sourceSha256))) {
+            throw new EvidenceValidationError('Source SHA-256 must contain exactly 64 hexadecimal characters.');
+        }
         if (!this.evidenceGraph.has(evidence.table)) {
             throw new EvidenceValidationError('Evidence references a table outside the reconstruction schema.');
         }
         if (typeof evidence.field !== 'string' || evidence.field.length === 0 || evidence.field.length > 256 || evidence.field === '_recordId') {
             throw new EvidenceValidationError('Evidence field must be a non-empty domain field of at most 256 characters; _recordId is reserved.');
         }
-        if (!Number.isSafeInteger(evidence.recordId)) throw new EvidenceValidationError('Evidence recordId must be a safe integer.');
+        if (!Number.isSafeInteger(evidence.recordId) || evidence.recordId < 0) throw new EvidenceValidationError('Evidence recordId must be a non-negative safe integer.');
         const value = evidence.value;
         if (value !== null && typeof value !== 'string' && typeof value !== 'boolean' &&
             !(typeof value === 'number' && Number.isFinite(value))) {
@@ -619,6 +635,24 @@ export class LazarusXEngine {
         if (typeof value === 'string' && value.length > 16_384) {
             throw new EvidenceValidationError('Evidence strings may contain at most 16384 UTF-16 code units.');
         }
+        const declaredTable = this.schema.tableDefinitions?.find(table => table.name === evidence.table);
+        if (declaredTable) {
+            const declaredColumn = declaredTable.columns.find(column => column.name === evidence.field);
+            if (!declaredColumn) throw new EvidenceValidationError(`Evidence field ${evidence.table}.${evidence.field} is not declared in the case schema.`);
+            if (value !== null && declaredColumn.type === 'TEXT' && typeof value !== 'string') {
+                throw new EvidenceValidationError(`${evidence.table}.${evidence.field} expects a text value.`);
+            }
+            if (value !== null && declaredColumn.type === 'NUMBER' && (typeof value !== 'number' || !Number.isFinite(value))) {
+                throw new EvidenceValidationError(`${evidence.table}.${evidence.field} expects a numeric value.`);
+            }
+            if (value !== null && declaredColumn.type === 'BOOLEAN' && typeof value !== 'boolean') {
+                throw new EvidenceValidationError(`${evidence.table}.${evidence.field} expects true, false or null.`);
+            }
+        }
+    }
+
+    public getSchema(): Schema {
+        return JSON.parse(JSON.stringify(this.schema)) as Schema;
     }
 
     private materializeStates(sourceGraph: EvidenceGraph): MaterializationResult {

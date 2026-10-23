@@ -1,23 +1,30 @@
 @echo off
-REM LAZARUS-X Native Database Backup Utility for Windows
-REM Satisfies BCSE302P Course Requirement (Section 8: Backup & Recovery)
-
-set TIMESTAMP=%DATE:~10,4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%
-set TIMESTAMP=%TIMESTAMP: =0%
-set BACKUP_DIR=backups
+setlocal EnableExtensions
+REM LAZARUS-X native SQLite backup utility. Requires sqlite3.exe on PATH.
+set "BACKUP_DIR=backups"
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "TIMESTAMP=%%i"
+set "SOURCE_DB=backend\prisma\dev.db"
+set "TARGET_DB=%BACKUP_DIR%\lazarus_sqlite_%TIMESTAMP%.db"
 
-echo ===================================================
-echo   LAZARUS-X DATABASE BACKUP UTILITY (BCSE302P)
-echo   Timestamp: %TIMESTAMP%
-echo ===================================================
-
-if exist "backend\prisma\dev.db" (
-    echo [SQLITE] Executing native copy/backup of dev.db...
-    copy "backend\prisma\dev.db" "%BACKUP_DIR%\lazarus_sqlite_%TIMESTAMP%.db" >nul
-    echo [SQLITE] Successfully saved backup to %BACKUP_DIR%\lazarus_sqlite_%TIMESTAMP%.db
+echo === LAZARUS-X DATABASE BACKUP ===
+if not exist "%SOURCE_DB%" (
+  echo ERROR: Database not found at %SOURCE_DB%.
+  echo Set up the application and create the database before backing up.
+  exit /b 1
 )
-
-echo ===================================================
-echo   BACKUP CONCLUDED SUCCESSFULLY
-echo ===================================================
+where sqlite3 >nul 2>nul
+if errorlevel 1 (
+  echo ERROR: sqlite3.exe is required for a consistent online backup.
+  exit /b 1
+)
+sqlite3 "%SOURCE_DB%" ".backup '%TARGET_DB%'"
+if errorlevel 1 exit /b 1
+if not exist "%TARGET_DB%" exit /b 1
+for /f "delims=" %%i in ('sqlite3 "%TARGET_DB%" "PRAGMA integrity_check;"') do set "INTEGRITY=%%i"
+if not "%INTEGRITY%"=="ok" (
+  echo ERROR: Backup integrity check failed: %INTEGRITY%
+  exit /b 1
+)
+echo Backup created and integrity check passed: %TARGET_DB%
+endlocal

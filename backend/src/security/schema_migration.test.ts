@@ -21,6 +21,7 @@ test('provenance SQL migration applies to an isolated pre-change SQLite schema',
             "caseId" TEXT NOT NULL,
             "receivedAt" DATETIME NOT NULL
         )`;
+        await prisma.$executeRaw`INSERT INTO "ReconstructionCase"("id") VALUES ('legacy-case')`;
 
         const migrationPath = resolve(process.cwd(), 'prisma/migrations/20261011000000_provenance_salt_and_indexes/migration.sql');
         const migrationSql = readFileSync(migrationPath, 'utf8');
@@ -44,6 +45,18 @@ test('provenance SQL migration applies to an isolated pre-change SQLite schema',
         const columns2 = await prisma.$queryRawUnsafe<Array<{ name: string }>>('PRAGMA table_info("ReconstructionCase")');
         assert.ok(columns2.some(column => column.name === 'provenanceMerkleRoot'), 'merkle migration should add provenanceMerkleRoot');
         assert.ok(columns2.some(column => column.name === 'provenanceEnvelopeHead'), 'merkle migration should add provenanceEnvelopeHead');
+
+        // Apply the case-specific target schema migration. Older cases must remain
+        // readable and fall back to legacy compatibility schema when the JSON is {}.
+        const schemaMigrationPath = resolve(process.cwd(), 'prisma/migrations/20261023150000_case_schema_definition/migration.sql');
+        const schemaMigrationSql = readFileSync(schemaMigrationPath, 'utf8');
+        const schemaStatements = schemaMigrationSql.replace(/--[^\r\n]*/g, '').split(';').map(statement => statement.trim()).filter(Boolean);
+        assert.equal(schemaStatements.length, 1, 'expected one additive case schema column');
+        for (const statement of schemaStatements) await prisma.$executeRawUnsafe(statement);
+        const columns3 = await prisma.$queryRawUnsafe<Array<{ name: string }>>('PRAGMA table_info("ReconstructionCase")');
+        assert.ok(columns3.some(column => column.name === 'schemaDefinition'), 'schema migration should add schemaDefinition');
+        const legacySchema = await prisma.$queryRawUnsafe<Array<{ schemaDefinition: string }>>(`SELECT "schemaDefinition" FROM "ReconstructionCase" WHERE "id" = 'legacy-case'`);
+        assert.equal(legacySchema[0]?.schemaDefinition, '{}', 'existing cases should receive the documented legacy default');
     } finally {
         try { await prisma.$disconnect(); }
         finally { rmSync(tempDirectory, { recursive: true, force: true }); }

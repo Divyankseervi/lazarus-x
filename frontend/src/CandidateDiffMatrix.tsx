@@ -57,11 +57,11 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
     const disputedInTableCount = Array.from(disputedMap.keys()).length;
 
     return (
-        <div className="diff-matrix-container" role="region" aria-label="Candidate Conflict Diff Matrix">
+        <div className="diff-matrix-container" role="region" aria-label="Candidate Field Inspection">
             <div className="diff-matrix-header">
                 <div className="diff-matrix-title">
                     <Split size={16} className="text-cyan" />
-                    <strong>Cell-Level Candidate Conflict & Consensus Matrix</strong>
+                    <strong>Candidate Conflict & Field Inspection</strong>
                     <span className="candidate-badge">
                         Comparing {candidateCount} surviving interpretation{candidateCount === 1 ? '' : 's'}
                     </span>
@@ -99,7 +99,7 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                 <span>Relation: <b>{selectedTable}</b> ({rows.length} records)</span>
                 <span className="stats-divider">•</span>
                 <span className="stat-consensus">
-                    <CheckCircle2 size={12} className="text-emerald" /> Unanimous agreement on non-conflicted fields
+                    <CheckCircle2 size={12} className="text-emerald" /> No surfaced conflict in this recommendation set
                 </span>
                 <span className="stats-divider">•</span>
                 <span className="stat-conflict">
@@ -164,7 +164,7 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                                                                                 style={{ width: `${Math.round(pv.probability * 100)}%` }}
                                                                             />
                                                                         </div>
-                                                                        <span className="val-pct">{Math.round(pv.probability * 100)}%</span>
+                                                                        <span className="val-pct" title="Normalized heuristic candidate weight, not a calibrated probability">{Math.round(pv.probability * 100)}%*</span>
                                                                     </div>
                                                                 ))
                                                             ) : (
@@ -182,7 +182,7 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                                             <td key={attr} className="cell-consensus">
                                                 <div className="consensus-wrapper">
                                                     <span className="cell-value">{displayVal}</span>
-                                                    <span className="consensus-tag" title="All surviving candidates agree">
+                                                    <span className="consensus-tag" title="This cell is not currently surfaced as disputed. It is not proof that all candidate states agree.">
                                                         <CheckCircle2 size={10} />
                                                     </span>
                                                 </div>

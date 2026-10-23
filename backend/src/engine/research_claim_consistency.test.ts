@@ -1,15 +1,15 @@
 /**
- * LAZARUS-X PATENT CLAIM VERIFICATION & COMPLIANCE TEST SUITE
+ * LAZARUS-X RESEARCH-CONCEPT CONSISTENCY TEST SUITE
  * 
- * Programmatically validates that the implementation strictly satisfies each
- * element of the formal patent claims set forth in PATENT_SPECIFICATION_FORMAL.md:
- * - Claim 1 & 2: Multi-hypothesis out-of-order reconstruction & composite foreign keys
- * - Claim 3: Restricted Damerau-Levenshtein transposition tolerance & FUZZY_CORRECTION
- * - Claim 4: Delayed pruning preserving resolvable violations vs fatal pruning
- * - Claim 5 & 11: Exact Shannon Entropy & Expected Information Gain ranking
- * - Claim 6 & 19: Dual-layer cryptographic ledger (SHA-256 chain + HMAC masking)
- * - Claim 7 & 20: RFC 6962 binary Merkle accumulator & O(log N) inclusion proofs
- * - Claim 8 & 18: Atomic case sealing & fail-closed custody protection
+ * Checks selected research-concept invariants against the current prototype. These
+ * fixtures are engineering regression tests, not patentability or legal validation:
+ * - Concept 1 & 2: Multi-hypothesis out-of-order reconstruction & composite foreign keys
+ * - Concept 3: Restricted Damerau-Levenshtein transposition tolerance & FUZZY_CORRECTION
+ * - Concept 4: Delayed pruning preserving resolvable violations vs fatal pruning
+ * - Concept 5 & 11: Exact Shannon Entropy & Expected Information Gain ranking
+ * - Concept 6 & 19: Dual-layer cryptographic ledger (SHA-256 chain + HMAC masking)
+ * - Concept 7 & 20: RFC 6962 binary Merkle accumulator & O(log N) inclusion proofs
+ * - Concept 8 & 18: Atomic case sealing & fail-closed custody protection
  */
 
 import assert from 'node:assert/strict';
@@ -27,9 +27,9 @@ import {
   verifyProvenanceCheckpointManifest,
 } from './provenance';
 
-async function runPatentClaimVerifications() {
+async function runResearchConceptConsistencyChecks() {
   console.log('================================================================');
-  console.log('   LAZARUS-X PATENT SPECIFICATION & CLAIM COMPLIANCE TEST SUITE');
+  console.log('   LAZARUS-X RESEARCH-CONCEPT CONSISTENCY TEST SUITE');
   console.log('================================================================\n');
 
   const testSchema: Schema = {
@@ -73,9 +73,9 @@ async function runPatentClaimVerifications() {
   };
 
   // -------------------------------------------------------------------------
-  // CLAIM 1 & 2: Non-Sequential Partial Fragments & Composite Foreign Keys
+  // CONCEPT 1 & 2: Non-Sequential Partial Fragments & Composite Foreign Keys
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 1 & 2: Out-of-order partial fragments & composite foreign keys...');
+  console.log('Testing Concept 1 & 2: Out-of-order partial fragments & composite foreign keys...');
   const engine = new LazarusXEngine(testSchema, 100);
 
   // Ingest child record BEFORE parent record exists
@@ -108,22 +108,22 @@ async function runPatentClaimVerifications() {
 
   engine.processEvidence(childEvidence);
   const bestState = engine.getBestState();
-  assert.ok(bestState !== null, 'Claim 1 Failed: Engine failed to produce candidate state');
+  assert.ok(bestState !== null, 'Concept 1 Failed: Engine failed to produce candidate state');
   assert.ok(
     bestState.resolvableViolations > 0,
-    'Claim 1 Failed: Out-of-order child fragment must generate a resolvable violation'
+    'Concept 1 Failed: Out-of-order child fragment must generate a resolvable violation'
   );
   assert.equal(
     bestState.fatalViolations,
     0,
-    'Claim 1 Failed: Missing foreign key must NOT be classified as fatal'
+    'Concept 1 Failed: Missing foreign key must NOT be classified as fatal'
   );
-  console.log('  ✔ Claim 1 & 2 Verified: Child entity retained with 0 fatal and >0 resolvable violations');
+  console.log('  ✔ Concept 1 & 2 Verified: Child entity retained with 0 fatal and >0 resolvable violations');
 
   // -------------------------------------------------------------------------
-  // CLAIM 4: Delayed Pruning Under Resolvable Violations vs Fatal Pruning
+  // CONCEPT 4: Delayed Pruning Under Resolvable Violations vs Fatal Pruning
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 4: Delayed pruning preserving resolvable violations vs fatal pruning...');
+  console.log('Testing Concept 4: Delayed pruning preserving resolvable violations vs fatal pruning...');
   const collisionEngine = new LazarusXEngine(testSchema, 100);
 
   // Ingest two distinct records with identical unique code to trigger fatal UNIQUE collision
@@ -166,14 +166,14 @@ async function runPatentClaimVerifications() {
   const collisionBest = collisionEngine.getBestState();
   assert.ok(
     collisionBest.fatalViolations > 0,
-    'Claim 4 Failed: Collision must register as fatal violation'
+    'Concept 4 Failed: Collision must register as fatal violation'
   );
-  console.log('  ✔ Claim 4 Verified: Fatal collisions detected and distinct from resolvable violations');
+  console.log('  ✔ Concept 4 Verified: Fatal collisions detected and distinct from resolvable violations');
 
   // -------------------------------------------------------------------------
-  // CLAIM 3: Bounded Damerau-Levenshtein Fuzzy Transposition Matching
+  // CONCEPT 3: Bounded Damerau-Levenshtein Fuzzy Transposition Matching
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 3: Restricted Damerau-Levenshtein string transposition tolerance...');
+  console.log('Testing Concept 3: Restricted Damerau-Levenshtein string transposition tolerance...');
   const fuzzySchema: Schema = {
     tables: ['Department', 'Employee'],
     constraints: [
@@ -209,13 +209,13 @@ async function runPatentClaimVerifications() {
 
   fuzzyEngine.processEvidence(fuzzyEvidence);
   const fuzzyBest = fuzzyEngine.getBestState();
-  assert.ok(fuzzyBest !== null, 'Claim 3 Failed: Fuzzy engine failed to evaluate state');
-  console.log('  ✔ Claim 3 Verified: String transposition tolerance evaluated cleanly');
+  assert.ok(fuzzyBest !== null, 'Concept 3 Failed: Fuzzy engine failed to evaluate state');
+  console.log('  ✔ Concept 3 Verified: String transposition tolerance evaluated cleanly');
 
   // -------------------------------------------------------------------------
-  // CLAIM 5 & 11: Exact Shannon Entropy & Expected Information Gain Ranking
+  // CONCEPT 5 & 11: Exact Shannon Entropy & Expected Information Gain Ranking
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 5 & 11: Shannon entropy calculation & Information Gain ranking...');
+  console.log('Testing Concept 5 & 11: Shannon entropy calculation & Information Gain ranking...');
   const infoSchema: Schema = {
     tables: ['Employee'],
     constraints: [],
@@ -252,16 +252,16 @@ async function runPatentClaimVerifications() {
   infoEngine.processEvidence(infoEvidence);
   const branchingDiag = infoEngine.getBranchingDiagnostics();
 
-  assert.ok(branchingDiag !== null, 'Claim 5/11 Failed: Diagnostics must not be null');
-  assert.ok(branchingDiag.priorEntropyBits >= 0, 'Claim 5/11 Failed: Entropy must be non-negative');
+  assert.ok(branchingDiag !== null, 'Concept 5/11 Failed: Diagnostics must not be null');
+  assert.ok(branchingDiag.priorEntropyBits >= 0, 'Concept 5/11 Failed: Entropy must be non-negative');
   console.log(
-    `  ✔ Claim 5 & 11 Verified: Prior entropy = ${branchingDiag.priorEntropyBits.toFixed(3)} bits, Disputed attributes = ${branchingDiag.disputedAttributesCount}`
+    `  ✔ Concept 5 & 11 Verified: Prior entropy = ${branchingDiag.priorEntropyBits.toFixed(3)} bits, Disputed attributes = ${branchingDiag.disputedAttributesCount}`
   );
 
   // -------------------------------------------------------------------------
-  // CLAIM 6 & 19: Dual-Layer Cryptographic Ledger & HMAC Masking
+  // CONCEPT 6 & 19: Dual-Layer Cryptographic Ledger & HMAC Masking
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 6 & 19: Dual-layer cryptographic ledger (SHA-256 chain + HMAC masking)...');
+  console.log('Testing Concept 6 & 19: Dual-layer cryptographic ledger (SHA-256 chain + HMAC masking)...');
   const caseSalt = Buffer.alloc(32, 19);
 
   const entry1: ProvenanceEntry = {
@@ -294,38 +294,38 @@ async function runPatentClaimVerifications() {
   const key2 = deriveEventCommitmentKey(caseSalt, 2);
   const env2 = appendPublicProvenanceEnvelope(entry2, env1.envelopeHash, key2);
 
-  assert.equal(env1.sequence, 1, 'Claim 6 Failed: Sequence 1 mismatch');
-  assert.equal(env2.sequence, 2, 'Claim 6 Failed: Sequence 2 mismatch');
-  assert.equal(env2.previousEnvelopeHash, env1.envelopeHash, 'Claim 6 Failed: Hash chain link broken');
-  assert.notEqual(env1.actorCommitment, 'examiner-alice', 'Claim 6 Failed: Actor ID must be HMAC masked');
+  assert.equal(env1.sequence, 1, 'Concept 6 Failed: Sequence 1 mismatch');
+  assert.equal(env2.sequence, 2, 'Concept 6 Failed: Sequence 2 mismatch');
+  assert.equal(env2.previousEnvelopeHash, env1.envelopeHash, 'Concept 6 Failed: Hash chain link broken');
+  assert.notEqual(env1.actorCommitment, 'examiner-alice', 'Concept 6 Failed: Actor ID must be HMAC masked');
   
   const chainCheck = verifyPublicProvenanceEnvelope([env1, env2], env2.envelopeHash);
-  assert.equal(chainCheck.valid, true, 'Claim 6 Failed: Public envelope hash chain validation failed');
-  console.log('  ✔ Claim 6 & 19 Verified: Monotonic hash chaining and HMAC masking verified');
+  assert.equal(chainCheck.valid, true, 'Concept 6 Failed: Public envelope hash chain validation failed');
+  console.log('  ✔ Concept 6 & 19 Verified: Monotonic hash chaining and HMAC masking verified');
 
   // -------------------------------------------------------------------------
-  // CLAIM 7 & 20: Binary RFC 6962 Merkle Accumulator & O(log N) Inclusion Proofs
+  // CONCEPT 7 & 20: Binary RFC 6962 Merkle Accumulator & O(log N) Inclusion Proofs
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 7 & 20: RFC 6962 binary Merkle inclusion proofs...');
+  console.log('Testing Concept 7 & 20: RFC 6962 binary Merkle inclusion proofs...');
   const envelopes = [env1, env2];
   const merkleRoot = computeEnvelopeMerkleRoot(envelopes);
-  assert.ok(merkleRoot.length === 64, 'Claim 7 Failed: Merkle root must be 64 hex characters');
+  assert.ok(merkleRoot.length === 64, 'Concept 7 Failed: Merkle root must be 64 hex characters');
 
   const proof = generateEnvelopeInclusionProof(1, envelopes.length, envelopes);
-  assert.ok(proof !== null, 'Claim 7 Failed: Failed to generate Merkle proof for leaf 1');
-  assert.equal(proof.sequence, 1, 'Claim 7 Failed: Proof sequence mismatch');
-  assert.equal(proof.totalEvents, 2, 'Claim 7 Failed: Proof event count mismatch');
+  assert.ok(proof !== null, 'Concept 7 Failed: Failed to generate Merkle proof for leaf 1');
+  assert.equal(proof.sequence, 1, 'Concept 7 Failed: Proof sequence mismatch');
+  assert.equal(proof.totalEvents, 2, 'Concept 7 Failed: Proof event count mismatch');
 
   const proofValid = verifyEnvelopeInclusionProof(proof, env1.envelopeHash, merkleRoot);
-  assert.equal(proofValid, true, 'Claim 7 Failed: Merkle proof verification failed against computed root');
-  console.log(`  ✔ Claim 7 & 20 Verified: RFC 6962 Merkle root computed and inclusion proof verified with ${proof.siblings.length} sibling(s)`);
+  assert.equal(proofValid, true, 'Concept 7 Failed: Merkle proof verification failed against computed root');
+  console.log(`  ✔ Concept 7 & 20 Verified: RFC 6962 Merkle root computed and inclusion proof verified with ${proof.siblings.length} sibling(s)`);
 
   // -------------------------------------------------------------------------
-  // CLAIM 8 & 18: Sealed Case Checkpoint Manifest Generation
+  // CONCEPT 8 & 18: Sealed Case Checkpoint Manifest Generation
   // -------------------------------------------------------------------------
-  console.log('Testing Claim 8 & 18: Sealed case manifest generation...');
+  console.log('Testing Concept 8 & 18: Sealed case manifest generation...');
   const manifest = createProvenanceCheckpointManifest({
-    caseId: 'case-patent-101',
+    caseId: 'case-research-101',
     sequence: 2,
     ledgerHead: 'b'.repeat(64),
     publicEnvelopeHead: env2.envelopeHash,
@@ -333,20 +333,20 @@ async function runPatentClaimVerifications() {
     cumulativeEventCount: 2,
   });
 
-  assert.equal(manifest.caseId, 'case-patent-101', 'Claim 8 Failed: Manifest caseId mismatch');
-  assert.equal(manifest.sequence, 2, 'Claim 8 Failed: Manifest sequence mismatch');
-  assert.equal(manifest.publicEnvelopeMerkleRoot, merkleRoot, 'Claim 8 Failed: Manifest root mismatch');
+  assert.equal(manifest.caseId, 'case-research-101', 'Concept 8 Failed: Manifest caseId mismatch');
+  assert.equal(manifest.sequence, 2, 'Concept 8 Failed: Manifest sequence mismatch');
+  assert.equal(manifest.publicEnvelopeMerkleRoot, merkleRoot, 'Concept 8 Failed: Manifest root mismatch');
 
   const manifestValid = verifyProvenanceCheckpointManifest(manifest);
-  assert.equal(manifestValid, true, 'Claim 8 Failed: Manifest validation failed');
-  console.log(`  ✔ Claim 8 & 18 Verified: Sealed checkpoint manifest anchored with root ${manifest.publicEnvelopeMerkleRoot?.slice(0, 16)}...`);
+  assert.equal(manifestValid, true, 'Concept 8 Failed: Manifest validation failed');
+  console.log(`  ✔ Concept 8 & 18 Verified: Sealed checkpoint manifest anchored with root ${manifest.publicEnvelopeMerkleRoot?.slice(0, 16)}...`);
 
   console.log('\n================================================================');
-  console.log('   ALL 25 FORMAL PATENT CLAIMS VERIFIED & COMPLIANT (100% PASS)');
+  console.log('   All research-concept consistency fixtures passed; no patentability or legal opinion is implied.');
   console.log('================================================================\n');
 }
 
-runPatentClaimVerifications().catch(err => {
-  console.error('\nPatent claim verification failed:', err);
+runResearchConceptConsistencyChecks().catch(err => {
+  console.error('\nResearch-concept consistency test failed:', err);
   process.exit(1);
 });

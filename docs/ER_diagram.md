@@ -1,9 +1,9 @@
 # LAZARUS-X — Formal Entity Relationship (ER) Diagram
 
 > **System**: LAZARUS-X Forensic Relational Database Reconstruction  
-> **Course**: BCSE302P — Database Management Systems  
-> **Architecture**: 11 Normalized Relational Entities (3NF / BCNF)  
-> **Target Engine**: PostgreSQL 15 / SQLite 3 via Prisma ORM  
+> **Course**: Database Management Systems Subsystem  
+> **Architecture**: 11 fixed application/assessment entities (3NF-oriented design); per-case target schemas are stored separately as validated JSON  
+> **Target Engine**: SQLite 3 via Prisma ORM  
 
 ---
 
@@ -88,7 +88,7 @@ erDiagram
         string id PK "UUID"
         string caseId FK "References RECONSTRUCTION_CASE.id (CASCADE)"
         string stateDump "JSON Database State Dump"
-        float probabilityScore "Normalized Heuristic Probability"
+        float probabilityScore "Normalized Heuristic Score (not calibrated probability)"
         boolean isPruned "Branch Pruning Status"
         datetime createdAt "Default NOW"
     }
@@ -181,9 +181,11 @@ erDiagram
 
 ---
 
-## 4. Normalization Verification (3NF & BCNF)
+## 4. Normalization Design Rationale (3NF-oriented; formal proof pending)
 
-- **1NF (First Normal Form)**: All column values are atomic scalars. Multi-attribute structures (e.g. state dumps, JSON manifests) are stored as serialized atomic strings/JSON payloads with dedicated foreign key relations.
-- **2NF (Second Normal Form)**: The schema is in 1NF and contains zero partial key dependencies; every non-prime attribute is fully functionally dependent on the entire primary key of its relation.
-- **3NF (Third Normal Form)**: The schema is in 2NF and exhibits zero transitive dependencies. Foreign attributes directly link to their parent entity's primary key (`X -> Y` where `X` is a superkey).
-- **BCNF (Boyce-Codd Normal Form)**: For every non-trivial functional dependency `X -> A`, `X` is a superkey of the table.
+- **1NF design rationale:** Relational columns hold scalar values. Engine snapshots and event payloads are intentionally serialized as JSON/text and are not modeled as separate relational attributes.
+- **2NF design rationale:** The models primarily use single-column IDs, with declared uniqueness rules such as `(caseId, sequence)`. A formal proof needs the full candidate-key and functional-dependency set.
+- **3NF target:** Identity, case, evidence, candidate, evaluation and target-domain records are separated into related tables and linked using foreign keys. The schema is designed toward 3NF; this document does not constitute a formal proof.
+- **BCNF:** Not formally asserted. It requires a documented set of non-trivial functional dependencies and proof that each determinant is a superkey.
+
+

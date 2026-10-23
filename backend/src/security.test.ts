@@ -46,6 +46,7 @@ function createFakePrisma() {
     };
 
     const fake: any = {
+        $queryRaw: async () => [{ ready: 1 }],
         user: {
             findUnique: async ({ where }: any) => state.users.find(user => user.email === where.email) ?? null,
             create: async ({ data }: any) => {
@@ -155,6 +156,49 @@ function createFakePrisma() {
 
     return { client: fake as unknown as PrismaClient, state };
 }
+
+test('production metrics endpoint is hidden unless an operator token is configured', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousMetricsToken = process.env.METRICS_TOKEN;
+    process.env.NODE_ENV = 'production';
+    delete process.env.METRICS_TOKEN;
+    try {
+        await withServer(createFakePrisma().client, async api => {
+            const hidden = await fetch(`${api}/metrics`);
+            assert.equal(hidden.status, 404);
+            const token = 'operator-metrics-token-'.padEnd(40, 'x');
+            process.env.METRICS_TOKEN = token;
+            const denied = await fetch(`${api}/metrics`);
+            assert.equal(denied.status, 404);
+            const allowed = await fetch(`${api}/metrics`, { headers: { Authorization: `Bearer ${token}` } });
+            assert.equal(allowed.status, 200);
+            assert.match(await allowed.text(), /lazarus_uptime_seconds/);
+        });
+    } finally {
+        if (previousNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousNodeEnv;
+        if (previousMetricsToken === undefined) delete process.env.METRICS_TOKEN; else process.env.METRICS_TOKEN = previousMetricsToken;
+    }
+});
+
+test('readiness endpoint checks database connectivity separately from liveness', async () => {
+    const healthy = createFakePrisma();
+    await withServer(healthy.client, async api => {
+        const live = await fetch(`${api}/api/health`);
+        assert.equal(live.status, 200);
+        assert.equal((await live.json() as { status: string }).status, 'UP');
+        const ready = await fetch(`${api}/api/health/ready`);
+        assert.equal(ready.status, 200);
+        assert.equal((await ready.json() as { status: string; database: string }).status, 'READY');
+    });
+
+    const unavailable = createFakePrisma();
+    (unavailable.client as any).$queryRaw = async () => { throw new Error('database unavailable'); };
+    await withServer(unavailable.client, async api => {
+        const ready = await fetch(`${api}/api/health/ready`);
+        assert.equal(ready.status, 503);
+        assert.equal((await ready.json() as { status: string }).status, 'NOT_READY');
+    });
+});
 
 test('legacy fixed-salt scrypt password hashes remain verifiable', async () => {
     const legacyPassword = 'LegacyPassword123!';

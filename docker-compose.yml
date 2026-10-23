@@ -1,35 +1,32 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DATABASE_URL=file:./dev.db
-      - PROVENANCE_ENCRYPTION_KEY=${PROVENANCE_ENCRYPTION_KEY:?Set PROVENANCE_ENCRYPTION_KEY in .env}
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: "file:./data/dev.db"
+      PROVENANCE_ENCRYPTION_KEY: "${PROVENANCE_ENCRYPTION_KEY:?Set PROVENANCE_ENCRYPTION_KEY in your .env file}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000}"
+      METRICS_TOKEN: "${METRICS_TOKEN:-}"
+      HOME: /tmp/lazarus-home
+      npm_config_cache: /tmp/npm-cache
+      XDG_CACHE_HOME: /tmp/cache
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     volumes:
-      - lazarus_data:/app/backend/prisma
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:15-alpine
-    restart: always
-    environment:
-      POSTGRES_USER: lazarus_admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
-      POSTGRES_DB: lazarus_forensics
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/db/init:/docker-entrypoint-initdb.d
+      - lazarus_data:/app/backend/prisma/data
+      - lazarus_backups:/app/backups
+    restart: unless-stopped
 
 volumes:
   lazarus_data:
-  postgres_data:
+  lazarus_backups:

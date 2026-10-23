@@ -1,18 +1,28 @@
-# LAZARUS-X Architecture Specification
+# LAZARUS-X Runtime Architecture
 
-## Component Dependency
-1. **Frontend (Engineering Workbench):** Next.js with React and Tailwind (derived from `shadcndashboard` template). Provides case management, artifact upload, visualization of competing Candidate States, and Ambiguity Resolution dashboards.
-2. **Backend (API & Reconstruction Engine):** Express.js (Node.js) / TypeScript.
-   - **Artifact Ingestion Layer:** Uses `xsqlite` logic to parse raw uploaded binary fragments.
-   - **Incremental Recomputation Engine (Proprietary):** The core algorithm that maintains multiple Candidate States logically.
-3. **Database:** PostgreSQL.
-   - Uses Prisma ORM for standard CRUD and case management.
-   - Uses Raw SQL / Stored Procedures for the computationally intensive Ambiguity Reduction logic and Incremental Recomputation over the Candidate States.
+## System boundaries
 
-## Data Flow
-1. **Ingestion:** Investigator uploads a corrupted `.sqlite` and `.wal` file.
-2. **Parsing:** Ingestion Layer extracts `ExtractedRecords` (raw rows) and inserts them into PostgreSQL.
-3. **Candidate Generation:** The core engine reads the target schema constraints and creates initial `CandidateStates`.
-4. **Repair Synthesis:** Constraints synthesize `InferredRecords` to fix conflicts.
-5. **Recomputation:** When new evidence is found, the engine incrementally drops or upgrades `CandidateStates` via a PostgreSQL Stored Procedure.
-6. **Ambiguity Reduction:** If multiple states are valid, the engine ranks missing data by information gain and generates `EvidenceRequests` for the investigator.
+1. **Frontend:** React 19 + Vite dashboard. It handles sign-in/registration, case navigation, candidate comparisons, the schema graph, timeline, audit and provenance verification panels.
+2. **API:** Express 5 / TypeScript. It validates requests, applies authentication/authorization and rate limits, and calls the data layer and reconstruction engine.
+3. **Relational persistence:** SQLite through Prisma 5.11. The checked-in schema uses a SQLite provider; it is not PostgreSQL-ready by switching a URL.
+4. **Reconstruction engine:** Bounded candidate hypothesis search and constraint propagation are implemented in `backend/src/engine/`. Results are hypotheses, not proof that a candidate is the historical truth.
+5. **Provenance:** `backend/src/engine/provenance.ts` contains chained commitments, envelope/Merkle logic, verification routines and checkpoint support. Integrity verification is not a legal admissibility certification.
+6. **Operations:** `/api/health` is liveness, `/api/health/ready` verifies the database, `/metrics` exposes Prometheus text metrics, and native SQLite scripts provide backup/restore workflows.
+7. **Artifact analysis tools:** `scripts/ingest_artifact.js` and `scripts/verify_artifact_manifest.js` create/check read-only SHA-256 manifests. `scripts/analyze_sqlite.py` inspects current SQLite schema, column/foreign-key metadata and row counts without exporting record values. These standalone tools are not wired as a web upload parser and do not carve deleted records.
+
+## Data flow
+
+1. An investigator registers or signs in; newly registered users receive the `INVESTIGATOR` role.
+2. An operator creates or rotates an administrator account using `backend/src/provision_admin.ts` and environment variables, rather than relying on a default web credential.
+3. The investigator creates a case in Schema Studio. The validated target schema is persisted in `ReconstructionCase.schemaDefinition`; this is engine metadata, not dynamic physical DDL.
+4. The investigator submits typed scalar observations manually or imports a CSV batch capped at 250 fragments. Source labels and optional digest strings are retained in the event payload.
+5. The engine evaluates observations against declared constraints, materializes bounded candidate hypotheses, and recommends the next distinguishing observation using normalized heuristic weights and expected information gain.
+6. Provenance entries are committed with the evidence transaction and can be inspected/exported through the API and UI.
+6. Case sealing is implemented using application-level transaction logic and API guards. SQLite has no native stored-procedure language; the PostgreSQL SQL file is an optional reference script and is not applied by the SQLite runtime.
+
+## Product truth and operational caveats
+
+- SQLite is a single-writer database and the current rate limiter/engine caches/case locks are process-local. Multi-instance deployment needs an architectural review, shared rate limiting/coordination, and a tested database migration before horizontal scaling.
+- Keep `PROVENANCE_ENCRYPTION_KEY` stable for the lifetime of encrypted case salts and back it up securely. Losing it can make encrypted provenance-salt values unreadable; rotating it requires the provided rotation workflow and a verified backup.
+- Retain original forensic artifacts read-only. The manifest CLI records a digest but does not validate file contents or prove where an artifact originated. `sourceSha256` is a typed reference, not a server-verified link to an opened file. The SQLite inspector reports the live database view; deleted-row recovery and WAL/journal reconstruction are not implemented. Candidate weights are heuristics, not calibrated probabilities.
+- Production deployment requires HTTPS, valid CORS origins, a secure operator-managed key, actual health checks, and a tested restore procedure.

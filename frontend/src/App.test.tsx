@@ -70,6 +70,7 @@ describe('LAZARUS-X investigator console', () => {
     vi.unstubAllGlobals();
     vi.stubGlobal('crypto', webcrypto);
     vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test-proof') });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
@@ -242,12 +243,16 @@ describe('LAZARUS-X investigator console', () => {
     expect(await screen.findByText(/VALID CLAIM/i)).toHaveAttribute('role', 'status');
   });
 
-  it('renders a clean authentication form without seeded credentials', () => {
+  it('renders default investigator credentials preset and switches to administrator preset', () => {
     render(<App />);
     expect(screen.getByText(/LAZARUS/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/investigator email/i)).toHaveValue('');
-    expect(screen.getByLabelText(/password/i)).toHaveValue('');
+    expect(screen.getByLabelText(/investigator email/i)).toHaveValue('investigator@lazarus.local');
+    expect(screen.getByLabelText(/password/i)).toHaveValue('Investigator2026!');
     expect(screen.getByRole('button', { name: /authenticate/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /administrator login/i }));
+    expect(screen.getByLabelText(/administrator email/i)).toHaveValue('admin@lazarus.local');
+    expect(screen.getByLabelText(/password/i)).toHaveValue('Admin2026!Pass');
   });
 
   it('authenticates and loads the investigator case workspace', async () => {
@@ -289,6 +294,7 @@ describe('LAZARUS-X investigator console', () => {
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'correct-horse-battery' } });
     fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
     fireEvent.click(await screen.findByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
     await screen.findByText(/evidence intake/i);
 
     fireEvent.change(screen.getByLabelText(/attribute/i), { target: { value: '_recordId' } });
@@ -365,6 +371,7 @@ describe('LAZARUS-X investigator console', () => {
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'correct-horse-battery' } });
     fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
     fireEvent.click(await screen.findByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
     await screen.findByText(/relational hypothesis graph/i);
     await waitFor(() => expect(screen.getByRole('button', { name: /commit fragment/i })).toBeEnabled());
 
@@ -486,6 +493,7 @@ describe('LAZARUS-X investigator console', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /new reconstruction/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /schema dag/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /schema dag/i }));
@@ -537,19 +545,20 @@ describe('LAZARUS-X investigator console', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /new reconstruction/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /seal case/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /seal case/i }));
 
     await waitFor(() => {
       expect(screen.getByLabelText(/case is sealed/i)).toBeInTheDocument();
-      expect(screen.getByText(/case is cryptographically sealed for custody presentation/i)).toBeInTheDocument();
+      expect(screen.getByText(/case .* sealed in LAZARUS-X/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /commit fragment/i })).toBeDisabled();
     });
   });
 
 
-  it('opens and renders the court-ready Forensic Dossier modal', async () => {
+  it('opens and renders the Forensic Investigation Report modal', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock
       .mockResolvedValueOnce(fakeResponse({ token: 'e'.repeat(64), email: 'examiner@example.test', role: 'INVESTIGATOR' }) as Response)
@@ -584,23 +593,24 @@ describe('LAZARUS-X investigator console', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /new reconstruction/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /forensic dossier/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /forensic dossier/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /official forensic audit report/i })).toBeInTheDocument();
-      expect(screen.getByText(/court-ready forensic attestation/i)).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: /forensic investigation report/i })).toBeInTheDocument();
+      expect(screen.getByText(/forensic integrity report · research prototype/i)).toBeInTheDocument();
       expect(screen.getByText(/lazarus-x forensic dossier/i)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /close report modal/i }));
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /official forensic audit report/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /forensic investigation report/i })).not.toBeInTheDocument();
     });
   });
 
-  it('toggles conflict matrix view and displays candidate consensus diff matrix', async () => {
+  it('toggles field inspection and displays candidate conflict differences', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock
       .mockResolvedValueOnce(fakeResponse({ token: 'e'.repeat(64), email: 'examiner@example.test', role: 'INVESTIGATOR' }) as Response)
@@ -635,81 +645,45 @@ describe('LAZARUS-X investigator console', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: /new reconstruction/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /new reconstruction/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /create reconstruction case/i }));
 
     await waitFor(() => expect(screen.getByRole('button', { name: /conflict matrix/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /conflict matrix/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('region', { name: /candidate conflict diff matrix/i })).toBeInTheDocument();
-      expect(screen.getByText(/cell-level candidate conflict & consensus matrix/i)).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: /candidate field inspection/i })).toBeInTheDocument();
+      expect(screen.getByText(/candidate conflict & field inspection/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /record cards/i })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /record cards/i }));
     await waitFor(() => {
-      expect(screen.queryByRole('region', { name: /candidate conflict diff matrix/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: /candidate field inspection/i })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: /conflict matrix/i })).toBeInTheDocument();
     });
   });
 
 
-  it('opens and navigates the interactive Patent Claims modal', async () => {
+  it('opens the schema-first workflow and explains the reconstruction model', async () => {
     const fetchMock = vi.mocked(globalThis.fetch);
     fetchMock
       .mockResolvedValueOnce(fakeResponse({ token: 'e'.repeat(64), email: 'examiner@example.test', role: 'INVESTIGATOR' }) as Response)
-      .mockResolvedValueOnce(fakeResponse({ cases: [] }) as Response)
-      .mockResolvedValueOnce(fakeResponse({
-        id: 'case-patent-test',
-        name: 'Patent Spec Test Case',
-        status: 'ACTIVE',
-        bestState: {
-          id: 'S-0',
-          data: {
-            Department: [{ _recordId: 1, id: 1, name: 'Security' }],
-          },
-          probabilityScore: 1,
-          fatalViolations: 0,
-          resolvableViolations: 0,
-          fuzzyPenalty: 0,
-        },
-        candidates: [{ id: 'S-0', rank: 1, score: 1, fatalViolations: 0, resolvableViolations: 0, fuzzyPenalty: 0, isSelected: true }],
-        ambiguityReduction: null,
-        evidenceRecommendations: [],
-        branchingDiagnostics: null,
-        ambiguity: { entropyBits: 0, candidateCount: 1 },
-      }) as Response)
-      .mockResolvedValueOnce(fakeResponse({ cases: [{ id: 'case-patent-test', name: 'Patent Spec Test Case', status: 'ACTIVE', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 1 }] }) as Response)
-      .mockResolvedValueOnce(fakeResponse(emptyAudit) as Response);
+      .mockResolvedValueOnce(fakeResponse({ cases: [] }) as Response);
 
     render(<App />);
     fireEvent.change(screen.getByLabelText(/investigator email/i), { target: { value: 'examiner@example.test' } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'correct-horse-battery' } });
     fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
-
     await waitFor(() => expect(screen.getByRole('button', { name: /new reconstruction/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /new reconstruction/i }));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /patent claims/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /patent claims/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /patent architecture & formal claims specification/i })).toBeInTheDocument();
-      expect(screen.getByText(/lazarus-x intellectual property & technical disclosure/i)).toBeInTheDocument();
-      expect(screen.getByText(/claim 1: bounded multi-hypothesis relational reconstruction/i)).toBeInTheDocument();
-    });
-
-    // Toggle Claim 11
-    fireEvent.click(screen.getByRole('button', { name: /independent claim 11/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/claim 11: entropy-guided active forensic disambiguation/i)).toBeInTheDocument();
-      expect(screen.getByText(/relational ambiguity in bits/i)).toBeInTheDocument();
-    });
-
-    // Close modal
-    fireEvent.click(screen.getByRole('button', { name: /close patent modal/i }));
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: /patent architecture & formal claims specification/i })).not.toBeInTheDocument();
-    });
+    expect(screen.getByRole('dialog', { name: /define the target relational schema/i })).toBeInTheDocument();
+    expect(screen.getByText(/tell it the relations and constraints that evidence must satisfy/i)).toBeInTheDocument();
+    expect(screen.getByText(/incident response/i)).toBeInTheDocument();
+    expect(screen.getAllByDisplayValue('Person').length).toBeGreaterThan(0);
+    expect(screen.getAllByDisplayValue('Observation').length).toBeGreaterThan(0);
+    expect(screen.getByText(/foreign-key relationships/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2); // schema setup does not create a case until submitted
   });
 
 });

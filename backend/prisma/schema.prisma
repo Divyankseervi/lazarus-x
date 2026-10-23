@@ -49,6 +49,8 @@ model ReconstructionCase {
   name         String   @default("Untitled Case")
   status       String   @default("ACTIVE") // ACTIVE, RESOLVED, FAILED
   currentState String   // JSON dump of the Top Candidate
+  /// Schema used by this reconstruction case; {} indicates a legacy case using the compatibility schema.
+  schemaDefinition String @default("{}")
   provenanceHead String @default("b4c2613e5407a1150c170fd4d99d11fbb2d4b1eb9d9be872a9e5f0b843104d91")
   provenanceSequence Int @default(0)
   /// AES-256-GCM encrypted random case salt; encryption key is held outside the database.
@@ -77,6 +79,8 @@ model EvidenceFragment {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   timestamp DateTime @default(now())
+  sourceRef String?
+  sourceSha256 String?
 
   @@index([caseId, id])
 }

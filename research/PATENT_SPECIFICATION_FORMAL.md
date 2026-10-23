@@ -1,6 +1,6 @@
-# PATENT APPLICATION SPECIFICATION
+# LAZARUS-X TECHNICAL RESEARCH DISCLOSURE DRAFT (NOT FILED)
 
-**UNITED STATES PATENT AND TRADEMARK OFFICE (USPTO) / PCT INTERNATIONAL APPLICATION / INDIAN PATENT OFFICE (IPO)**
+**Status:** Exploratory engineering research only. No patent application has been filed. This is not a legal opinion, novelty search, prior-art review, or determination of patentability. Statements about intended capabilities are design claims, not independently validated product guarantees. Patent-number references and classification suggestions in this draft are research leads that require verification by a qualified professional.
 
 ---
 
@@ -9,8 +9,8 @@
 
 ---
 
-## CROSS-REFERENCE TO RELATED APPLICATIONS
-[0001] This application claims priority to and the benefit of prior technical disclosures in the Lazarus-X forensic reconstruction architecture, the entire disclosures of which are hereby incorporated by reference in their entirety.
+## RESEARCH CONTEXT (NO RELATED FILING)
+[0001] This research draft does not claim priority to, or incorporation by reference of, any filed patent application. It summarizes design ideas in the LAZARUS-X prototype for further technical and legal review.
 
 ---
 
@@ -18,8 +18,8 @@
 [0002] The present disclosure relates generally to database management systems, automated digital forensics, and cryptographic data integrity verification. More specifically, the present disclosure relates to systems and methods for:
 1. Deterministically reconstructing relational database states from out-of-order, unsequenced, and partial forensic evidence fragments without reliance on database transaction logs, write-ahead logs (WAL), or system change numbers (SCN);
 2. Managing a bounded multi-hypothesis candidate state lattice using delta-tracked Arc-Consistency (AC-3) constraint propagation over composite foreign keys and error-tolerant string transposition metrics;
-3. Actively guiding investigative evidence acquisition using Shannon conditional entropy reduction and expected information gain to achieve optimal collapse of competing candidate interpretations; and
-4. Enforcing an auditable, court-ready dual-layer cryptographic chain-of-custody combining append-only cryptographic hash chaining, keyed HMAC commitment envelopes for selective/zero-knowledge disclosure, RFC 6962 binary Merkle tree accumulators, and immutable atomic case sealing.
+3. Actively guiding investigative evidence acquisition using Shannon conditional entropy reduction and expected information gain to prioritize potentially useful additional evidence for competing candidate interpretations; and
+4. Recording application-sequenced evidence events in a hash-linked provenance ledger with keyed HMAC commitments and Merkle inclusion proofs. These mechanisms support integrity checking against preserved commitments; they are not a general zero-knowledge proof, external chain-of-custody certification, or database-level immutability.
 
 **Classification Mapping:**
 - **IPC/CPC:**
@@ -45,31 +45,31 @@
 ### 3. Limitations of Data Provenance and Audit Trails
 [0006] Existing provenance frameworks (e.g., US Patent No. 9,195,725 B2) associate static metadata tags or policies with data sources to resolve integration conflicts according to rigid, hard-coded priority hierarchies. Furthermore, conventional transparency logs (e.g., RFC 6962, Sigstore Rekor) log standalone binary artifacts rather than relational database state transitions. In legal and forensic proceedings, investigators face a critical dilemma: disclosing raw forensic evidence exposes confidential or personally identifiable information (PII), whereas redacting evidence destroys the ability of independent opposing examiners or courts to mathematically verify data integrity and receipt order.
 
-[0007] There is, therefore, an urgent and unmet technological need for an automated, mathematically rigorous, and cryptographically verifiable system capable of reconstructing relational databases from non-sequential partial fragments, preserving competing interpretations across a bounded hypothesis lattice, actively guiding ambiguity resolution, and providing court-ready selective disclosure.
+[0007] This prototype explores whether an automated workflow can reconstruct candidate relational states from non-sequential evidence fragments, preserve competing interpretations under a bounded search, suggest evidence using ambiguity metrics, and export integrity-verification material. The usefulness and limits require reproducible experiments.
 
 ---
 
 ## SUMMARY OF THE INVENTION
 [0008] To overcome the aforementioned deficiencies of the prior art, the present disclosure provides a novel system, computer-implemented method, and non-transitory computer-readable medium for deterministic multi-hypothesis relational database forensic reconstruction.
 
-[0009] **Technical Problem Solved:** The combinatorial explosion of candidate database states when evaluating unsequenced partial fragments across global relational constraints, the permanent destruction of correct states caused by premature pruning during out-of-order arrival, and the inability to prove unbroken custody and selective disclosure in court without revealing sensitive underlying attributes.
+[0009] **Target technical problem explored:** The combinatorial explosion of candidate database states when evaluating unsequenced partial fragments across global relational constraints, the permanent destruction of correct states caused by premature pruning during out-of-order arrival, and the inability to support integrity checks and limited commitment disclosure without exposing all stored attributes.
 
-[0010] **Concrete Technical Solution & Technical Effects:**
+[0010] **Proposed technical approach and hypotheses to test:**
 1. *Delta-Tracked Constraint Satisfaction with Dual-Category Violation Classification:* The system executes an Arc-Consistency 3 (AC-3) constraint propagation engine over arbitrary relational schemas supporting composite primary and foreign keys. Integrity violations are dynamically separated into `fatal` violations (e.g., primary key uniqueness collisions, contradictory immutable attributes) and `resolvable` violations (e.g., dangling foreign keys missing a parent under open-world semantics).
-2. *Delayed Pruning Hypothesis Lattice:* The system maintains a bounded multi-hypothesis state space $\mathcal{C} = \{S_1, S_2, \dots, S_M\}$. Candidates exhibiting resolvable violations are preserved up to a soft capacity bound $K_{\text{soft}}$, guaranteeing that states suffering temporarily from out-of-order evidence are not pruned prior to the arrival of matching parent fragments.
+2. *Delayed Pruning Hypothesis Lattice:* The system maintains a bounded multi-hypothesis state space $\mathcal{C} = \{S_1, S_2, \dots, S_M\}$. Candidates exhibiting resolvable violations may be preserved up to a configured capacity bound. Ground-truth survival is not guaranteed and must be measured against known datasets.
 3. *Error-Tolerant String Transposition Metric:* Foreign key consistency verification integrates a bounded restricted Damerau-Levenshtein (optimal string alignment) metric. String transpositions within a configured threshold generate auditable ledger events (`FUZZY_CORRECTION`) and apply heuristic penalty weights rather than rejecting genuine corruptions.
 4. *Shannon Entropy-Guided Active Disambiguation:* The system calculates the exact Shannon entropy $H(\mathcal{C})$ of the surviving candidate set and the conditional entropy $H(\mathcal{C} \mid A = v)$ across all disputed attributes. The system computes the Expected Information Gain $E[IG(A)] = H(\mathcal{C}) - E_v[H(\mathcal{C} \mid A = v)]$ and automatically rank-orders evidence probes, outputting an optimal investigation schedule that minimizes examiner inquiry time.
 5. *Dual-Layer Verifiable Provenance Ledger:* Each fragment commit generates:
-   - A sequential SHA-256 cryptographic hash chain ensuring immutable chronological ordering;
+   - A SHA-256 hash chain over application-sequenced events; it records application order and can detect mismatches against a preserved commitment, but does not prove real-world chronology or prevent direct database edits;
    - An event-scoped Keyed-Hash Message Authentication Code (HMAC) commitment envelope masking investigator identities and fragment values;
    - An incremental RFC 6962 binary Merkle tree accumulator computing verifiable inclusion proofs $(\pi)$ with $O(\log N)$ extraction and offline verification; and
-   - An atomic case sealing mechanism freezing the case into an immutable state (`SEALED`) and exporting a standalone, zero-dependency audit bundle.
+   - An application-level `SEALED` state that rejects later evidence requests through the API and supports audit-bundle export; it is not a database-level immutable state.
 
-[0011] **Statutory Eligibility (Alice / 35 U.S.C. § 101 & Section 3(k) CRI Compliance):**
-The invention achieves a clear, tangible, and measurable technical effect in computing systems:
+[0011] **Technical-effect hypotheses (not a statutory eligibility analysis):**
+The following are engineering hypotheses to measure, not legal conclusions:
 - It eliminates combinatorial CPU and memory exhaustion, reducing recomputation complexity from exponential $O(K^N)$ to localized delta-tracked $O(K \cdot |\text{dom}|)$;
-- It optimizes system storage by pruning fatal branches while preserving valid relational graphs in volatile memory; and
-- It transforms physical computer storage by constructing verifiable tamper-evident cryptographic data structures and automated database states that function reliably in disconnected, zero-trust environments.
+- It may reduce search work by pruning branches under configured constraints, while potentially losing ground-truth candidates when capacity limits are reached; and
+- It constructs verifiable hash/Merkle data structures for selected records; independent security, threat-model and deployment testing are still required.
 
 ---
 
@@ -90,7 +90,7 @@ The invention achieves a clear, tangible, and measurable technical effect in com
 
 [0019] **FIG. 7** is a schematic representation of the binary Merkle inclusion proof tree traversal and offline independent verification algorithm.
 
-[0020] **FIG. 8** is an exemplary graphical user interface illustration showing the cell-level candidate conflict matrix, relational lineage DAG, and court-ready forensic dossier.
+[0020] **FIG. 8** is an exemplary graphical user interface illustration showing the cell-level candidate conflict matrix, relational lineage DAG, and forensic investigation report.
 
 ---
 
@@ -183,7 +183,7 @@ $$E[IG(A_j)] = H(\mathcal{C}) - E_v[H(\mathcal{C} \mid A_j = v)]$$
 
 ---
 
-## FORMAL PATENT CLAIMS
+## PROPOSED CLAIM-LIKE TECHNICAL STATEMENTS (NOT A FILING)
 
 ### What is claimed is:
 
@@ -258,10 +258,10 @@ generating a plurality of candidate database instances by evaluating incoming fr
 classifying constraint violations into fatal violations and resolvable violations, wherein resolvable violations represent missing referenced parent records;
 delaying pruning of candidate database instances having resolvable violations until a total candidate count exceeds a capacity threshold;
 recording each ingested evidence fragment into a dual-layer cryptographic provenance ledger comprising:
-a sequential SHA-256 hash chain guaranteeing chronological ordering;
+a SHA-256 hash chain over events sequenced by the application;
 a keyed HMAC selective disclosure envelope masking sensitive attributes and examiner identities; and
 an incremental binary Merkle tree accumulator computing a cryptographically verifiable inclusion root; and
-in response to an authorized case seal request, executing an atomic transaction that transitions the case to an immutable sealed status, anchors a final Merkle root, and rejects all subsequent evidence submissions.
+in response to an authorized case seal request, executing an application-level transaction that sets a sealed status, anchors a Merkle checkpoint where configured, and rejects later evidence requests through the API.
 
 **20. The non-transitory computer-readable storage medium of claim 19,** wherein the operations further comprise generating an RFC 6962 Merkle inclusion proof for any selected evidence fragment, wherein the inclusion proof comprises sibling node hashes and sibling side indicators enabling independent offline verification of the fragment against the final Merkle root.
 
@@ -273,9 +273,9 @@ in response to an authorized case seal request, executing an atomic transaction 
 
 **24. The non-transitory computer-readable storage medium of claim 19,** wherein the operations further comprise exporting a self-contained offline audit bundle verifiable by an independent zero-dependency verifier script.
 
-**25. The non-transitory computer-readable storage medium of claim 19,** wherein the operations further comprise rendering an interactive graphical user interface comprising a relational schema lineage graph, a cell-level conflict matrix, and an official court-ready forensic dossier.
+**25. The non-transitory computer-readable storage medium of claim 19,** wherein the operations further comprise rendering an interactive graphical user interface comprising a relational schema lineage graph, a cell-level conflict matrix, and a forensic investigation report.
 
 ---
 
 ## ABSTRACT OF THE DISCLOSURE
-A system, method, and non-transitory computer-readable medium are disclosed for deterministic multi-hypothesis relational database forensic reconstruction. The system ingests unsequenced, partial evidence fragments without transaction logs and maintains a bounded candidate hypothesis space under delta-tracked Arc-Consistency (AC-3) constraint propagation over composite foreign keys and error-tolerant string transposition metrics. Constraint violations are categorized into fatal violations (pruned immediately) and resolvable violations (preserved under open-world delayed pruning to prevent premature state destruction during out-of-order evidence arrival). The system calculates candidate probabilities and Shannon entropy, determining Expected Information Gain to rank-order active forensic inquiry probes. Each fragment is anchored in a dual-layer cryptographic provenance ledger combining a sequential hash chain, a selective disclosure keyed HMAC envelope, an RFC 6962 binary Merkle tree accumulator, and atomic case sealing for court-ready custody attestation.
+A system, method, and non-transitory computer-readable medium are disclosed for deterministic multi-hypothesis relational database forensic reconstruction. The system ingests unsequenced, partial evidence fragments without transaction logs and maintains a bounded candidate hypothesis space under delta-tracked Arc-Consistency (AC-3) constraint propagation over composite foreign keys and error-tolerant string transposition metrics. Constraint violations are categorized into fatal violations (pruned immediately) and resolvable violations (preserved under open-world delayed pruning to prevent premature state destruction during out-of-order evidence arrival). The system calculates candidate probabilities and Shannon entropy, determining Expected Information Gain to rank-order active forensic inquiry probes. Each fragment is anchored in a dual-layer cryptographic provenance ledger combining a sequential hash chain, a selective disclosure keyed HMAC envelope, an RFC 6962 binary Merkle tree accumulator, and atomic case sealing for forensic review and integrity reporting.

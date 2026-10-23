@@ -1,22 +1,24 @@
 # LAZARUS-X — Comprehensive Data Dictionary
 
 > **System**: LAZARUS-X Forensic Relational Database Reconstruction  
-> **Course**: BCSE302P — Database Management Systems Assessment  
-> **Schema Standard**: 11 Normalized Relational Tables (PostgreSQL 15 / SQLite 3 via Prisma ORM)  
-> **Integrity Level**: Boyce-Codd Normal Form (BCNF) / 3NF  
+> **Course**: LAZARUS-X Relational Data Dictionary  
+> **Application schema**: 11 fixed SQLite/Prisma models. Each reconstruction case additionally stores a target relational schema as validated JSON; its candidate rows are engine hypotheses, not dynamically created SQLite tables. The fixed application schema is designed toward 3NF  
+> **Normalization scope**: Relational metadata/domain tables are designed toward 3NF. A formal BCNF proof is not included; engine snapshots and payloads are serialized fields by design. Per-case target schemas are stored in `ReconstructionCase.schemaDefinition` rather than created as physical tables.
 
 ---
 
 ## 1. Table Summary & Taxonomy
 
+**Important separation:** `Department`, `Employee`, and `Order` are the fixed target-domain demonstration tables used by the DBMS assessment. Schema Studio can define a different per-case reconstruction schema, but those custom relations are modelled in the reconstruction engine and stored in `ReconstructionCase.schemaDefinition`; creating a case does not run DDL to create physical SQLite tables for that target schema.
+
 | # | Table Name | Category | Primary Key | Total Attributes | Purpose |
 | :-: | :--- | :--- | :--- | :-: | :--- |
 | **1** | `User` | Identity & RBAC | `id` (UUID) | 5 | Single users table maintaining administrative and investigator roles |
 | **2** | `Session` | Authentication | `id` (UUID) | 5 | Ephemeral bearer session tokens with SHA-256 digest hashing (24h TTL) |
-| **3** | `AuditLog` | Compliance | `id` (UUID) | 6 | Append-only system action logging for legal admissibility |
+| **3** | `AuditLog` | Compliance | `id` (UUID) | 6 | Application audit action logging for audit review |
 | **4** | `ReconstructionCase` | Forensic Core | `id` (UUID) | 10 | Primary investigation case envelope and cryptographic head container |
 | **5** | `EvidenceFragment` | Forensic Core | `id` (UUID) | 8 | Granular scalar field-level observed evidence fragments |
-| **6** | `EvidenceProvenanceEntry`| Cryptographic Ledger | `id` (UUID) | 11 | Immutable SHA-256 hash-chained Merkle ledger events |
+| **6** | `EvidenceProvenanceEntry`| Cryptographic Ledger | `id` (UUID) | 11 | Append-only-through-API SHA-256 hash-chained provenance events |
 | **7** | `CandidateReconstruction` | CSP Engine | `id` (UUID) | 6 | Ranked candidate relational database state interpretations |
 | **8** | `ConstraintEvaluation` | CSP Engine | `id` (UUID) | 6 | AC-3 constraint satisfaction audit records and collision metrics |
 | **9** | `Department` | Benchmark Target | `id` (Int) | 2 | Target enterprise organizational department relation |
@@ -35,7 +37,7 @@
 | `id` | TEXT (UUID) | NO | PRIMARY KEY | `uuid()` | Globally unique identity identifier |
 | `email` | TEXT | NO | UNIQUE, NOT NULL | - | Investigator login email address |
 | `passwordHash` | TEXT | NO | NOT NULL | - | BCrypt hashed password (Cost 12) |
-| `role` | TEXT | NO | CHECK ('ADMIN', 'INVESTIGATOR') | `'INVESTIGATOR'` | Role-based permission tier |
+| `role` | TEXT | NO | application-enforced role values (`ADMIN`, `INVESTIGATOR`) | `'INVESTIGATOR'` | Role-based permission tier |
 | `createdAt` | TIMESTAMP | NO | NOT NULL | `now()` | User registration timestamp |
 
 ---
@@ -123,7 +125,7 @@
 | `hash` | TEXT | NO | NOT NULL (SHA-256) | - | SHA-256 digest of `(previousHash + payload + salt)` |
 
 *Constraints & Indexes*:  
-- `@@unique([caseId, sequence])` — Guarantees continuous linear progression without gaps  
+- `@@unique([caseId, sequence])` — prevents duplicate sequence numbers within a case; application logic advances the sequence  
 - `@@index([caseId, hash])` — Rapid chain-of-custody verification lookups  
 - `@@index([caseId, receivedAt])` — Temporal range audits  
 
@@ -137,7 +139,7 @@
 | `id` | TEXT (UUID) | NO | PRIMARY KEY | `uuid()` | Candidate interpretation identifier |
 | `caseId` | TEXT (UUID) | NO | FOREIGN KEY (`ReconstructionCase.id`) | - | Parent case reference (`ON DELETE CASCADE`) |
 | `stateDump` | TEXT | NO | NOT NULL (JSON) | - | JSON serialized full relational state dump |
-| `probabilityScore`| REAL/FLOAT| NO | NOT NULL | `0.0` | Heuristic Bayesian likelihood score |
+| `probabilityScore`| REAL/FLOAT| NO | NOT NULL | `0.0` | Normalized heuristic candidate score; not a calibrated posterior probability |
 | `isPruned` | BOOLEAN | NO | NOT NULL | `false` | True if eliminated by fatal constraint collision |
 | `createdAt` | TIMESTAMP | NO | NOT NULL | `now()` | Candidate generation timestamp |
 

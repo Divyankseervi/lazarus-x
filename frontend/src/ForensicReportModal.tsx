@@ -34,14 +34,15 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
     };
 
     const downloadMarkdown = () => {
-        let md = `# LAZARUS-X FORENSIC INVESTIGATION CERTIFICATE & DOSSIER\n\n`;
+        let md = `# LAZARUS-X FORENSIC INVESTIGATION REPORT\n\n`;
         md += `**Case ID:** ${caseId}\n`;
-        md += `**Status:** ${caseStatus}\n`;
+        md += `**Status:** ${caseStatus} (application-level status)\n`;
         md += `**Generated:** ${new Date().toISOString()}\n`;
-        md += `**Public Envelope Head:** ${auditHead || 'N/A'}\n`;
+        md += `**Public Envelope Head (recorded value):** ${auditHead || 'N/A'}\n`;
         md += `**Total Ledger Events:** ${totalEvents}\n`;
         md += `**Surviving Candidate Interpretations:** ${candidateCount}\n`;
-        md += `**Remaining Entropy:** ${entropyBits.toFixed(4)} bits\n\n`;
+        md += `**Remaining Entropy:** ${entropyBits.toFixed(4)} bits\n`;
+        md += `\n> Research prototype report only. Candidate ranking is heuristic. Hash/proof verification does not independently establish source authenticity, complete custody, certification, or legal admissibility.\n\n`;
         md += `---\n\n## Reconstructed Table Data (Best State)\n\n`;
 
         if (auditEntries && auditEntries.length > 0) {
@@ -79,12 +80,12 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
     };
 
     return (
-        <div className="report-modal-backdrop" role="dialog" aria-modal="true" aria-label="Official Forensic Audit Report">
+        <div className="report-modal-backdrop" role="dialog" aria-modal="true" aria-label="Forensic Investigation Report">
             <div className="report-modal-content custom-scrollbar">
                 <div className="report-modal-header no-print">
                     <div className="report-badge-top">
                         <Award size={16} className="text-emerald" />
-                        <span>COURT-READY FORENSIC ATTESTATION</span>
+                        <span>FORENSIC INTEGRITY REPORT · RESEARCH PROTOTYPE</span>
                     </div>
                     <div className="report-header-actions">
                         <button type="button" className="secondary-button" onClick={printDossier}>
@@ -112,8 +113,8 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                         </div>
                         <div className="masthead-right">
                             <div className="certificate-stamp">
-                                <strong>OFFICIAL RECORD</strong>
-                                <small>ISO/IEC 27037 FORENSIC ALIGNED</small>
+                                <strong>GENERATED REPORT</strong>
+                                <small>Not independently certified</small>
                             </div>
                         </div>
                     </div>
@@ -126,7 +127,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                         <div className="meta-box">
                             <span className="meta-label">CUSTODY STATUS</span>
                             <strong className={`meta-value ${caseStatus === 'SEALED' ? 'text-emerald' : 'text-amber'}`}>
-                                {caseStatus === 'SEALED' ? 'CRYPTOGRAPHICALLY SEALED' : 'ACTIVE INGESTION'}
+                                {caseStatus === 'SEALED' ? 'SEALED (API-ENFORCED)' : 'ACTIVE INGESTION'}
                             </strong>
                         </div>
                         <div className="meta-box">
@@ -140,7 +141,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                     </div>
 
                     <div className="dossier-section">
-                        <h2>1. Cryptographic Chain-of-Custody Attestation</h2>
+                        <h2>1. Cryptographic Provenance Summary</h2>
                         <div className="custody-banner">
                             <Hash size={16} className="text-cyan" />
                             <div className="custody-hash-copy">
@@ -149,8 +150,9 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                             </div>
                         </div>
                         <p className="dossier-para">
-                            All evidence fragments have been committed via authenticated database transactions,
-                            bound with event-scoped HMAC commitments, and verifiable offline via RFC 6962 binary Merkle trees.
+                            The ledger summary below is generated from records stored by this application. Where proofs are available,
+                            verify them independently against the exported proof data. This report does not independently authenticate
+                            the original source, establish a complete external chain of custody, or determine legal admissibility.
                         </p>
                         {auditEntries && auditEntries.length > 0 && (
                             <div className="dossier-audit-summary">
@@ -180,7 +182,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                     </div>
 
                     <div className="dossier-section">
-                        <h2>2. Verified Reconstructed Database State</h2>
+                        <h2>2. Best-Ranked Reconstructed State (Heuristic)</h2>
                         {engineData ? (
                             Object.entries(engineData).map(([table, rows]) => (
                                 <div key={table} className="dossier-table-block">
@@ -207,7 +209,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                                                         ))}
                                                         <td>
                                                             <span className="badge-verified">
-                                                                <CheckCircle size={11} /> Verified
+                                                                <CheckCircle size={11} /> Included
                                                             </span>
                                                         </td>
                                                     </tr>
@@ -223,21 +225,23 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                     </div>
 
                     <div className="dossier-section">
-                        <h2>3. Examiner Attestation & Verification Guarantee</h2>
+                        <h2>3. Review Notes and Limitations</h2>
                         <div className="attestation-box">
                             <p>
-                                This reconstruction dossier was computed using Lazarus-X's bounded CSP / AC-3 constraint propagation engine,
-                                fuzzy string compatibility with restricted Damerau-Levenshtein metrics, and cryptographic Merkle tree inclusion proofs.
-                                Candidate scores are heuristic penalties and do not claim calibrated Bayesian certainty.
+                                This report summarizes output from the LAZARUS-X research prototype's bounded constraint-propagation engine,
+                                fuzzy string comparison and provenance components. Candidate rankings are heuristic, not calibrated probabilities.
+                                A hash match proves byte equality against the referenced digest only; it does not prove source authenticity or
+                                completeness. Application-level sealing blocks evidence writes through the application API, not direct database changes.
+                                This document is not an independent forensic examination, certification or legal opinion.
                             </p>
                             <div className="signatures-row">
                                 <div className="sig-block">
                                     <span className="sig-line" />
-                                    <small>Lead Forensics Examiner</small>
+                                    <small>Prepared by (optional)</small>
                                 </div>
                                 <div className="sig-block">
                                     <span className="sig-line" />
-                                    <small>Independent Verification Officer</small>
+                                    <small>Reviewed by (optional)</small>
                                 </div>
                             </div>
                         </div>

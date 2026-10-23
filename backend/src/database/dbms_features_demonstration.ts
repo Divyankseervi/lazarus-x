@@ -1,56 +1,61 @@
 /**
  * LAZARUS-X DBMS COURSE REQUIREMENTS DEMONSTRATION & VERIFICATION RUNNER
- * Course: BCSE302P - Database Systems Lab (VIT)
- * Faculty: Dr. V. SIVAKUMAR | Slot: L25+L26
+ * LAZARUS-X DBMS Features Demonstration
+ * Comprehensive database requirements verification
  * 
  * Verifies all criteria specified in the Lab Assessment Rubric:
- * 1. 11 Related Tables with Primary & Foreign Keys (3NF Normalization)
+ * 1. 11 related tables with primary/foreign keys (3NF-oriented design; formal proof pending)
  * 2. Full CRUD Operations via Prisma ORM
  * 3. Multi-Table Relational Joins (Inner & Left Outer)
  * 4. Aggregate Queries (COUNT, AVG, GROUP BY, HAVING)
  * 5. SQL Views (vw_case_activity_summary, vw_candidate_ranking)
- * 6. Database Triggers (trg_audit_evidence_insert, trg_seal_immutability_guard)
- * 7. Stored Procedure / Transactional Routine (sp_reconstruct_forensic_summary)
+ * 6. Database Triggers (trg_audit_evidence_insert, trg_seal_insert_guard)
+ * 7. Application-level transactions (SQLite does not support native stored procedures)
  * 8. Interactive Prisma Transactions ($transaction)
  * 9. Index Performance Optimization (EXPLAIN QUERY PLAN)
- * 10. Native Database Backup & Recovery (online backup & integrity check)
+ * 10. Isolated database copy/restore smoke test (native online backup is covered by separate scripts/CI)
  * 
  * NOTE: Strictly operates on an isolated OS-temp database, keeping dev.db untouched.
  */
 
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../security/password';
 
-const divya23BCE1042_CandidateName = 'DIVYA';
-const divya23BCE1042_RegisterNumber = '23BCE1042';
-const divya23BCE1042_Slot = 'L25+L26';
-const divya23BCE1042_CourseCode = 'BCSE302P';
+const lazarus_DemoAuthor = 'LAZARUS-X';
+const lazarus_DemoId = 'LAZARUS-X-DEMO';
+const lazarus_DemoSlot = 'DEFAULT';
+const lazarus_DemoTag = 'DBMS';
 
-async function divya23BCE1042_runDBMSRequirements() {
+async function lazarus_runDBMSRequirements() {
   const timestamp = new Date().toISOString();
   console.log('========================================================================');
-  console.log('   BCSE302P DATABASE SYSTEMS LAB - COMPREHENSIVE REQUIREMENTS VERIFIER');
-  console.log(`   Candidate: ${divya23BCE1042_CandidateName} | Reg No: ${divya23BCE1042_RegisterNumber} | Slot: ${divya23BCE1042_Slot}`);
+  console.log('   LAZARUS-X - COMPREHENSIVE DBMS REQUIREMENTS VERIFIER');
+  console.log(`   Platform: ${lazarus_DemoAuthor} | ID: ${lazarus_DemoId} | Config: ${lazarus_DemoSlot}`);
   console.log(`   Execution Timestamp: ${timestamp}`);
-  console.log('   Faculty: Dr. V. SIVAKUMAR | Course: ' + divya23BCE1042_CourseCode);
+  console.log('   Tag: ' + lazarus_DemoTag);
   console.log('========================================================================\n');
 
   // 1. Initialize Isolated Database
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lazarus-dbms-reqs-'));
   const tempDbPath = path.join(tempDir, 'lazarus_demo.db');
   const databaseUrl = `file:${tempDbPath.replace(/\\/g, '/')}`;
+  const backendDir = path.resolve(__dirname, '../..');
+  const prismaCli = path.join(backendDir, 'node_modules', 'prisma', 'build', 'index.js');
 
   console.log(`[SETUP] Created isolated database environment at: ${tempDbPath}`);
 
   // Push schema to isolated database
-  execSync('npx prisma db push --schema prisma/schema.prisma --skip-generate --accept-data-loss', {
-    cwd: path.resolve(__dirname, '../..'),
-    env: { ...process.env, DATABASE_URL: databaseUrl },
+  execSync(`"${process.execPath}" "${prismaCli}" db push --schema prisma/schema.prisma --skip-generate`, {
+    cwd: backendDir,
+    // Prisma 5.11's Windows SQLite schema engine otherwise returns an empty
+    // generic error when invoked under the buffered child-process stdio below.
+    env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' },
     stdio: 'pipe',
   });
   console.log('✔ [1. TABLE DESIGN & SCHEMA] Pushed 11 relational tables to isolated database\n');
@@ -66,15 +71,17 @@ async function divya23BCE1042_runDBMSRequirements() {
     console.log('------------------------------------------------------------------------');
 
     // CREATE
-    const hashedPassword = await hashPassword('InvestigatorSecret#2026');
+    // The demo needs a valid hash for its sample users, but must not embed a
+    // reusable password in source code or print the generated value.
+    const hashedPassword = await hashPassword(randomBytes(32).toString('base64url'));
     const user = await prisma.user.create({
       data: {
-        email: 'divya23bce1042@vitstudent.ac.in',
+        email: 'demo@lazarus.local',
         passwordHash: hashedPassword,
         role: 'INVESTIGATOR',
       },
     });
-    console.log(`✔ CREATE User: ID=${user.id}, Email=${user.email}, Role=${user.role} (Candidate: ${divya23BCE1042_CandidateName})`);
+    console.log(`✔ CREATE User: ID=${user.id}, Email=${user.email}, Role=${user.role}`);
 
     const adminUser = await prisma.user.create({
       data: {
@@ -100,7 +107,7 @@ async function divya23BCE1042_runDBMSRequirements() {
       where: { id: forensicCase.id },
       include: { owner: true },
     });
-    assert.equal(fetchedCase?.owner.email, 'divya23bce1042@vitstudent.ac.in');
+    assert.equal(fetchedCase?.owner.email, 'demo@lazarus.local');
     console.log(`✔ READ ReconstructionCase with Owner Join: CaseName="${fetchedCase?.name}", Owner="${fetchedCase?.owner.email}"`);
 
     // UPDATE
@@ -201,14 +208,14 @@ async function divya23BCE1042_runDBMSRequirements() {
 
     // Trigger 2: Immutability Guard Trigger - Prevents Evidence Commit if Case is SEALED
     await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER IF NOT EXISTS trg_seal_immutability_guard
+      CREATE TRIGGER IF NOT EXISTS trg_seal_insert_guard
       BEFORE INSERT ON EvidenceFragment
       WHEN (SELECT status FROM ReconstructionCase WHERE id = NEW.caseId) = 'SEALED'
       BEGIN
-        SELECT RAISE(ABORT, 'FAIL_CLOSED TRIGGER: Case is cryptographically sealed. New evidence insertion rejected.');
+        SELECT RAISE(ABORT, 'FAIL_CLOSED TRIGGER: Case is sealed (database insert guard). New evidence insertion rejected.');
       END;
     `);
-    console.log('✔ [DATABASE TRIGGER CREATED] trg_seal_immutability_guard');
+    console.log('✔ [DATABASE TRIGGER CREATED] trg_seal_insert_guard');
 
     // Test Trigger 1: Insert an evidence fragment and verify AuditLog automatically populated
     const preCount = await prisma.auditLog.count();
@@ -234,11 +241,12 @@ async function divya23BCE1042_runDBMSRequirements() {
     // REQUIREMENT 6: STORED PROCEDURE / TRANSACTIONAL ROUTINE
     // -------------------------------------------------------------------------
     console.log('\n------------------------------------------------------------------------');
-    console.log('DEMONSTRATION 5: STORED PROCEDURE & ATOMIC TRANSACTIONS');
+    console.log('DEMONSTRATION 5: ATOMIC CASE-SEALING TRANSACTION (SQLite)');
     console.log('------------------------------------------------------------------------');
 
-    // Atomic Transaction simulating Stored Procedure: sp_seal_case_and_anchor
-    const sealedResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    // SQLite has no native stored procedures. Demonstrate the equivalent
+    // application-level transactional routine through Prisma instead.
+    const sealedResult = await prisma.$transaction(async tx => {
       // 1. Verify case exists and active
       const activeCase = await tx.reconstructionCase.findUniqueOrThrow({
         where: { id: forensicCase.id },
@@ -274,7 +282,7 @@ async function divya23BCE1042_runDBMSRequirements() {
 
       return sealed;
     });
-    console.log(`✔ [STORED PROCEDURE / TRANSACTION EXECUTED] Case Sealed: ID=${sealedResult.id}, Status=${sealedResult.status}, FinalSeq=${sealedResult.provenanceSequence}`);
+    console.log(`✔ [APPLICATION-LEVEL TRANSACTION EXECUTED] Case Sealed: ID=${sealedResult.id}, Status=${sealedResult.status}, FinalSeq=${sealedResult.provenanceSequence}`);
 
     // Test Trigger 2: Attempting to insert evidence into SEALED case must be aborted by trigger
     console.log('✔ Testing Immutability Trigger (Expecting Trigger Abort on Sealed Case)...');
@@ -292,7 +300,7 @@ async function divya23BCE1042_runDBMSRequirements() {
       assert.fail('Trigger failed to abort evidence insert on sealed case');
     } catch (triggerErr: any) {
       assert.match(triggerErr.message, /FAIL_CLOSED TRIGGER|constraint failed|aborted/i);
-      console.log('✔ [TRIGGER VERIFIED] trg_seal_immutability_guard aborted insertion on sealed case!');
+      console.log('✔ [TRIGGER VERIFIED] trg_seal_insert_guard aborted insertion on sealed case!');
     }
 
     // -------------------------------------------------------------------------
@@ -305,8 +313,10 @@ async function divya23BCE1042_runDBMSRequirements() {
     const explainPlan: any[] = await prisma.$queryRawUnsafe(`
       EXPLAIN QUERY PLAN
       SELECT * FROM EvidenceFragment
-      WHERE caseId = '${forensicCase.id}' AND id = 'test-id';
+      WHERE caseId = '${forensicCase.id}'
+      ORDER BY id;
     `);
+    assert.match(String(explainPlan[0]?.detail), /EvidenceFragment_caseId_id_idx/i);
     console.log('✔ [INDEX VERIFIED] EXPLAIN QUERY PLAN utilizing compound index [caseId, id]:');
     console.table(explainPlan);
 
@@ -314,12 +324,12 @@ async function divya23BCE1042_runDBMSRequirements() {
     // REQUIREMENT 8: DATABASE BACKUP & RESTORE VERIFICATION
     // -------------------------------------------------------------------------
     console.log('\n------------------------------------------------------------------------');
-    console.log('DEMONSTRATION 7: NATIVE DATABASE BACKUP & RECOVERY');
+    console.log('DEMONSTRATION 7: ISOLATED DATABASE COPY AND RESTORE SMOKE TEST');
     console.log('------------------------------------------------------------------------');
 
     const backupPath = path.join(tempDir, 'lazarus_backup.db');
     fs.copyFileSync(tempDbPath, backupPath);
-    console.log(`✔ [BACKUP CREATED] Native database backup stored at: ${backupPath} (${fs.statSync(backupPath).size} bytes)`);
+    console.log(`✔ [COPY CREATED] Isolated database copy stored at: ${backupPath} (${fs.statSync(backupPath).size} bytes)`);
 
     const restoreDbUrl = `file:${backupPath.replace(/\\/g, '/')}`;
     const restorePrisma = new PrismaClient({ datasources: { db: { url: restoreDbUrl } } });
@@ -331,7 +341,7 @@ async function divya23BCE1042_runDBMSRequirements() {
     await restorePrisma.$disconnect();
 
     console.log('\n========================================================================');
-    console.log('   ALL BCSE302P DBMS COURSE REQUIREMENTS FULLY SATISFIED (30/30 MARKS)');
+    console.log('   DBMS DEMONSTRATION COMPLETED. All features verified successfully.');
     console.log('========================================================================\n');
 
   } finally {
@@ -344,7 +354,7 @@ async function divya23BCE1042_runDBMSRequirements() {
   }
 }
 
-divya23BCE1042_runDBMSRequirements().catch(err => {
+lazarus_runDBMSRequirements().catch(err => {
   console.error('\nDBMS Requirements Runner Failed:', err);
   process.exit(1);
 });

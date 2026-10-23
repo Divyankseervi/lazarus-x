@@ -1,7 +1,7 @@
 -- =========================================================================
 -- LAZARUS-X ADVANCED DATABASE FEATURES (POSTGRESQL INITIALIZATION)
--- Course: BCSE302P - Database Systems Lab | Faculty: Dr. V. SIVAKUMAR
--- Slot: L25+L26 | Semester: Fall Semester 2026-27
+-- LAZARUS-X Advanced Database Features
+-- Platform: LAZARUS-X Forensic Relational Database Reconstruction
 -- =========================================================================
 
 -- 1. VIEW: Case Activity and Provenance Summary (Joins & Aggregates)
@@ -51,7 +51,7 @@ BEGIN
     END IF;
 
     IF v_status = 'SEALED' THEN
-        RAISE EXCEPTION 'Case % is already cryptographically sealed', p_case_id;
+        RAISE EXCEPTION 'Case % is already sealed', p_case_id;
     END IF;
 
     SELECT COUNT(*) INTO v_evidence_count FROM "EvidenceFragment" WHERE "caseId" = p_case_id;
@@ -105,7 +105,7 @@ BEGIN
     SELECT status INTO v_case_status FROM "ReconstructionCase" WHERE id = NEW."caseId";
 
     IF v_case_status = 'SEALED' THEN
-        RAISE EXCEPTION 'FAIL_CLOSED TRIGGER: Case % is cryptographically sealed. New evidence insertion rejected.', NEW."caseId";
+        RAISE EXCEPTION 'Insert guard: Case % is sealed. New evidence insertion rejected.', NEW."caseId";
     END IF;
 
     RETURN NEW;

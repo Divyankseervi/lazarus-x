@@ -35,17 +35,18 @@ test('investigator creates a case, commits evidence, and verifies its disclosed 
   await expect(page.getByRole('status')).toContainText('Investigator account created and authenticated.');
 
   await page.getByRole('button', { name: 'New reconstruction' }).click();
-  await expect(page.locator('main h1')).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('New reconstruction case initialized.');
+  await page.getByRole('button', { name: 'Create reconstruction case' }).click();
+  await expect(page.getByRole('heading', { name: 'Incident reconstruction 01' })).toBeVisible();
+  await expect(page.getByText(/New reconstruction case initialized\./)).toBeVisible();
 
-  await page.getByLabel('Relation').selectOption('Employee');
+  await page.getByLabel('Relation').selectOption('Person');
   await page.getByLabel('Record locator').fill('7');
-  await page.getByLabel('Attribute').fill('name');
+  await page.getByLabel('Attribute').selectOption({ label: 'name · TEXT · required' });
   await page.getByLabel('Observed value').fill('Ada Lovelace');
   await page.getByLabel(/Source confidence/).fill('0.75');
   await page.getByRole('button', { name: 'Commit fragment' }).click();
-  await expect(page.getByRole('status')).toContainText('Evidence accepted · ledger sequence 1');
-  await expect(page.getByText('Employee[7].name')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Evidence accepted · 1 fragment(s) · ledger sequence 1');
+  await expect(page.getByText('name: Ada Lovelace')).toBeVisible();
   expect(accessToken).toMatch(/^[a-f0-9]{64}$/i);
   expect(caseId).toBeTruthy();
   expect(evidenceSequence).toBe(1);

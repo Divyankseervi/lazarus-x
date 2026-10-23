@@ -40,6 +40,12 @@ backend/prisma/dev.db-shm
 *.zip
 *.tar.gz
 *.log
+*.docx
+*.pptx
+*.pdf
 backups/
 .DS_Store
 Thumbs.db
+
+# Locally collected evidence manifests can contain sensitive metadata
+evidence-manifests/

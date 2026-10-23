@@ -106,9 +106,9 @@ export const AuditLogsModal: React.FC<AuditLogsModalProps> = ({
               <ShieldCheck size={20} />
             </div>
             <div>
-              <h2 className="modal-title">Relational Database Audit Trail</h2>
+              <h2 className="modal-title">Application Audit History</h2>
               <p className="modal-subtitle">
-                Immutable chronological ledger of system and forensic actions · {totalCount} events recorded
+                Chronological application-recorded history of system and forensic actions · {totalCount} events recorded
               </p>
             </div>
           </div>
@@ -121,9 +121,9 @@ export const AuditLogsModal: React.FC<AuditLogsModalProps> = ({
           <UserCheck size={16} />
           <span>
             {isAdmin ? (
-              <strong>ADMIN ACCESS: Displaying immutable database audit trail across all system users and automated database triggers.</strong>
+              <strong>ADMIN ACCESS: Displaying application audit events across users. Direct database-level edits are outside this view.</strong>
             ) : (
-              <strong>INVESTIGATOR VIEW: Displaying personal audit trail and activity log.</strong>
+              <strong>INVESTIGATOR VIEW: Displaying personal application-recorded events and activity log.</strong>
             )}
           </span>
           <span className="audit-role-tag">{currentUser?.role || 'INVESTIGATOR'}</span>

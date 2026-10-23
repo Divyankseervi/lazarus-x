@@ -93,7 +93,7 @@ A limited public patent-page search found adjacent patent families on holistic d
    - *LAZARUS-X Distinction:* Requires no transaction logs, SCNs, or shared transaction boundaries. LAZARUS-X reconstructs relational state from unsequenced, out-of-order partial forensic fragments from disparate untrusted sources using constraint satisfaction (AC-3 domain propagation) and composite foreign-key matching. Fragments are anchored to a cryptographic hash chain and keyed HMAC public commitment envelope for selective disclosure, whereas US7076481B2 operates within closed storage engine logs.
 3. **[US9195725B2 (IBM) — Resolving database integration conflicts using data provenance](https://patents.google.com/patent/US9195725B2/en):**
    - *Disclosed Mechanism:* Integrates data from sources, associates prioritized policies with conflicts, selects an applicable highest-priority policy, and applies it to produce an integrated value.
-   - *LAZARUS-X Distinction:* Never discards conflicting candidates based on hard-coded source hierarchies. When evidence conflicts, LAZARUS-X preserves all viable candidate states. Provenance in LAZARUS-X is an immutable cryptographic ledger (SHA-256 chain + HMAC envelope) proving chronological receipt and auditability, rather than a conflict-override rule engine. Candidate branching feeds an information-gain guidance model for active probe recommendation.
+   - *LAZARUS-X Distinction:* Never discards conflicting candidates based on hard-coded source hierarchies. When evidence conflicts, LAZARUS-X preserves all viable candidate states. Provenance entries form a hash-linked sequence recorded by the application, with HMAC commitments and Merkle verification for supported outputs. This can detect mismatches against preserved commitments but does not prove real-world chronology, prevent direct database edits, or independently establish legal admissibility. Candidate branching feeds an information-gain guidance model for active probe recommendation.
 4. **[US7296011B2 (Microsoft) — Efficient fuzzy match for evaluating data records](https://patents.google.com/patent/US7296011B2/en):**
    - *Disclosed Mechanism:* Uses an approximate similarity function, including token/q-gram based matching, to evaluate input tuples against reference-relation records; the disclosure also describes token transposition.
    - *LAZARUS-X Distinction:* Integrates bounded restricted Damerau-Levenshtein (optimal-string-alignment) compatibility into foreign-key support checks, including adjacent transpositions within the configured cutoff. Fuzzy corrections generate auditable ledger events (`FUZZY_CORRECTION`) and apply heuristic penalty weights. This distinction is an engineering description, not a conclusion about the patent's claim scope or novelty.
@@ -123,15 +123,15 @@ Before starting an API in production, set `NODE_ENV=production`, configure `CORS
 
 ## Academic & Patent Demonstration Commands
 
-To verify the BCSE302P DBMS Lab Assessment features and formal patent claims on isolated disposable databases:
+To verify the DBMS features and formal patent claims on isolated disposable databases:
 
 ```powershell
 cd backend
 npm run dbms:demo
-npx ts-node src/engine/patent_claim_verification.test.ts
+npx ts-node src/engine/research_claim_consistency.test.ts
 ```
 
-- `npm run dbms:demo`: Executes full database design & implementation checks: 11 tables in 3NF, CRUD operations, multi-table joins, aggregate queries, SQL views (`vw_case_activity_summary`), database triggers (`trg_audit_evidence_insert`, `trg_seal_immutability_guard`), atomic stored procedure / transaction (`sp_seal_forensic_case`), B-tree compound index query plan analysis, and native database backup & recovery.
-- `npx ts-node src/engine/patent_claim_verification.test.ts`: Validates all 25 formal patent claims defined in `research/PATENT_SPECIFICATION_FORMAL.md` against the engine's CSP/AC-3 solver, Damerau-Levenshtein metrics, Shannon entropy calculations, Merkle trees, and cryptographic sealing.
+- `npm run dbms:demo`: Runs the isolated SQLite course-feature demonstration covering the current 11-model schema, CRUD, joins/aggregates, a SQL view, database insert-audit and sealed-case insert-guard triggers, transactions, and index/query-plan inspection. The schema is 3NF-oriented rather than formally proven. SQLite has no native stored procedures; backup/restore are separate scripts, and PostgreSQL SQL in `backend/db/init/` is reference-only. Use `scripts/backup_database.sh` and `scripts/restore_database.sh` separately for native backup/restore.
+- `npx ts-node src/engine/research_claim_consistency.test.ts`: Runs selected engineering regression checks for research concepts described in `research/PATENT_SPECIFICATION_FORMAL.md` against the engine's CSP/AC-3 solver, Damerau-Levenshtein metrics, Shannon entropy calculations, Merkle trees, and cryptographic sealing.
 - Native backup utilities: `scripts/backup_database.sh` (Linux/macOS) and `scripts/backup_database.bat` (Windows).
 - Containerization: Root multi-stage `Dockerfile` and `docker-compose.yml` for full-stack service orchestration.
