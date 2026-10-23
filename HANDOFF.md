@@ -66,6 +66,20 @@ Simplified evidence intake workflows to be intuitive, clean, and accessible in 1
   - Added relation filter pills (`All Relations`, plus one pill per reconstructed table) and a live record search filter.
   - Monospace locator `#_recordId` tags, styled italic `NULL` state representations, clean zebra striping (`tbody tr:nth-child(even)`), and print/markdown export synchronization.
 
+## Enterprise SQL Data Grid Overhaul — 2026-10-23
+
+Overhauled both the primary workspace and forensic report to present authentic, production-grade relational database grid tables:
+- **Main Workspace SQL Data Grid (`frontend/src/App.tsx`)**:
+  - Replaced legacy string-joined `record-row` text (`key: val · key: val`) with genuine `<table>` data grids (`.sql-data-grid`).
+  - Rendered explicit attribute column headers (`<th>`) with column type indicators (`NUMBER`, `TEXT`) and unique constraint tags (`UQ`).
+  - Added primary key `# Locator` monospace pill column (`#01`, `#02`, etc.) and `Materialized` integrity status badges per record.
+  - Formatted missing fields with styled `<span className="null-tag">NULL</span>` badges.
+  - Added dedicated relation header toolbars with record counts, column counts, and CSV/JSON export actions.
+- **Forensic Investigation Report Tables (`frontend/src/ForensicReportModal.tsx` & `frontend/src/index.css`)**:
+  - Fixed header text collision in `.dossier-audit-table` (`Sequence`, `Event Type`, `Envelope Hash`, `Payload Commitment`) with explicit column widths, generous padding (`10px 14px`), and container borders (`.dossier-table-container`).
+  - Enclosed each relation in a dedicated `.dossier-table-container` with table header bar and column type badges.
+  - Added monospace styling for cryptographic hashes and SHA-256 digests.
+
 ## Current state
 
 LAZARUS-X is an academic forensic relational database reconstruction prototype. The active Prisma runtime targets SQLite. PostgreSQL DDL under `backend/db/init/01_advanced_features.sql` is a reference script only.

@@ -2244,20 +2244,32 @@ function App() {
                   }}
                 />
               ) : (
-                <div className="table-grid">
+                <div className="sql-tables-stack">
                   {TABLES.map(relation => {
                     const allRows = engineState.data?.[relation] ?? [];
                     const rows = tableFilterQuery.trim()
                       ? allRows.filter(r => Object.entries(r).some(([k, v]) => String(v).toLowerCase().includes(tableFilterQuery.toLowerCase()) || k.toLowerCase().includes(tableFilterQuery.toLowerCase())))
                       : allRows;
+
+                    const tableDef = caseSchema?.tableDefinitions?.find(d => d.name === relation);
+                    const schemaCols = tableDef?.columns?.filter(c => c.name !== '_recordId') ?? [];
+                    const dataCols = allRows[0] ? Object.keys(allRows[0]).filter(k => k !== '_recordId') : [];
+                    const columnsToDisplay = schemaCols.length > 0
+                      ? schemaCols.map(c => ({ name: c.name, type: c.type, unique: c.unique }))
+                      : dataCols.map(name => ({ name, type: typeof allRows[0]?.[name] === 'number' ? 'NUMBER' : 'TEXT' }));
+
                     return (
-                      <article className="relation-card" key={relation}>
-                        <div className="relation-title">
-                          <span>{relation}</span>
-                          <div className="relation-title-right">
-                            <span className="row-count-badge">{rows.length}{tableFilterQuery ? ` / ${allRows.length}` : ''} rows</span>
+                      <div className="sql-table-card" key={relation}>
+                        <div className="sql-table-header">
+                          <div className="sql-table-title-group">
+                            <Database size={15} style={{ color: '#3b82f6' }} />
+                            <strong className="sql-table-name">{relation}</strong>
+                            <span className="sql-table-badge">{rows.length}{tableFilterQuery ? ` / ${allRows.length}` : ''} row{rows.length === 1 ? '' : 's'}</span>
+                            <span className="sql-table-badge-secondary">{columnsToDisplay.length} columns</span>
+                          </div>
+                          <div className="table-export-group">
                             {rows.length > 0 && (
-                              <div className="table-export-group">
+                              <>
                                 <button
                                   type="button"
                                   className="table-export-btn"
@@ -2274,26 +2286,72 @@ function App() {
                                 >
                                   JSON
                                 </button>
-                              </div>
+                              </>
                             )}
                           </div>
                         </div>
+
                         {rows.length === 0 ? (
-                          <p className="empty-relation">{allRows.length > 0 ? 'No matching rows found' : 'No observed rows'}</p>
+                          <div className="empty-sql-table">
+                            <span>{allRows.length > 0 ? 'No matching rows found for active filter.' : `No observed rows in ${relation}.`}</span>
+                          </div>
                         ) : (
-                          rows.map((row, index) => (
-                            <div className="record-row" key={`${relation}-${String(row._recordId ?? index)}`}>
-                              <span className="record-index">{String(row._recordId ?? index + 1).padStart(2, '0')}</span>
-                              <code>
-                                {Object.entries(row)
-                                  .filter(([key]) => key !== '_recordId')
-                                  .map(([key, item]) => `${key}: ${String(item)}`)
-                                  .join(' · ') || 'No observed attributes'}
-                              </code>
-                            </div>
-                          ))
+                          <div className="sql-table-scroll-wrap">
+                            <table className="sql-data-grid">
+                              <thead>
+                                <tr>
+                                  <th style={{ width: '80px', textAlign: 'center' }}>
+                                    <span style={{ color: '#60a5fa' }}># PK</span>
+                                  </th>
+                                  {columnsToDisplay.map(col => (
+                                    <th key={col.name}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <span>{col.name}</span>
+                                        <small className="col-type-badge">{String(col.type)}</small>
+                                        {'unique' in col && Boolean(col.unique) ? <small className="col-constraint-badge">UQ</small> : null}
+                                      </div>
+                                    </th>
+                                  ))}
+                                  <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {rows.map((row, index) => {
+                                  const rowKey = `${relation}-${String(row._recordId ?? index)}`;
+                                  const recId = row._recordId ?? index + 1;
+                                  return (
+                                    <tr key={rowKey}>
+                                      <td style={{ textAlign: 'center' }}>
+                                        <span className="badge-pill">#{String(recId).padStart(2, '0')}</span>
+                                      </td>
+                                      {columnsToDisplay.map(col => {
+                                        const val = row[col.name];
+                                        const isNull = val === null || val === undefined;
+                                        return (
+                                          <td key={col.name}>
+                                            {isNull ? (
+                                              <span className="null-tag">NULL</span>
+                                            ) : (
+                                              <span style={{ color: typeof val === 'number' ? '#93c5fd' : '#f1f5f9', fontWeight: typeof val === 'number' ? 600 : 400 }}>
+                                                {String(val)}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                      <td style={{ textAlign: 'center' }}>
+                                        <span className="badge-verified">
+                                          <BadgeCheck size={11} /> Materialized
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         )}
-                      </article>
+                      </div>
                     );
                   })}
                 </div>

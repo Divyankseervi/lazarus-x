@@ -178,30 +178,39 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                         <p className="dossier-para">
                             Every forensic observation committed to this case is anchored into an append-only SHA-256 hash chain with
                             event-scoped HMAC masking. The recent chain anchors below demonstrate verifiable chronological ordering and integrity.
-                        </p>
-                        {auditEntries && auditEntries.length > 0 && (
-                            <div className="dossier-audit-summary">
-                                <strong>Recent Cryptographic Ledger Anchors ({auditEntries.length} total events)</strong>
-                                <table className="dossier-audit-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Sequence</th>
-                                            <th>Event Type</th>
-                                            <th>Envelope Hash (SHA-256)</th>
-                                            <th>Payload Commitment (HMAC)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {auditEntries.slice(-5).map(e => (
-                                            <tr key={e.sequence}>
-                                                <td><span className="badge-pill">#{e.sequence}</span></td>
-                                                <td><code>{e.eventType}</code></td>
-                                                <td><code>{e.envelopeHash.slice(0, 16)}...</code></td>
-                                                <td><code>{e.payloadCommitment.slice(0, 16)}...</code></td>
+                        </p>                        {auditEntries && auditEntries.length > 0 && (
+                            <div className="dossier-table-container" style={{ marginTop: '12px', marginBottom: '20px' }}>
+                                <div className="dossier-table-topbar">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Hash size={14} style={{ color: '#3b82f6' }} />
+                                        <strong style={{ fontSize: '11px', color: '#f1f5f9', letterSpacing: '0.03em' }}>
+                                            Recent Cryptographic Ledger Anchors
+                                        </strong>
+                                    </div>
+                                    <span className="badge-pill">{auditEntries.length} Total Provenance Events</span>
+                                </div>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table className="dossier-audit-table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ width: '80px', textAlign: 'center' }}>Sequence</th>
+                                                <th style={{ width: '180px' }}>Event Type</th>
+                                                <th>Envelope Hash (SHA-256)</th>
+                                                <th>Payload Commitment (HMAC)</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {auditEntries.slice(-6).map(e => (
+                                                <tr key={e.sequence}>
+                                                    <td style={{ textAlign: 'center' }}><span className="badge-pill">#{e.sequence}</span></td>
+                                                    <td><span className="event-type-badge">{e.eventType}</span></td>
+                                                    <td><code className="hash-code" title={e.envelopeHash}>{e.envelopeHash.slice(0, 20)}…{e.envelopeHash.slice(-8)}</code></td>
+                                                    <td><code className="hash-code" title={e.payloadCommitment}>{e.payloadCommitment.slice(0, 20)}…{e.payloadCommitment.slice(-8)}</code></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -212,35 +221,53 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                             Summary of relational tables reconstructed from observed evidence fragments under bounded AC-3 constraint propagation:
                         </p>
                         {engineData && Object.keys(engineData).length > 0 ? (
-                            <table className="dossier-data-table" style={{ marginBottom: '18px' }}>
-                                <thead>
-                                    <tr>
-                                        <th>Relation</th>
-                                        <th>Reconstructed Records</th>
-                                        <th>Observed Attributes</th>
-                                        <th>Primary Key Locator</th>
-                                        <th>Constraint Consistency</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {Object.entries(engineData).map(([table, rows]) => {
-                                        const colCount = rows[0] ? Object.keys(rows[0]).filter(k => k !== '_recordId').length : 0;
-                                        return (
-                                            <tr key={table}>
-                                                <td><strong>{table}</strong></td>
-                                                <td><span className="badge-pill">{rows.length} record{rows.length === 1 ? '' : 's'}</span></td>
-                                                <td>{colCount} attribute{colCount === 1 ? '' : 's'}</td>
-                                                <td><code>_recordId</code></td>
-                                                <td>
-                                                    <span className="badge-verified">
-                                                        <CheckCircle size={12} /> Consistent
-                                                    </span>
-                                                </td>
+                            <div className="dossier-table-container" style={{ marginTop: '10px', marginBottom: '20px' }}>
+                                <div className="dossier-table-topbar">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <Award size={14} style={{ color: '#10b981' }} />
+                                        <strong style={{ fontSize: '11px', color: '#f1f5f9', letterSpacing: '0.03em' }}>
+                                            Reconstructed Entity Relations Summary
+                                        </strong>
+                                    </div>
+                                    <span className="badge-pill">{Object.keys(engineData).length} Relations</span>
+                                </div>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table className="dossier-data-table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ minWidth: '130px' }}>Relation</th>
+                                                <th style={{ minWidth: '150px' }}>Reconstructed Records</th>
+                                                <th style={{ minWidth: '150px' }}>Observed Attributes</th>
+                                                <th style={{ minWidth: '140px' }}>Primary Key Locator</th>
+                                                <th style={{ minWidth: '150px' }}>Constraint Consistency</th>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                        </thead>
+                                        <tbody>
+                                            {Object.entries(engineData).map(([table, rows]) => {
+                                                const colCount = rows[0] ? Object.keys(rows[0]).filter(k => k !== '_recordId').length : 0;
+                                                return (
+                                                    <tr key={table}>
+                                                        <td>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <Database size={13} style={{ color: '#3b82f6' }} />
+                                                                <strong style={{ color: '#f8fafc' }}>{table}</strong>
+                                                            </div>
+                                                        </td>
+                                                        <td><span className="badge-pill">{rows.length} record{rows.length === 1 ? '' : 's'}</span></td>
+                                                        <td><span style={{ color: '#cbd5e1' }}>{colCount} attribute{colCount === 1 ? '' : 's'}</span></td>
+                                                        <td><code className="hash-code">#_recordId</code></td>
+                                                        <td>
+                                                            <span className="badge-verified">
+                                                                <CheckCircle size={12} /> Consistent
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         ) : (
                             <p className="empty-dossier-table">No relational schema data materialized.</p>
                         )}
@@ -290,58 +317,84 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                                     ? rows.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(searchQuery.trim().toLowerCase())))
                                     : rows;
 
+                                const columns = rows[0]
+                                    ? Object.keys(rows[0]).filter(k => k !== '_recordId')
+                                    : [];
+
                                 return (
-                                    <div key={table} className="dossier-table-block" style={{ marginBottom: '18px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                            <h3 style={{ margin: 0, fontSize: '12px', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Database size={13} style={{ color: '#3b82f6' }} /> Relation: <strong>{table}</strong>
-                                                <span className="badge-pill" style={{ marginLeft: '4px' }}>{rows.length} total</span>
-                                                {searchQuery.trim() && <span style={{ fontSize: '10px', color: '#94a3b8' }}>({filteredRows.length} matching)</span>}
-                                            </h3>
+                                    <div key={table} className="dossier-table-container" style={{ marginBottom: '20px' }}>
+                                        <div className="dossier-table-topbar">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <Database size={14} style={{ color: '#3b82f6' }} />
+                                                <strong style={{ fontSize: '12px', color: '#f8fafc' }}>
+                                                    Table: {table}
+                                                </strong>
+                                                <span className="badge-pill">{rows.length} row{rows.length === 1 ? '' : 's'}</span>
+                                                <span className="badge-pill" style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)', color: '#94a3b8' }}>{columns.length} columns</span>
+                                            </div>
+                                            {searchQuery.trim() && (
+                                                <span style={{ fontSize: '11px', color: '#60a5fa' }}>
+                                                    Filtered: {filteredRows.length} of {rows.length} matching "{searchQuery}"
+                                                </span>
+                                            )}
                                         </div>
                                         {filteredRows.length === 0 ? (
-                                            <p className="empty-dossier-table" style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '11px', color: '#94a3b8' }}>
+                                            <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '11px' }}>
                                                 {rows.length === 0 ? 'No reconstructed records in this relation.' : 'No records match the filter query.'}
-                                            </p>
+                                            </div>
                                         ) : (
-                                            <table className="dossier-data-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th style={{ width: '60px' }}>Locator</th>
-                                                        {Object.keys(rows[0]!).filter(k => k !== '_recordId').map(k => (
-                                                            <th key={k}>{k}</th>
-                                                        ))}
-                                                        <th style={{ width: '90px' }}>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {filteredRows.map(r => (
-                                                        <tr key={r._recordId as number}>
-                                                            <td><span className="badge-pill">#{r._recordId as number}</span></td>
-                                                            {Object.keys(rows[0]!).filter(k => k !== '_recordId').map(k => {
-                                                                const val = r[k];
-                                                                const isNull = val === null || val === undefined;
-                                                                return (
-                                                                    <td key={k} style={isNull ? { color: '#64748b', fontStyle: 'italic' } : {}}>
-                                                                        {isNull ? 'NULL' : String(val)}
-                                                                    </td>
-                                                                );
-                                                            })}
-                                                            <td>
-                                                                <span className="badge-verified">
-                                                                    <CheckCircle size={11} /> Materialized
-                                                                </span>
-                                                            </td>
+                                            <div style={{ overflowX: 'auto' }}>
+                                                <table className="dossier-data-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th style={{ width: '80px', textAlign: 'center' }}>
+                                                                <span style={{ color: '#60a5fa' }}># PK</span>
+                                                            </th>
+                                                            {columns.map(col => (
+                                                                <th key={col}>
+                                                                    <span>{col}</span>
+                                                                </th>
+                                                            ))}
+                                                            <th style={{ width: '110px', textAlign: 'center' }}>Status</th>
                                                         </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                    </thead>
+                                                    <tbody>
+                                                        {filteredRows.map(r => (
+                                                            <tr key={r._recordId as number}>
+                                                                <td style={{ textAlign: 'center' }}>
+                                                                    <span className="badge-pill">#{String(r._recordId).padStart(2, '0')}</span>
+                                                                </td>
+                                                                {columns.map(k => {
+                                                                    const val = r[k];
+                                                                    const isNull = val === null || val === undefined;
+                                                                    return (
+                                                                        <td key={k}>
+                                                                            {isNull ? (
+                                                                                <span className="null-tag">NULL</span>
+                                                                            ) : (
+                                                                                <span style={{ color: typeof val === 'number' ? '#93c5fd' : '#f1f5f9', fontWeight: typeof val === 'number' ? 600 : 400 }}>
+                                                                                    {String(val)}
+                                                                                </span>
+                                                                            )}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td style={{ textAlign: 'center' }}>
+                                                                    <span className="badge-verified">
+                                                                        <CheckCircle size={11} /> Materialized
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
                                         )}
                                     </div>
                                 );
                             })
                         ) : (
-                            <p>No table state available.</p>
+                            <p className="empty-dossier-table">No table state available.</p>
                         )}
                     </div>
 
