@@ -1,5 +1,26 @@
 # LAZARUS-X Developer Handoff
 
+## Direct Header Formatting (QP Instruction 1 Alignment) & Authentic Docker / Supabase Screenshots Integration — 2026-10-31
+
+- **Cover Page Direct Header Refactoring (Zero Tables)**:
+  - Addressed user feedback to eliminate Table 1 (Course Metadata) and Table 2 (Student Team Responsibilities) on Page 1 of the Word/PDF document.
+  - Replaced tables with direct, clean, academic paragraphs strictly adhering to QP Instruction 1: *"1. Write your Name, Regno, Course code, Course Title, Slot on the top of the word document"*.
+  - Explicitly formatted: Project Title, Student Names & Register Numbers (Divyank Seervi 24BCE0793 & Vidushi Negi 24BCE0786), Course Code & Title (BCSE302P – Database Systems Lab), Slot (L25 + L26), Class Number (VL2026270104025), Faculty Name (Dr. V. SIVAKUMAR), and direct GitHub URL (`https://github.com/Divyankseervi/lazarus-x`).
+  - Student responsibilities structured directly as indented bullet items under student headers.
+
+- **Authentic Docker Desktop & Supabase Cloud Integration**:
+  - Incorporated user's authentic screenshots into `submission/screenshots/pristine/`:
+    - `13_docker_containerization_deployment.png`: Docker Desktop GUI verifying the `lazarus-x` container deployment.
+    - `14_supabase_managed_cloud_database.png`: Supabase Table Editor displaying all 15 public relational tables and analytical SQL views.
+    - `15_supabase_database_triggers.png`: Supabase Database Functions console showing active PL/pgSQL triggers (`lazarus_audit_evidence_insert` and `lazarus_reject_evidence_for_sealed_case`).
+    - `16_supabase_schema_visualizer.png`: Supabase Visual Relational Schema Graph displaying foreign key lines and schema topology.
+  - Section 10 now features Figures 10.13 through 10.16 with full verification descriptions and live timestamps.
+
+- **Definitive Submission Artifacts Generated**:
+  - `submission/24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.docx` & `.pdf` (26 pages, 2.05 MB).
+  - Mirrored in project root: `24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.docx` & `.pdf`.
+  - Zero redundant, temporary, or loose `.docx`, `.pdf`, or `.md` files present in git tracking.
+
 ## Comprehensive 14-Feature Final Submission Document & High-Definition Screenshots Compilation — 2026-10-31
 
 - Generated single definitive official submission DOCX and vectorized PDF fully compliant with Dr. V. SIVAKUMAR's Lab Assessment Rubric:

@@ -209,48 +209,84 @@ def build_docx():
     r_rep.font.bold = True
     r_rep.font.color.rgb = RGBColor(0, 0, 0)
 
-    # Table 1: Course & Project Metadata (8x2 Table)
-    tbl_meta = doc.add_table(rows=1, cols=2)
-    format_styled_table(
-        tbl_meta,
-        [Inches(2.4), Inches(4.6)],
-        ["Course & Assessment Attribute", "Institutional Details & Verification Values"],
-        [
-            ["Project Title", "LAZARUS-X: Forensic Relational Database Reconstruction & Cryptographic Provenance Platform"],
-            ["Student Name", "Divyank Seervi & Vidushi Negi"],
-            ["Register Number", "24BCE0793 & 24BCE0786"],
-            ["Course Code & Title", "BCSE302P – Database Systems Lab"],
-            ["Class Number", "VL2026270104025"],
-            ["Lab Slot", "L25 + L26"],
-            ["Faculty Name", "Dr. V. SIVAKUMAR"],
-            ["GitHub Repository URL", "https://github.com/Divyankseervi/lazarus-x"],
-            ["Submission Date & Academic Term", "Fall Semester 2026-27 | 31-10-2026"]
-        ],
-        header_bg="F3F4F6"
-    )
-    doc.add_paragraph().paragraph_format.space_after = Pt(4)
+    # ==========================================
+    # DIRECT HEADER AS PER QP INSTRUCTION 1 (NO TABLES)
+    # ==========================================
+    def add_meta_line(label, value, is_link=False):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(1.5)
+        p.paragraph_format.space_after = Pt(1.5)
+        p.paragraph_format.line_spacing = 1.15
+        r_lbl = p.add_run(f"{label}: ")
+        r_lbl.font.name = "Arial"
+        r_lbl.font.size = Pt(9.5)
+        r_lbl.font.bold = True
+        r_lbl.font.color.rgb = RGBColor(17, 24, 39)
+        
+        r_val = p.add_run(value)
+        r_val.font.name = "Arial"
+        r_val.font.size = Pt(9.5)
+        if is_link:
+            r_val.font.underline = True
+            r_val.font.color.rgb = RGBColor(37, 99, 235)
+        else:
+            r_val.font.color.rgb = RGBColor(31, 41, 55)
 
-    # Table 2: Student Team Responsibilities Table (3x4 Table)
-    tbl_team = doc.add_table(rows=1, cols=4)
-    format_styled_table(
-        tbl_team,
-        [Inches(1.5), Inches(1.1), Inches(1.7), Inches(2.7)],
-        ["Student Name", "Register Number", "Assigned Role", "Key Project Responsibilities"],
+    add_meta_line("Project Title", "LAZARUS-X: Forensic Relational Database Reconstruction & Cryptographic Provenance Platform")
+    add_meta_line("Student Names & Register Numbers", "Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)")
+    add_meta_line("Course Code & Title", "BCSE302P – Database Systems Lab")
+    add_meta_line("Class Number & Slot", "Class Number: VL2026270104025  |  Slot: L25 + L26")
+    add_meta_line("Faculty Name", "Dr. V. SIVAKUMAR")
+    add_meta_line("GitHub Repository URL", "https://github.com/Divyankseervi/lazarus-x", is_link=True)
+    add_meta_line("Submission Date & Academic Term", "Fall Semester 2026-27 | 31-10-2026")
+
+    p_div = doc.add_paragraph()
+    p_div.paragraph_format.space_before = Pt(6)
+    p_div.paragraph_format.space_after = Pt(2)
+    r_div_lbl = p_div.add_run("Student Roles & Project Responsibilities:")
+    r_div_lbl.font.name = "Arial"
+    r_div_lbl.font.size = Pt(9.5)
+    r_div_lbl.font.bold = True
+    r_div_lbl.font.color.rgb = RGBColor(17, 24, 39)
+
+    def add_team_bullet(name_role, bullet_items):
+        p_lead = doc.add_paragraph()
+        p_lead.paragraph_format.space_before = Pt(3)
+        p_lead.paragraph_format.space_after = Pt(1)
+        p_lead.paragraph_format.left_indent = Inches(0.2)
+        r_name = p_lead.add_run(f"• {name_role}")
+        r_name.font.name = "Arial"
+        r_name.font.size = Pt(9)
+        r_name.font.bold = True
+        r_name.font.color.rgb = RGBColor(17, 24, 39)
+        
+        for item in bullet_items:
+            p_sub = doc.add_paragraph()
+            p_sub.paragraph_format.space_before = Pt(0)
+            p_sub.paragraph_format.space_after = Pt(1)
+            p_sub.paragraph_format.left_indent = Inches(0.4)
+            r_sub = p_sub.add_run(f"- {item}")
+            r_sub.font.name = "Arial"
+            r_sub.font.size = Pt(8.5)
+            r_sub.font.color.rgb = RGBColor(55, 65, 81)
+
+    add_team_bullet(
+        "Divyank Seervi (24BCE0793) — Lead Backend Architect & Engine Developer",
         [
-            [
-                "Divyank Seervi",
-                "24BCE0793",
-                "Lead Backend Architect & Engine Developer",
-                "• Full-Stack Express/TypeScript architecture & API design\n• Prisma ORM schema & repository pattern implementation\n• Dual-layer SHA-256 Merkle cryptographic provenance ledger\n• Atomic transactions, commit/rollback test suites & backup scripts"
-            ],
-            [
-                "Vidushi Negi",
-                "24BCE0786",
-                "Lead Relational Architect & Database Modeler",
-                "• 3NF/BCNF relational schema design & ER modeling\n• Foreign-key topological sorting & DAG dependency engine\n• Analytical SQL views, Bayesian ranking & event-driven triggers\n• Declarative integrity constraints & QA test suite"
-            ]
-        ],
-        header_bg="F3F4F6"
+            "Full-Stack Express/TypeScript architecture, forensic API endpoints & controller design",
+            "Prisma ORM schema definition, relational repository patterns & transaction isolation",
+            "Dual-layer SHA-256 Merkle cryptographic provenance ledger & RFC 6962 leaf inclusion proofs",
+            "Atomic transaction commit/rollback test suites, Docker orchestration & forensic backup scripts"
+        ]
+    )
+    add_team_bullet(
+        "Vidushi Negi (24BCE0786) — Lead Relational Architect & Database Modeler",
+        [
+            "3NF/BCNF relational schema decomposition, entity integrity & Crow's foot ER modeling",
+            "Foreign-key topological sorting & Directed Acyclic Graph (DAG) dependency resolution engine",
+            "PostgreSQL analytical reporting views (vw_case_activity_summary, vw_candidate_ranking) & PL/pgSQL triggers",
+            "Declarative integrity constraints, foreign key cascading & forensic verification QA test suites"
+        ]
     )
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
@@ -1222,13 +1258,23 @@ def build_docx():
         ),
         (
             "13_docker_containerization_deployment.png",
-            "Figure 10.13: Docker Enterprise Containerization & Compose Deployment",
-            "Production-grade multi-stage Docker build, non-root user isolation (appuser), read-only root filesystem, cap_drop: ALL, no-new-privileges: true, and Docker Compose multi-environment orchestration."
+            "Figure 10.13: Docker Desktop Containerization & Service Deployment (lazarus-x)",
+            "Live Docker Desktop GUI verifying the enterprise containerized deployment of lazarus-x, showcasing non-root isolation, security hardening (cap_drop: ALL, read-only rootfs), port mapping, and production compose service orchestration."
         ),
         (
             "14_supabase_managed_cloud_database.png",
-            "Figure 10.14: Supabase Managed PostgreSQL Cloud Database (AWS Tokyo)",
-            "Live cloud database console on AWS Tokyo (aws-0-ap-northeast-1.pooler.supabase.com) hosting 12 fully normalized 3NF tables with Row Level Security (RLS) enabled on all tables, PL/pgSQL database triggers (trg_audit_evidence_insert, trg_guard_sealed_case), and relational analytical reporting views (vw_case_activity_summary)."
+            "Figure 10.14: Supabase Managed PostgreSQL Cloud Database Console & Table Catalog",
+            "Live Supabase cloud dashboard (AWS Tokyo - ap-northeast-1) displaying all 15 public relational database tables and analytical views, live row telemetry, byte sizing, and schema structures."
+        ),
+        (
+            "15_supabase_database_triggers.png",
+            "Figure 10.15: Supabase Managed Database Functions & PL/pgSQL Triggers Console",
+            "Supabase database functions console showing verified active PL/pgSQL triggers (lazarus_audit_evidence_insert, lazarus_reject_evidence_for_sealed_case) enforcing autonomous audit trail mutation logging and case sealing integrity."
+        ),
+        (
+            "16_supabase_schema_visualizer.png",
+            "Figure 10.16: Supabase Interactive Relational Schema Graph & Foreign Key Architecture",
+            "Supabase visual schema graph delineating physical foreign key relationships, referential constraints, and relational mappings across all core forensic entities in the live cloud database."
         )
     ]
     for fname, cap_title, cap_desc in pristine_screenshots:
