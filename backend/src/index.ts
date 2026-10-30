@@ -152,7 +152,7 @@ class BoundedProvenanceAccumulatorCache {
 function allowedOrigins(): Set<string> {
     const configured = process.env.CORS_ORIGINS;
     if (configured !== undefined) {
-        return new Set(configured.split(',').map(origin => origin.trim()).filter(Boolean));
+        return new Set(configured.split(',').map(origin => origin.trim().replace(/\/$/, '')).filter(Boolean));
     }
     if (process.env.NODE_ENV === 'production') return new Set();
     return new Set(['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173']);
@@ -316,7 +316,7 @@ app.use((req, res, next) => {
 });
 app.use(cors({
     origin(origin, callback) {
-        if (!origin || origins.has(origin)) return callback(null, true);
+        if (!origin || origins.has('*') || origins.has(origin) || origins.has(origin.replace(/\/$/, ''))) return callback(null, true);
         return callback(new Error('CORS origin denied.'));
     },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
