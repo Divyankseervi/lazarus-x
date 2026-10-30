@@ -1,0 +1,29 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        DATABASE_PROVIDER: postgresql
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_PROVIDER: postgresql
+      PRISMA_CLIENT_GENERATED: "true"
+      SEED_DEFAULT_USERS: "false"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000}"
+      HOME: /tmp/lazarus-home
+      npm_config_cache: /tmp/npm-cache
+      XDG_CACHE_HOME: /tmp/cache
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

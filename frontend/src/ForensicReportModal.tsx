@@ -40,6 +40,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
         let md = `# LAZARUS-X FORENSIC INVESTIGATION REPORT\n\n`;
         md += `**Investigating Team:** Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)\n`;
         md += `**Course & Slot:** BCSE302P Database Management Systems Laboratory (Slot L25+L26)\n`;
+        md += `**GitHub Repository:** https://github.com/Divyankseervi/lazarus-x\n`;
         md += `**Case ID:** ${caseId}\n`;
         md += `**Status:** ${caseStatus} (application-level status)\n`;
         md += `**Generated:** ${new Date().toISOString()}\n`;
@@ -148,6 +149,9 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                         <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
                             <div><strong>Certified Investigators:</strong> Divyank Seervi (24BCE0793) &amp; Vidushi Negi (24BCE0786)</div>
                             <div style={{ color: 'var(--muted)', fontSize: '11px' }}>Course: BCSE302P Database Management Systems Laboratory · Slot: L25+L26</div>
+                            <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                                <strong>Repository:</strong> <a href="https://github.com/Divyankseervi/lazarus-x" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://github.com/Divyankseervi/lazarus-x</a>
+                            </div>
                         </div>
                     </div>
 
@@ -415,6 +419,9 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                                 This dossier presents the fixed-point reconstruction synthesized by the LAZARUS-X constraint propagation
                                 and hypothesis evaluation engine. All entity records satisfy declared relational constraints, foreign keys,
                                 and integrity bounds. Hashes correspond directly to the committed cryptographic audit log.
+                            </p>
+                            <p style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)' }}>
+                                <strong>GitHub Repository & Audit Pipeline:</strong> <a href="https://github.com/Divyankseervi/lazarus-x" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://github.com/Divyankseervi/lazarus-x</a>
                             </p>
                             <div className="signatures-row">
                                 <div className="sig-block">

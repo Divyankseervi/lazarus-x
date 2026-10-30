@@ -46,7 +46,9 @@ function build(name: string, preset: string, tableDefinitions: TableDefinition[]
   return { name, preset, tables: tableDefinitions.map(table => table.name), tableDefinitions, constraints };
 }
 
-export function createPresetSchema(preset: 'incident-response' | 'workforce-orders' | 'blank'): CaseSchema {
+export type PresetId = 'incident-response' | 'workforce-orders' | 'government-record-recovery' | 'blank';
+
+export function createPresetSchema(preset: PresetId): CaseSchema {
   if (preset === 'workforce-orders') return build('Workforce and orders', preset, [
     { name: 'Department', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'name', type: 'TEXT', required: true }] },
     { name: 'Employee', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'name', type: 'TEXT', required: true }, { name: 'departmentId', type: 'NUMBER' }] },
@@ -58,6 +60,23 @@ export function createPresetSchema(preset: 'incident-response' | 'workforce-orde
   if (preset === 'blank') return build('Custom relational reconstruction', preset, [
     { name: 'Record', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'value', type: 'TEXT' }] },
   ], []);
+  if (preset === 'government-record-recovery') return build('Government record recovery', preset, [
+    { name: 'Person', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'fullName', type: 'TEXT', required: true }, { name: 'dateOfBirth', type: 'TEXT' }, { name: 'village', type: 'TEXT' }] },
+    { name: 'BirthRecord', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'personId', type: 'NUMBER', required: true }, { name: 'registrationNo', type: 'TEXT', unique: true }, { name: 'registeredDate', type: 'TEXT' }] },
+    { name: 'SourceDocument', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'documentType', type: 'TEXT', required: true }, { name: 'officeName', type: 'TEXT' }, { name: 'status', type: 'TEXT', required: true }] },
+    { name: 'SourceObservation', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'sourceDocumentId', type: 'NUMBER', required: true }, { name: 'personId', type: 'NUMBER' }, { name: 'fieldName', type: 'TEXT', required: true }, { name: 'observedValue', type: 'TEXT', required: true }] },
+    { name: 'GovernmentOffice', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'departmentId', type: 'NUMBER', required: true }, { name: 'name', type: 'TEXT', required: true }, { name: 'district', type: 'TEXT' }, { name: 'state', type: 'TEXT' }] },
+    { name: 'Department', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'name', type: 'TEXT', required: true }] },
+    { name: 'ReviewDecision', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'personId', type: 'NUMBER', required: true }, { name: 'status', type: 'TEXT', required: true }, { name: 'reason', type: 'TEXT' }] },
+    { name: 'CaseAssignment', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'personId', type: 'NUMBER', required: true }, { name: 'officerName', type: 'TEXT', required: true }, { name: 'assignedDate', type: 'TEXT' }] },
+  ], [
+    { type: 'FOREIGN_KEY', table: 'BirthRecord', field: 'personId', targetTable: 'Person', targetField: 'id' },
+    { type: 'FOREIGN_KEY', table: 'SourceObservation', field: 'sourceDocumentId', targetTable: 'SourceDocument', targetField: 'id' },
+    { type: 'FOREIGN_KEY', table: 'SourceObservation', field: 'personId', targetTable: 'Person', targetField: 'id' },
+    { type: 'FOREIGN_KEY', table: 'GovernmentOffice', field: 'departmentId', targetTable: 'Department', targetField: 'id' },
+    { type: 'FOREIGN_KEY', table: 'ReviewDecision', field: 'personId', targetTable: 'Person', targetField: 'id' },
+    { type: 'FOREIGN_KEY', table: 'CaseAssignment', field: 'personId', targetTable: 'Person', targetField: 'id' },
+  ]);
   return build('Incident response records', 'incident-response', [
     { name: 'Person', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'name', type: 'TEXT', required: true }, { name: 'role', type: 'TEXT' }] },
     { name: 'Device', columns: [{ name: 'id', type: 'NUMBER', required: true, unique: true }, { name: 'hostname', type: 'TEXT', required: true }, { name: 'ownerId', type: 'NUMBER' }] },

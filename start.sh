@@ -17,7 +17,7 @@ fi
 
 echo "Building frontend..."
 (cd frontend && npm run build)
-echo "Applying Prisma schema to SQLite..."
-(cd backend && npx prisma db push --schema prisma/schema.prisma)
+echo "Setting up configured Prisma database..."
+(cd backend && npm run db:setup)
 echo "Starting LAZARUS-X at http://localhost:3000"
 (cd backend && npx ts-node --files src/index.ts)

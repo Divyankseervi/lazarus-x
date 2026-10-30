@@ -6,7 +6,7 @@
   "scripts": {
     "install:all": "npm --prefix backend ci && npm --prefix frontend ci",
     "build:frontend": "npm --prefix frontend run build",
-    "start": "npm run build:frontend && cd backend && npx prisma db push --schema prisma/schema.prisma && npx ts-node --files src/index.ts",
+    "start": "npm run build:frontend && npm --prefix backend run start",
     "test:backend": "cd backend && npm test",
     "test:frontend": "cd frontend && npx vitest run",
     "test": "npm run test:backend && npm run test:frontend && npm run test:intake",

@@ -17,7 +17,13 @@
 
 ---
 
-LAZARUS-X is an enterprise-grade forensic relational database recovery platform designed for investigation of fragmented, out-of-order, or tampered transaction logs. It combines an incremental Arc-Consistency (AC-3) constraint propagation solver, bounded multi-hypothesis state space, Shannon entropy ambiguity reduction, an immutable dual-layer cryptographic ledger anchored by RFC 6962 binary Merkle inclusion proofs, and an interactive executive light UI.
+LAZARUS-X is an explainable relational evidence-recovery platform for fragmented, out-of-order, damaged, or contradictory records. Its primary demonstration now covers Indian government-record recovery: a damaged birth register can be compared with surviving hospital, school, family-register, and municipal-office evidence while preserving unresolved alternatives for an authorised reviewer. The original cyber-incident and workforce/order walkthroughs remain available for DBMS assessment coverage. The engine combines incremental Arc-Consistency (AC-3) constraint propagation, bounded multi-hypothesis state space, Shannon entropy ambiguity reduction, a cryptographic provenance ledger, and a professional case-workbench UI.
+
+## Government record recovery
+
+The **Government record recovery** template contains eight application-level relations: `Person`, `BirthRecord`, `SourceDocument`, `SourceObservation`, `GovernmentOffice`, `Department`, `ReviewDecision`, and `CaseAssignment`. The synthetic **Damaged birth register — Kolar** walkthrough demonstrates competing names and dates of birth, office and department provenance, and a clear next-evidence recommendation.
+
+This feature reconstructs only from evidence that still survives in submitted documents, scans, exports, or observations. It cannot resurrect data that has no surviving storage or documentary trace, and it does not certify identity, citizenship, legal ownership, eligibility, fraud, guilt, or official government status. A human-authorised officer must review and approve any real-world decision. Demo records are fictional and must not be presented as real citizen data.
 
 ## Core capabilities
 
@@ -46,7 +52,11 @@ Candidate percentages and source confidence are heuristic decision-support value
 | Tests | Node assertions, backend test scripts, Vitest, Playwright configuration |
 | Delivery | Docker / Docker Compose / GitHub Actions |
 
-**Database scope:** the checked-in Prisma schema and runtime URL resolver target SQLite. PostgreSQL is not enabled by changing `DATABASE_URL`; that requires a deliberate provider/schema migration, regenerated client, provider-specific migrations, and integration tests. SQLite does not implement native stored procedures. Case sealing uses application-level transactional logic; SQL views and triggers are demonstrated where supported by the target engine.
+**Database scope:** local setup remains SQLite by default. Supabase PostgreSQL support is defined by `backend/prisma/supabase/schema.prisma` and its migrations. The connected Supabase database now has 12 application tables and indexes, two reporting views, an automatic evidence audit trigger, a sealed-case insert guard, and row-level security enabled with public API roles denied direct table access. To connect another environment, set `DATABASE_PROVIDER=postgresql`, use the Supavisor Session URL (port 5432) for `DATABASE_URL`, and set `DIRECT_URL` for Prisma migrations; Session mode may be used for both when direct IPv6 is unavailable. Run `npm run db:supabase:validate`, `npm run db:supabase:generate`, and `npm run db:supabase:migrate` from `backend`; `npm run db:supabase:smoke` checks the live views, triggers, RLS, and connection with temporary rows that are cleaned up. SQLite-specific native backups and course demo SQL remain SQLite-only.
+
+**Docker database modes:** `docker compose up --build` keeps the SQLite lab configuration. For the connected Supabase project, configure `DATABASE_PROVIDER=postgresql`, `DATABASE_URL`, and `DIRECT_URL` in the ignored `backend/.env`, then run `docker compose -f docker-compose.supabase.yml up --build`. The Supabase image is built with the PostgreSQL Prisma client, runs the checked-in migration at startup, and disables demo-user seeding. Docker build contexts exclude local `.env` files. Render's Docker blueprint also expects PostgreSQL connection secrets to be configured in its environment settings.
+
+**Wide-screen workbench:** at desktop widths, the case overview and metrics, evidence intake and raw-source table, and relationship graph and selected answer are arranged in paired columns. The cases, work area, and guidance/history rail scroll independently; smaller screens return to a single-column layout.
 
 ## Quick start (Windows PowerShell)
 
@@ -81,6 +91,10 @@ Candidate percentages and source confidence are heuristic decision-support value
    ```
 
 Open `http://localhost:3000`. The start command builds the frontend, applies the Prisma schema to the configured local SQLite file, and starts the API. Register an investigator account in the UI.
+
+### One-click Windows launch
+
+After installing Node.js 22.12+ (npm is included), double-click [`start.bat`](start.bat) from the project folder. On first run it installs missing dependencies, copies the environment template only when `backend/.env` is absent, generates a random local provenance key only when the template placeholder is present, builds the frontend, validates and syncs Prisma, starts the API, waits for database readiness, and opens the app. If the app is already running, it reuses the ready API and skips Prisma client regeneration to avoid Windows file locks. It does not print the generated key or replace an existing valid key. Keep the minimized **LAZARUS-X API** window open while using the app; close it to stop the server. If setup reports an invalid key, edit `backend/.env` and rerun.
 
 The authentication entry points are separated by role:
 

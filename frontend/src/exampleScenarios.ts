@@ -8,7 +8,7 @@
  * Course: BCSE302P Database Management Systems (L25+L26)
  */
 
-export type ExampleScenarioPreset = 'incident-response' | 'workforce-orders';
+export type ExampleScenarioPreset = 'incident-response' | 'workforce-orders' | 'government-record-recovery';
 
 export interface ExampleScenarioFragment {
   table: string;
@@ -35,14 +35,49 @@ export interface ExampleScenario {
 
 export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenario[] = [
   {
+    id: 'gov-birth-register',
+    title: 'Damaged birth record — Kolar',
+    description: 'Synthetic reconstruction of a water-damaged municipal birth register using hospital, school, and family-register observations.',
+    preset: 'government-record-recovery',
+    learningGoal: 'Show how different government and family records can support a person record while one date still needs checking.',
+    expected: {
+      survivingInterpretations: 2,
+      note: 'Conclusion: Anjali Kumari is supported by the available records, but the birth date has two values. Ask the registrar for one certified birth record before approving it.',
+    },
+    evidence: [
+      { table: 'Department', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'Department', recordId: 1, field: 'name', value: 'Municipal Administration', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'GovernmentOffice', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'GovernmentOffice', recordId: 1, field: 'departmentId', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'GovernmentOffice', recordId: 1, field: 'name', value: 'Kolar Municipal Registrar Office', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'GovernmentOffice', recordId: 1, field: 'district', value: 'Kolar', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'GovernmentOffice', recordId: 1, field: 'state', value: 'Karnataka', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'Person', recordId: 1, field: 'fullName', value: 'Anjali Kumari', confidence: 0.9, sourceRef: 'example:municipal-register-scan' },
+      { table: 'Person', recordId: 1, field: 'fullName', value: 'Anjali K.', confidence: 0.6, sourceRef: 'example:school-admission-register' },
+      { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '14-08-1998', confidence: 0.9, sourceRef: 'example:hospital-register' },
+      { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '18-08-1998', confidence: 0.7, sourceRef: 'example:school-admission-register' },
+      { table: 'Person', recordId: 1, field: 'village', value: 'Kolar', confidence: 0.9, sourceRef: 'example:family-register' },
+      { table: 'SourceDocument', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceDocument', recordId: 1, field: 'documentType', value: 'Municipal register scan', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceDocument', recordId: 1, field: 'officeName', value: 'Kolar Municipal Registrar Office', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceDocument', recordId: 1, field: 'status', value: 'Damaged but readable', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceObservation', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceObservation', recordId: 1, field: 'sourceDocumentId', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceObservation', recordId: 1, field: 'personId', value: 1, confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceObservation', recordId: 1, field: 'fieldName', value: 'dateOfBirth', confidence: 1, sourceRef: 'example:gov-birth-register' },
+      { table: 'SourceObservation', recordId: 1, field: 'observedValue', value: '14-08-1998', confidence: 0.9, sourceRef: 'example:hospital-register' },
+    ],
+  },
+  {
     id: 'ir-clean',
-    title: 'Clean incident (no conflicts)',
-    description: 'Complete, consistent incident response reconstruction with no conflicting observations.',
+    title: 'Clean cyber case',
+    description: 'Complete, consistent security reconstruction with no conflicting observations.',
     preset: 'incident-response',
-    learningGoal: 'See a complete, consistent reconstruction with single surviving interpretation.',
+    learningGoal: 'See a complete set of matching records that gives one clear answer.',
     expected: {
       survivingInterpretations: 1,
-      note: '1 surviving interpretation, entropy 0.000, 0 violations.',
+      note: 'Conclusion: All submitted records agree, so the case has one clear answer and no record problems.',
     },
     evidence: [
       { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:ir-clean' },
@@ -69,13 +104,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'ir-out-of-order',
-    title: 'Out-of-order evidence (parent arrives late)',
+    title: 'Records arrive later',
     description: 'Child observations arrive before parent artifacts, incidents, and persons; foreign keys resolve monotonically.',
     preset: 'incident-response',
-    learningGoal: 'Show unresolved foreign keys resolving later without premature pruning under open-world semantics.',
+    learningGoal: 'See that records can arrive in any order and still connect correctly when the missing record arrives later.',
     expected: {
       survivingInterpretations: 1,
-      note: 'After fragment 1 there are resolvable (not fatal) violations; after fragment 4 all links resolve; 1 surviving interpretation.',
+      note: 'Conclusion: The first update looks incomplete, but the later person, incident, and file records complete the links. The final answer is clear.',
     },
     evidence: [
       // 1. Observation 1
@@ -100,13 +135,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'ir-name-conflict',
-    title: 'Conflicting name from a weaker source',
+    title: 'Two names for one person',
     description: 'Two competing name observations for Person 1 with differing source confidences (0.9 vs 0.4).',
     preset: 'incident-response',
-    learningGoal: 'See competing hypotheses and the "next evidence" recommendation ranking.',
+    learningGoal: 'See two spellings for one person and learn which extra source record should be checked next.',
     expected: {
       survivingInterpretations: 2,
-      note: '2 surviving interpretations, entropy > 0. Next-evidence tab recommends Person[1].name; top candidate keeps "Asha Rao".',
+      note: 'Conclusion: “Asha Rao” is the better-supported name, but “A. Rao” cannot be rejected yet. Check an official identity document or staff register.',
     },
     evidence: [
       { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:ir-name-conflict' },
@@ -120,13 +155,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'ir-unique-clash',
-    title: 'Duplicate id (fatal violation)',
+    title: 'Same record number used twice',
     description: 'Two distinct persons claiming the identical primary key ID, triggering a UNIQUE constraint penalty.',
     preset: 'incident-response',
-    learningGoal: 'Show a UNIQUE violation lowering a candidate\'s probability score.',
+    learningGoal: 'See why two people cannot safely use the same record number.',
     expected: {
       survivingInterpretations: 1,
-      note: 'Engine reports 1 fatal violation for duplicate Person.id=1; score visibly lower than scenario A (0.01 vs 1.00).',
+      note: 'Conclusion: The case cannot be accepted as entered because two people use record number 1. Check the original register and correct the number before proceeding.',
     },
     evidence: [
       { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:ir-unique-clash' },
@@ -137,13 +172,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'wf-clean',
-    title: 'Workforce and orders (clean)',
+    title: 'Clean staff and purchase case',
     description: 'Consistent enterprise organizational structure and purchase orders with matched foreign keys.',
     preset: 'workforce-orders',
-    learningGoal: 'See a 3-table workforce schema resolve with 1 interpretation and zero violations.',
+    learningGoal: 'See staff, departments, and purchase records connect into one clean answer.',
     expected: {
       survivingInterpretations: 1,
-      note: '1 surviving interpretation, 0 violations, all foreign keys matched.',
+      note: 'Conclusion: Both staff members, their departments, and their orders connect correctly. The case is ready for review.',
     },
     evidence: [
       { table: 'Department', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:wf-clean' },
@@ -166,13 +201,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'wf-missing-parent',
-    title: 'Order points to unknown employee',
+    title: 'Employee record is missing',
     description: 'Order 1 references employee ID 7 which does not exist in the submitted employee evidence.',
     preset: 'workforce-orders',
-    learningGoal: 'Understand open-world assumptions and resolvable foreign-key violations.',
+    learningGoal: 'See how the app keeps an order waiting when the employee record has not arrived yet.',
     expected: {
       survivingInterpretations: 1,
-      note: '1 surviving interpretation with 1 resolvable violation on Order.employeeId pointing to missing employee 7.',
+      note: 'Conclusion: The order is recorded, but employee 7 is not yet available. Find that employee record before treating the order as confirmed.',
     },
     evidence: [
       { table: 'Order', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:wf-missing-parent' },
@@ -187,13 +222,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'wf-amount-conflict',
-    title: 'Two amounts for one order',
+    title: 'Two amounts for one purchase',
     description: 'Conflicting values for Order 1 amount ($2500 vs $250) with asymmetrical confidence (0.9 vs 0.5).',
     preset: 'workforce-orders',
-    learningGoal: 'Observe multi-candidate branching on numeric fields and recommendation targeting.',
+    learningGoal: 'See two amounts for one order and identify which invoice should be checked.',
     expected: {
       survivingInterpretations: 2,
-      note: '2 surviving interpretations; recommendation targets Order[1].amount with higher confidence on 2500.',
+      note: 'Conclusion: The order amount is either 2500 or 250. The invoice-backed 2500 is stronger, but check the original invoice and receipt before approval.',
     },
     evidence: [
       { table: 'Order', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:wf-amount-conflict' },
@@ -206,13 +241,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'ir-multi-incident-cascade',
-    title: 'Enterprise breach cascade (14 records, 5 relations)',
+    title: 'Large cyber case',
     description: 'Comprehensive enterprise APT breach: 4 personnel, 3 servers/workstations, 2 incidents, 3 forensic artifacts, and 3 analyst observations.',
     preset: 'incident-response',
-    learningGoal: 'Demonstrate deep multi-table relational foreign-key resolution across 14 interconnected records with 0 violations.',
+    learningGoal: 'See a larger cyber case where people, devices, incidents, files, and findings all connect.',
     expected: {
       survivingInterpretations: 1,
-      note: '1 surviving interpretation, entropy 0.000, 0 violations across 14 records in 5 relations.',
+      note: 'Conclusion: All 14 submitted records connect across the five record types. The case has one complete answer ready for review.',
     },
     evidence: [
       { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:ir-multi-incident-cascade' },
@@ -269,13 +304,13 @@ export const divyank24BCE0793_vidushi24BCE0786_EXAMPLE_SCENARIOS: ExampleScenari
   },
   {
     id: 'wf-multi-dept-enterprise',
-    title: 'Enterprise supply chain & purchase orders (18 records, 3 relations)',
+    title: 'Large purchase case',
     description: 'Multi-department procurement hierarchy: 4 corporate departments, 6 staff members, and 8 purchase order transactions.',
     preset: 'workforce-orders',
-    learningGoal: 'Demonstrate complex relational integrity, foreign-key fan-out, and multi-tier department hierarchy recovery.',
+    learningGoal: 'See a larger purchase case where departments, staff, and orders connect across several levels.',
     expected: {
       survivingInterpretations: 1,
-      note: '1 surviving interpretation, entropy 0.000, 0 violations across 18 records in 3 relations.',
+      note: 'Conclusion: All 18 submitted records connect across departments, staff, and orders. The case has one complete answer ready for review.',
     },
     evidence: [
       { table: 'Department', recordId: 1, field: 'id', value: 1, confidence: 1, sourceRef: 'example:wf-multi-dept-enterprise' },

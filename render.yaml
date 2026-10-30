@@ -14,12 +14,16 @@ services:
       - key: PORT
         value: 3000
       - key: DATABASE_URL
-        value: file:./data/dev.db
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: DATABASE_PROVIDER
+        value: postgresql
       - key: SEED_DEFAULT_USERS
-        value: "true"
+        value: "false"
       - key: PROVENANCE_ENCRYPTION_KEY
         generateValue: true
       - key: OPERATOR_BOOTSTRAP_TOKEN
         generateValue: true
-      - key: CORS_ORIGIN
-        value: "*"
+      - key: CORS_ORIGINS
+        sync: false

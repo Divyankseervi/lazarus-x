@@ -191,8 +191,12 @@ function toProvenanceEntry(entry: {
 
 function logApiFailure(req: Request, error: unknown): void {
     const errorName = error instanceof Error ? error.name : 'UnknownError';
+    const errorCode = typeof error === 'object' && error !== null && 'code' in error &&
+        typeof (error as { code?: unknown }).code === 'string'
+        ? (error as { code: string }).code
+        : undefined;
     // Keep request bodies, credentials, and database messages out of logs.
-    console.error(JSON.stringify({ event: 'api_error', method: req.method, path: req.path, errorName }));
+    console.error(JSON.stringify({ event: 'api_error', method: req.method, path: req.path, errorName, ...(errorCode ? { errorCode } : {}) }));
 }
 
 function acquireCaseLock(locks: Map<string, Promise<void>>, key: string): Promise<() => void> {
@@ -430,6 +434,10 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
         logApiFailure(req, error);
         res.status(500).json({ error: 'Internal server error.' });
     }
+});
+
+app.get('/api/auth/session', authenticate, (req, res) => {
+    res.json({ userId: req.user!.id, email: req.user!.email, role: req.user!.role });
 });
 
 app.post('/api/auth/logout', authenticate, writeRateLimit, async (req, res) => {
@@ -761,10 +769,58 @@ app.get('/api/admin/overview', authenticate, requireAdmin, async (_req, res) => 
             auditLogs,
             users,
             administrators,
+            databaseProvider: (process.env.DATABASE_PROVIDER || 'sqlite').trim().toLowerCase(),
             generatedAt: new Date().toISOString(),
         });
     } catch {
         res.status(503).json({ error: 'Administrator overview is temporarily unavailable.' });
+    }
+});
+
+// Administrator case queue: operational metadata only; evidence values are
+// intentionally excluded so administrators can triage without bulk exposure.
+app.get('/api/admin/cases', authenticate, requireAdmin, async (req, res) => {
+    try {
+        const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim().toUpperCase() : 'ALL';
+        if (!['ALL', 'ACTIVE', 'SEALED'].includes(rawStatus)) {
+            return res.status(400).json({ error: 'Status must be ALL, ACTIVE, or SEALED.' });
+        }
+        const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 120) : '';
+        const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '10'), 10) || 10));
+        const where = {
+            ...(rawStatus === 'ALL' ? {} : { status: rawStatus }),
+            ...(search ? {
+                OR: [
+                    { name: { contains: search } },
+                    { id: { contains: search } },
+                    { owner: { email: { contains: search } } },
+                ],
+            } : {}),
+        };
+        const [cases, total] = await Promise.all([
+            prisma.reconstructionCase.findMany({
+                where,
+                orderBy: { updatedAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit,
+                select: {
+                    id: true,
+                    name: true,
+                    status: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    provenanceSequence: true,
+                    owner: { select: { email: true, role: true } },
+                    _count: { select: { evidence: true, provenanceEntries: true, candidates: true } },
+                },
+            }),
+            prisma.reconstructionCase.count({ where }),
+        ]);
+        res.json({ cases, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(503).json({ error: 'Administrator case queue is temporarily unavailable.' });
     }
 });
 
@@ -951,6 +1007,119 @@ app.get('/api/cases', authenticate, async (req, res) => {
     }
 });
 
+const SOURCE_LOCATION_STATUSES = ['IN_STORAGE', 'CHECKED_OUT', 'RESTRICTED', 'NOT_FOUND'] as const;
+const sourceLocationFields = [
+    'departmentName', 'officeName', 'documentName', 'referenceCode', 'sourceReference',
+    'storageLocation', 'custodian', 'contact', 'accessNotes',
+] as const;
+
+function normalizedLocationText(value: unknown, maximum = 180): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, maximum) : null;
+}
+
+function validateSourceLocation(body: any): { ok: true; data: Record<string, unknown> } | { ok: false } {
+    const departmentName = normalizedLocationText(body?.departmentName, 120);
+    const officeName = normalizedLocationText(body?.officeName, 120);
+    const documentName = normalizedLocationText(body?.documentName, 180);
+    const storageLocation = normalizedLocationText(body?.storageLocation, 180);
+    if (!departmentName || !officeName || !documentName || !storageLocation) return { ok: false };
+    const data: Record<string, unknown> = { departmentName, officeName, documentName, storageLocation };
+    for (const key of sourceLocationFields) {
+        if (['departmentName', 'officeName', 'documentName', 'storageLocation'].includes(key)) continue;
+        const value = normalizedLocationText(body?.[key], key === 'accessNotes' ? 1000 : 180);
+        if (value) data[key] = value;
+    }
+    const status = typeof body?.status === 'string' ? body.status.trim().toUpperCase() : 'IN_STORAGE';
+    if (!(SOURCE_LOCATION_STATUSES as readonly string[]).includes(status)) return { ok: false };
+    data.status = status;
+    return { ok: true, data };
+}
+
+app.get('/api/source-document-locations', authenticate, async (req, res) => {
+    try {
+        const where = req.user!.role === 'ADMIN' ? {} : { ownerId: req.user!.id };
+        const records = await prisma.sourceDocumentLocation.findMany({
+            where,
+            orderBy: [{ updatedAt: 'desc' }, { departmentName: 'asc' }],
+            take: 1000,
+        });
+        const query = typeof req.query.q === 'string' ? req.query.q.trim().toLocaleLowerCase() : '';
+        const filtered = query
+            ? records.filter(record => [record.departmentName, record.officeName, record.documentName, record.referenceCode, record.sourceReference, record.storageLocation, record.custodian, record.contact, record.accessNotes]
+                .some(value => typeof value === 'string' && value.toLocaleLowerCase().includes(query)))
+            : records;
+        res.json({ locations: filtered, total: filtered.length, statuses: SOURCE_LOCATION_STATUSES });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not load the document directory.' });
+    }
+});
+
+app.post('/api/source-document-locations', authenticate, writeRateLimit, async (req, res) => {
+    const validated = validateSourceLocation(req.body);
+    if (!validated.ok) return res.status(400).json({ error: 'Department, office, document title, storage location, and a valid status are required.' });
+    try {
+        const location = await prisma.$transaction(async tx => {
+            const created = await tx.sourceDocumentLocation.create({
+                data: { ...validated.data, ownerId: req.user!.id, lastVerifiedAt: new Date() } as any,
+            });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'REGISTER_SOURCE_DOCUMENT_LOCATION', resourceType: 'SOURCE_DOCUMENT_LOCATION', resourceId: created.id } });
+            return created;
+        });
+        res.status(201).json({ location });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not register the document location.' });
+    }
+});
+
+app.post('/api/source-document-locations/demo', authenticate, writeRateLimit, async (req, res) => {
+    const sampleRows = [
+        { demoKey: 'kolar-school-register', departmentName: 'District Education Office', officeName: 'Kolar Records Section', documentName: 'School admission register · 1998', referenceCode: 'EDU-KLR-1998-042', sourceReference: 'example:school-admission-register', storageLocation: 'Archive Room 2 · Rack E · Shelf 14', custodian: 'Records Desk A', contact: 'Extension 204', accessNotes: 'Request the 1998 admission volume at the records counter.', status: 'IN_STORAGE' },
+        { demoKey: 'kolar-hospital-register', departmentName: 'Kolar Taluk Hospital', officeName: 'Medical Records Office', documentName: 'Birth register · Volume 1998', referenceCode: 'KTH-BR-1998-017', sourceReference: 'example:hospital-register', storageLocation: 'Basement Archive · Cabinet B · Box 4', custodian: 'Medical Records Desk', contact: 'Extension 118', accessNotes: 'Older volumes are retrieved by staff; allow one working day.', status: 'IN_STORAGE' },
+        { demoKey: 'kolar-municipal-register', departmentName: 'Kolar City Municipal Council', officeName: 'Births and Deaths Archive', documentName: 'Birth register · Ward 12 · 1998', referenceCode: 'KCMC-BD-W12-1998', sourceReference: 'example:municipal-birth-register', storageLocation: 'Old Office · Ground Floor · Rack M3', custodian: 'Vital Records Officer', contact: 'Extension 311', accessNotes: 'Bring the volume reference and a signed retrieval request.', status: 'RESTRICTED' },
+    ];
+    try {
+        const existing = await prisma.sourceDocumentLocation.findMany({ where: { ownerId: req.user!.id, demoKey: { in: sampleRows.map(row => row.demoKey) } }, select: { demoKey: true } });
+        const present = new Set(existing.map(row => row.demoKey));
+        const missing = sampleRows.filter(row => !present.has(row.demoKey));
+        if (missing.length) {
+            await prisma.$transaction(async tx => {
+                for (const row of missing) {
+                    await tx.sourceDocumentLocation.create({ data: { ...row, ownerId: req.user!.id, lastVerifiedAt: new Date() } });
+                }
+                await tx.auditLog.create({ data: { userId: req.user!.id, action: 'LOAD_SOURCE_LOCATION_DEMO', resourceType: 'SOURCE_DOCUMENT_LOCATION' } });
+            });
+        }
+        const locations = await prisma.sourceDocumentLocation.findMany({ where: { ownerId: req.user!.id }, orderBy: { updatedAt: 'desc' }, take: 1000 });
+        res.json({ locations, added: missing.length, demo: true });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not load sample document locations.' });
+    }
+});
+
+app.patch('/api/source-document-locations/:id', authenticate, writeRateLimit, async (req, res) => {
+    const id = req.params.id as string;
+    try {
+        const current = await prisma.sourceDocumentLocation.findUnique({ where: { id } });
+        if (!current || (current.ownerId !== req.user!.id && req.user!.role !== 'ADMIN')) return res.status(404).json({ error: 'Document location not found.' });
+        const validated = validateSourceLocation({ ...current, ...req.body });
+        if (!validated.ok) return res.status(400).json({ error: 'Enter a valid department, office, document title, storage location, and status.' });
+        const updated = await prisma.$transaction(async tx => {
+            const result = await tx.sourceDocumentLocation.update({ where: { id }, data: { ...validated.data, lastVerifiedAt: new Date() } as any });
+            await tx.auditLog.create({ data: { userId: req.user!.id, action: 'UPDATE_SOURCE_DOCUMENT_LOCATION', resourceType: 'SOURCE_DOCUMENT_LOCATION', resourceId: id } });
+            return result;
+        });
+        res.json({ location: updated });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not update the document location.' });
+    }
+});
+
 app.post('/api/cases', authenticate, writeRateLimit, async (req, res) => {
     try {
         let caseSchema: Schema;
@@ -1021,7 +1190,6 @@ app.get('/api/cases/:id', authenticate, async (req, res) => {
         catch { throw new Error('Saved case schema is not valid.'); }
         const recentEvidence = engine.getProvenanceEntries()
             .filter(entry => entry.eventType === 'EVIDENCE_ACCEPTED')
-            .slice(-50)
             .reverse()
             .map(entry => {
                 const payload = JSON.parse(entry.payload) as Record<string, unknown>;
@@ -1032,6 +1200,7 @@ app.get('/api/cases/:id', authenticate, async (req, res) => {
                     recordId: payload.recordId,
                     field: payload.field,
                     value: payload.value,
+                    confidence: payload.confidence,
                     sourceRef: payload.sourceRef,
                     sourceSha256: payload.sourceSha256,
                     at: entry.receivedAt,
@@ -1089,6 +1258,307 @@ app.get('/api/cases/:id/candidates/:candidateId', authenticate, async (req, res)
     } finally {
         release();
     }
+});
+
+// Purpose-limited verification against an investigator-imported partner extract.
+// The full dataset is searched in the browser; only the matched key and one
+// requested field cross the API boundary, and neither is persisted as evidence.
+app.post('/api/cases/:id/department-verifications', authenticate, writeRateLimit, async (req, res) => {
+    const id = req.params.id as string;
+    const release = await acquireCaseLock(caseLocks, id);
+    try {
+        const dbCase = await prisma.reconstructionCase.findUnique({
+            where: { id },
+            select: { id: true, ownerId: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
+        });
+        if (!dbCase) return res.status(404).json({ error: 'Case not found.' });
+        if (dbCase.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden: Not case owner.' });
+
+        const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
+        const { table, recordId, field, departmentName, partnerField, partnerValue, value, sourceReference, sourceVersion, datasetDigest, matchKey } = body;
+        if (typeof table !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/.test(table)
+            || typeof field !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/.test(field)
+            || !Number.isSafeInteger(recordId) || (recordId as number) < 0
+            || typeof departmentName !== 'string' || departmentName.trim().length < 2 || departmentName.trim().length > 100
+            || typeof partnerField !== 'string' || partnerField.trim().length < 1 || partnerField.length > 100
+            || typeof sourceReference !== 'string' || sourceReference.trim().length < 1 || sourceReference.length > 160
+            || (sourceVersion !== undefined && (typeof sourceVersion !== 'string' || sourceVersion.length > 100))
+            || typeof datasetDigest !== 'string' || !/^[a-f0-9]{64}$/i.test(datasetDigest)
+            || !(value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)))
+            || (typeof value === 'string' && value.length > 1000)
+            || !matchKey || typeof matchKey !== 'object' || Array.isArray(matchKey)) {
+            return res.status(400).json({ error: 'Provide a department name, source file fingerprint, exact record match, and one scalar field value.', code: 'INVALID_DEPARTMENT_CHECK' });
+        }
+        const key = matchKey as Record<string, unknown>;
+        const scalar = (candidate: unknown) => candidate === null || typeof candidate === 'string' || typeof candidate === 'boolean' || (typeof candidate === 'number' && Number.isFinite(candidate));
+        const normalizeKey = (candidate: unknown) => candidate === null || candidate === undefined ? null : String(candidate).normalize('NFKC').trim().toLocaleLowerCase('en-US');
+        if (typeof key.caseField !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,62}$/.test(key.caseField)
+            || typeof key.partnerKeyField !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,99}$/.test(key.partnerKeyField)
+            || !scalar(key.caseValue) || !scalar(partnerValue)
+            || normalizeKey(key.caseValue) === null || normalizeKey(key.caseValue) !== normalizeKey(partnerValue)) {
+            return res.status(400).json({ error: 'The imported record must exactly match one non-conflicted value from this case.', code: 'INVALID_DEPARTMENT_MATCH_KEY' });
+        }
+
+        let engine = activeEngines.get(id);
+        const head = engine?.getProvenanceHead();
+        if (!engine || head?.sequence !== dbCase.provenanceSequence || head?.hash !== dbCase.provenanceHead) {
+            engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
+            if (!engine) return res.status(404).json({ error: 'Case not found.' });
+            activeEngines.set(id, engine);
+        }
+
+        const caseEvidence = engine.getProvenanceEntries()
+            .filter(entry => entry.eventType === 'EVIDENCE_ACCEPTED')
+            .map(entry => JSON.parse(entry.payload) as { table: string; recordId: number; field: string; value: unknown });
+        const conflictEvidence = caseEvidence.filter(item => item.table === table && item.recordId === recordId && item.field === field);
+        const valueKey = (value: unknown) => JSON.stringify({ type: value === null ? 'null' : typeof value, value });
+        const existingValues = [...new Map(conflictEvidence.map(item => [valueKey(item.value), item.value])).values()];
+        if (existingValues.length < 2) {
+            return res.status(409).json({ error: 'Department checks are available only for fields with conflicting source values.', code: 'FIELD_NOT_CONFLICTED' });
+        }
+
+        const caseKeys = caseEvidence.filter(item => item.table === table && item.recordId === recordId && item.field === key.caseField);
+        const distinctKeys = [...new Map(caseKeys.map(item => [valueKey(item.value), item.value])).values()];
+        if (distinctKeys.length !== 1 || valueKey(distinctKeys[0]) !== valueKey(key.caseValue)) {
+            return res.status(400).json({ error: 'Choose a single-valued, non-conflicted matching field from this case record.', code: 'INVALID_CASE_MATCH_KEY' });
+        }
+
+        const requestedAt = new Date().toISOString();
+        const matchesExisting = existingValues.some(existingValue => valueKey(existingValue) === valueKey(value));
+        const response = {
+            departmentName: departmentName.trim(),
+            field,
+            partnerField: partnerField.trim(),
+            value,
+            sourceReference: sourceReference.trim(),
+            sourceVersion: typeof sourceVersion === 'string' && sourceVersion.trim() ? sourceVersion.trim() : 'Unversioned extract',
+            sourceMode: 'USER_SUPPLIED_PARTNER_EXTRACT' as const,
+            departmentAuthenticated: false as const,
+            matchStatus: matchesExisting ? 'MATCHES_AN_EXISTING_READING' as const : 'NEW_READING' as const,
+        };
+        const responseDigest = crypto.createHash('sha256').update(JSON.stringify({ caseId: id, sequence: dbCase.provenanceSequence, response, datasetDigest }), 'utf8').digest('hex');
+        const auditEvent = await prisma.auditLog.create({
+            data: {
+                userId: req.user!.id,
+                action: 'INTERDEPARTMENTAL_VERIFICATION',
+                resourceType: `CASE_FIELD_CHECK:${table}.${field}`,
+                resourceId: id,
+            },
+        });
+        res.json({
+            request: { table, recordId, field, departmentName: departmentName.trim(), partnerField: partnerField.trim(), purpose: 'Resolve a source conflict' },
+            existingValues,
+            response,
+            receipt: {
+                requestId: auditEvent.id,
+                requestedAt,
+                caseProvenanceSequence: dbCase.provenanceSequence,
+                responseDigest,
+                datasetDigest,
+                auditLogged: true,
+            },
+            committed: false,
+        });
+    } catch (error) {
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not complete the department verification request.' });
+    } finally { release(); }
+});
+
+// A what-if observation is evaluated on a fork and is never written to the case,
+// fragment table, or provenance ledger.
+app.post('/api/cases/:id/simulate', authenticate, writeRateLimit, async (req, res) => {
+    const id = req.params.id as string;
+    const release = await acquireCaseLock(caseLocks, id);
+    try {
+        const dbCase = await prisma.reconstructionCase.findUnique({
+            where: { id }, select: { id: true, ownerId: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
+        });
+        if (!dbCase) return res.status(404).json({ error: 'Case not found.' });
+        if (dbCase.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden: Not case owner.' });
+        let engine = activeEngines.get(id);
+        const head = engine?.getProvenanceHead();
+        if (!engine || head?.sequence !== dbCase.provenanceSequence || head?.hash !== dbCase.provenanceHead) {
+            engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
+            if (!engine) return res.status(404).json({ error: 'Case not found.' });
+            activeEngines.set(id, engine);
+        }
+        const raw = req.body?.evidence;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return res.status(400).json({ error: 'One hypothetical evidence object is required.', code: 'INVALID_EVIDENCE' });
+        const item = raw as Record<string, unknown>;
+        const before = engine.getBestState();
+        const beforeCount = engine.states.length;
+        const beforeEntropy = candidateEntropyBits(engine);
+        const preview = engine.fork();
+        preview.processEvidence([{
+            id: `simulation:${crypto.randomUUID()}`,
+            table: item.table as string,
+            recordId: item.recordId as number,
+            field: item.field as string,
+            value: item.value,
+            ...(item.confidence === undefined ? {} : { confidence: item.confidence as number }),
+            sourceRef: 'HYPOTHETICAL_PREVIEW',
+        }], { actorId: req.user!.id, receivedAt: new Date() });
+        res.json({
+            before: { bestState: before, candidates: candidateSummaries(engine), candidateCount: beforeCount, entropyBits: beforeEntropy },
+            after: { bestState: preview.getBestState(), candidates: candidateSummaries(preview), candidateCount: preview.states.length, entropyBits: candidateEntropyBits(preview), diagnostics: preview.getSearchDiagnostics() },
+            hypothetical: { table: item.table, recordId: item.recordId, field: item.field, value: item.value },
+            committed: false,
+        });
+    } catch (error) {
+        if (error instanceof EvidenceValidationError) return res.status(400).json({ error: error.message, code: error.code });
+        if (error instanceof SearchSpaceLimitError) return res.status(422).json({ error: error.message, code: error.code });
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not simulate this evidence.' });
+    } finally { release(); }
+});
+
+// Simulates evidence expiry or replacement against the verified case ledger.
+// The source case, evidence rows, and provenance chain remain untouched.
+app.post('/api/cases/:id/simulate-evidence-lifecycle', authenticate, writeRateLimit, async (req, res) => {
+    const id = req.params.id as string;
+    const release = await acquireCaseLock(caseLocks, id);
+    try {
+        const dbCase = await prisma.reconstructionCase.findUnique({
+            where: { id }, select: { id: true, ownerId: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
+        });
+        if (!dbCase) return res.status(404).json({ error: 'Case not found.' });
+        if (dbCase.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden: Not case owner.' });
+
+        let engine = activeEngines.get(id);
+        const cachedHead = engine?.getProvenanceHead();
+        if (!engine || cachedHead?.sequence !== dbCase.provenanceSequence || cachedHead?.hash !== dbCase.provenanceHead) {
+            engine = await rehydrateEngine(id, prisma) as LazarusXEngine;
+            if (!engine) return res.status(404).json({ error: 'Case not found.' });
+            activeEngines.set(id, engine);
+        }
+
+        const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body as Record<string, unknown> : {};
+        const { targetSequence, action, replacementValue, replacementSource } = body;
+        if (!Number.isSafeInteger(targetSequence) || (targetSequence as number) < 1 || (action !== 'EXPIRE' && action !== 'REPLACE')) {
+            return res.status(400).json({ error: 'Choose one accepted evidence sequence and an expiry or replacement action.', code: 'INVALID_LIFECYCLE_PREVIEW' });
+        }
+        if (action === 'REPLACE' && (!(replacementValue === null || typeof replacementValue === 'string' || typeof replacementValue === 'boolean' || (typeof replacementValue === 'number' && Number.isFinite(replacementValue)))
+            || (typeof replacementValue === 'string' && replacementValue.length > 1000)
+            || typeof replacementSource !== 'string' || replacementSource.trim().length < 1 || replacementSource.length > 160)) {
+            return res.status(400).json({ error: 'A replacement needs one scalar value and a source reference.', code: 'INVALID_REPLACEMENT' });
+        }
+
+        const accepted = engine.getProvenanceEntries()
+            .filter(entry => entry.eventType === 'EVIDENCE_ACCEPTED')
+            .map(entry => ({ entry, payload: JSON.parse(entry.payload) as Record<string, unknown> }));
+        if (accepted.length > 10_000) return res.status(422).json({ error: 'This preview is limited to cases with 10,000 or fewer evidence observations.', code: 'LIFECYCLE_PREVIEW_LIMIT' });
+        const target = accepted.find(item => item.entry.sequence === targetSequence);
+        if (!target || typeof target.payload.table !== 'string' || typeof target.payload.field !== 'string' || !Number.isSafeInteger(target.payload.recordId)) {
+            return res.status(404).json({ error: 'That ledger sequence is not an accepted evidence observation.', code: 'EVIDENCE_SEQUENCE_NOT_FOUND' });
+        }
+        if (action === 'REPLACE' && typeof replacementValue === 'string' && replacementValue.trim().length === 0) {
+            return res.status(400).json({ error: 'Replacement value cannot be blank.', code: 'INVALID_REPLACEMENT' });
+        }
+
+        let lifecycleSchema: Schema;
+        try { lifecycleSchema = normalizeSchemaDefinition(JSON.parse(dbCase.schemaDefinition || '{}'), engineSchema); }
+        catch { return res.status(503).json({ error: 'Saved case schema is not valid.', code: 'CASE_SCHEMA_UNAVAILABLE' }); }
+        const toEvidence = (items: typeof accepted): Evidence[] => items.map(({ entry, payload }) => ({
+            id: entry.fragmentId,
+            table: payload.table as string,
+            recordId: payload.recordId as number,
+            field: payload.field as string,
+            value: payload.value as Evidence['value'],
+            ...(payload.confidence === undefined ? {} : { confidence: payload.confidence as number }),
+            sourceRef: typeof payload.sourceRef === 'string' ? payload.sourceRef : 'UNNAMED_SOURCE',
+        }));
+        const alternativeItems = accepted.filter(item => item.entry.sequence !== target.entry.sequence);
+        if (action === 'REPLACE') {
+            alternativeItems.push({
+                entry: { ...target.entry, fragmentId: `lifecycle-preview:${crypto.randomUUID()}` },
+                payload: { ...target.payload, value: replacementValue, sourceRef: (replacementSource as string).trim() },
+            });
+        }
+        const alternative = new LazarusXEngine(lifecycleSchema, 20);
+        const alternativeEvidence = toEvidence(alternativeItems);
+        if (alternativeEvidence.length) alternative.processEvidence(alternativeEvidence, { actorId: req.user!.id, receivedAt: new Date() });
+
+        res.json({
+            target: {
+                sequence: target.entry.sequence,
+                receivedAt: target.entry.receivedAt,
+                table: target.payload.table,
+                recordId: target.payload.recordId,
+                field: target.payload.field,
+                value: target.payload.value,
+                sourceRef: typeof target.payload.sourceRef === 'string' ? target.payload.sourceRef : 'Unnamed source',
+            },
+            action,
+            baseline: { bestState: engine.getBestState(), candidateCount: engine.states.length, entropyBits: candidateEntropyBits(engine) },
+            alternative: { bestState: alternative.getBestState(), candidateCount: alternative.states.length, entropyBits: candidateEntropyBits(alternative) },
+            replacement: action === 'REPLACE' ? { value: replacementValue, sourceRef: (replacementSource as string).trim() } : null,
+            committed: false,
+            persistedEvidenceUnchanged: true,
+            provenanceSequence: dbCase.provenanceSequence,
+        });
+    } catch (error) {
+        if (error instanceof EvidenceValidationError) return res.status(400).json({ error: error.message, code: error.code });
+        if (error instanceof SearchSpaceLimitError) return res.status(422).json({ error: error.message, code: error.code });
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not simulate this evidence lifecycle change.' });
+    } finally { release(); }
+});
+
+app.post('/api/cases/:id/simulate-comparison', authenticate, writeRateLimit, async (req, res) => {
+    const id = req.params.id as string;
+    const release = await acquireCaseLock(caseLocks, id);
+    try {
+        const dbCase = await prisma.reconstructionCase.findUnique({
+            where: { id }, select: { id: true, ownerId: true, provenanceSequence: true, provenanceHead: true, schemaDefinition: true },
+        });
+        if (!dbCase) return res.status(404).json({ error: 'Case not found.' });
+        if (dbCase.ownerId !== req.user!.id && req.user!.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden: Not case owner.' });
+        let savedEngine = activeEngines.get(id);
+        const savedHead = savedEngine?.getProvenanceHead();
+        if (!savedEngine || savedHead?.sequence !== dbCase.provenanceSequence || savedHead?.hash !== dbCase.provenanceHead) {
+            savedEngine = await rehydrateEngine(id, prisma) as LazarusXEngine;
+            if (!savedEngine) return res.status(404).json({ error: 'Case not found.' });
+            activeEngines.set(id, savedEngine);
+        }
+        const { baseline, alternative } = req.body ?? {};
+        const validateBatch = (items: unknown): items is Array<Record<string, unknown>> => Array.isArray(items) && items.length > 0 && items.length <= 250 && items.every(item => item && typeof item === 'object' && !Array.isArray(item));
+        if (!validateBatch(baseline) || !validateBatch(alternative)) {
+            return res.status(400).json({ error: 'Provide two complete evidence arrays, each containing 1 to 250 observations.', code: 'INVALID_COMPARISON' });
+        }
+        let comparisonSchema: Schema;
+        try {
+            const submittedSchema = req.body?.schemaDefinition === undefined
+                ? JSON.parse(dbCase.schemaDefinition || '{}')
+                : req.body.schemaDefinition;
+            comparisonSchema = normalizeSchemaDefinition(submittedSchema, engineSchema);
+        } catch (schemaError) {
+            return res.status(400).json({
+                error: schemaError instanceof Error ? schemaError.message : 'Comparison schema is invalid.',
+                code: 'INVALID_COMPARISON_SCHEMA',
+            });
+        }
+        const runCase = (items: Array<Record<string, unknown>>) => {
+            const simulation = new LazarusXEngine(comparisonSchema, 20);
+            const evidence: Evidence[] = items.map(item => ({
+                id: `comparison:${crypto.randomUUID()}`,
+                table: item.table as string,
+                recordId: item.recordId as number,
+                field: item.field as string,
+                value: item.value,
+                ...(item.confidence === undefined ? {} : { confidence: item.confidence as number }),
+                sourceRef: typeof item.sourceRef === 'string' ? item.sourceRef : 'SYNTHETIC_COMPARISON_CASE',
+            }));
+            simulation.processEvidence(evidence, { actorId: req.user!.id, receivedAt: new Date() });
+            return { bestState: simulation.getBestState(), candidates: candidateSummaries(simulation), candidateCount: simulation.states.length, entropyBits: candidateEntropyBits(simulation), diagnostics: simulation.getSearchDiagnostics() };
+        };
+        res.json({ baseline: runCase(baseline), alternative: runCase(alternative), committed: false });
+    } catch (error) {
+        if (error instanceof EvidenceValidationError) return res.status(400).json({ error: error.message, code: error.code });
+        if (error instanceof SearchSpaceLimitError) return res.status(422).json({ error: error.message, code: error.code });
+        logApiFailure(req, error);
+        res.status(500).json({ error: 'Could not compare these complete cases.' });
+    } finally { release(); }
 });
 
 app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, res) => {
@@ -1155,37 +1625,46 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
         const head = nextEngine.getProvenanceHead();
 
         await prisma.$transaction(async (tx) => {
-            for (const ev of evidenceArray) {
-                await tx.evidenceFragment.create({
-                    data: {
-                        id: ev.id,
-                        caseId: id,
-                        table: ev.table,
-                        recordId: ev.recordId,
-                        field: ev.field,
-                        value: String(ev.value),
-                        userId: req.user!.id,
-                        timestamp: receivedAt,
-                        ...(ev.sourceRef === undefined ? {} : { sourceRef: ev.sourceRef }),
-                        ...(ev.sourceSha256 === undefined ? {} : { sourceSha256: ev.sourceSha256.toLowerCase() }),
-                    }
-                });
+            const fragmentRows = evidenceArray.map(ev => ({
+                id: ev.id,
+                caseId: id,
+                table: ev.table,
+                recordId: ev.recordId,
+                field: ev.field,
+                value: String(ev.value),
+                userId: req.user!.id,
+                timestamp: receivedAt,
+                ...(ev.sourceRef === undefined ? {} : { sourceRef: ev.sourceRef }),
+                ...(ev.sourceSha256 === undefined ? {} : { sourceSha256: ev.sourceSha256.toLowerCase() }),
+            }));
+            if ((process.env.DATABASE_PROVIDER || 'sqlite').trim().toLowerCase() === 'postgresql') {
+                // Prisma 5.11 supports createMany for Postgres, while its SQLite
+                // client does not expose that delegate method. Keep the SQLite
+                // path portable and batch over the remote Supabase pooler.
+                const fragmentBulk = tx.evidenceFragment as unknown as { createMany(args: { data: unknown[] }): Promise<unknown> };
+                await fragmentBulk.createMany({ data: fragmentRows });
+            } else {
+                for (const row of fragmentRows) await tx.evidenceFragment.create({ data: row });
             }
-            for (const entry of newEntries) {
-                await tx.evidenceProvenanceEntry.create({
-                    data: {
-                        caseId: id,
-                        sequence: entry.sequence,
-                        eventType: entry.eventType,
-                        fragmentId: entry.fragmentId,
-                        relatedFragmentIds: JSON.stringify(entry.relatedFragmentIds),
-                        actorId: entry.actorId,
-                        receivedAt: new Date(entry.receivedAt),
-                        payload: entry.payload,
-                        previousHash: entry.previousHash,
-                        hash: entry.hash,
-                    }
-                });
+            if (newEntries.length > 0) {
+                const provenanceRows = newEntries.map(entry => ({
+                    caseId: id,
+                    sequence: entry.sequence,
+                    eventType: entry.eventType,
+                    fragmentId: entry.fragmentId,
+                    relatedFragmentIds: JSON.stringify(entry.relatedFragmentIds),
+                    actorId: entry.actorId,
+                    receivedAt: new Date(entry.receivedAt),
+                    payload: entry.payload,
+                    previousHash: entry.previousHash,
+                    hash: entry.hash,
+                }));
+                if ((process.env.DATABASE_PROVIDER || 'sqlite').trim().toLowerCase() === 'postgresql') {
+                    const provenanceBulk = tx.evidenceProvenanceEntry as unknown as { createMany(args: { data: unknown[] }): Promise<unknown> };
+                    await provenanceBulk.createMany({ data: provenanceRows });
+                } else {
+                    for (const row of provenanceRows) await tx.evidenceProvenanceEntry.create({ data: row });
+                }
             }
             const storedCase = await tx.reconstructionCase.findUnique({
                 where: { id },
@@ -1203,7 +1682,7 @@ app.post('/api/cases/:id/evidence', authenticate, writeRateLimit, async (req, re
                     provenanceSequence: head.sequence,
                 }
             });
-        });
+        }, { maxWait: 10_000, timeout: 60_000 });
         engine = nextEngine;
         activeEngines.set(id, engine);
         provenanceAccumulatorCache.delete(id);

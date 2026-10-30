@@ -6,6 +6,7 @@ import { createApp } from './index';
 import { provisionAdmin } from './provision_admin';
 import { verifyPassword, hashPassword } from './security/password';
 import { verifyProvenanceDisclosure, verifyPublicProvenanceEnvelope, PUBLIC_ENVELOPE_GENESIS_HASH, verifyProvenanceCheckpointManifest, verifyEnvelopeInclusionProof } from './engine/provenance';
+import { INCIDENT_RESPONSE_SCHEMA } from './engine/schema_definition';
 
 interface TestUser {
     id: string;
@@ -41,8 +42,11 @@ function createFakePrisma() {
         cases: [] as TestCase[],
         evidenceFragments: [] as any[],
         provenanceEntries: [] as any[],
+        auditEvents: [] as any[],
+        sourceLocations: [] as any[],
         nextUserId: 1,
         nextCaseId: 1,
+        nextSourceLocationId: 1,
     };
 
     const fake: any = {
@@ -89,7 +93,11 @@ function createFakePrisma() {
             },
         },
         auditLog: {
-            create: async ({ data }: any) => ({ id: `audit-${Date.now()}`, ...data }),
+            create: async ({ data }: any) => {
+                const entry = { id: `audit-${state.auditEvents.length + 1}`, timestamp: new Date(), ...data };
+                state.auditEvents.push(entry);
+                return entry;
+            },
             findMany: async () => [],
             count: async () => 0,
         },
@@ -107,12 +115,36 @@ function createFakePrisma() {
                 state.cases.push(dbCase);
                 return dbCase;
             },
-            findMany: async ({ where, take }: any) => state.cases
+            findMany: async ({ where, take, skip, select }: any) => state.cases
                 .filter(dbCase => !where?.ownerId || dbCase.ownerId === where.ownerId)
+                .filter(dbCase => !where?.status || dbCase.status === where.status)
+                .filter(dbCase => !where?.OR || where.OR.some((condition: any) =>
+                    (condition.name?.contains && dbCase.name.includes(condition.name.contains)) ||
+                    (condition.id?.contains && dbCase.id.includes(condition.id.contains)) ||
+                    (condition.owner?.email?.contains && state.users.find(user => user.id === dbCase.ownerId)?.email.includes(condition.owner.email.contains))))
                 .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-                .slice(0, take),
+                .slice(skip ?? 0, (skip ?? 0) + (take ?? state.cases.length))
+                .map(dbCase => select?.owner || select?._count ? {
+                    id: dbCase.id,
+                    name: dbCase.name,
+                    status: dbCase.status,
+                    createdAt: dbCase.createdAt,
+                    updatedAt: dbCase.updatedAt,
+                    provenanceSequence: dbCase.provenanceSequence,
+                    owner: { email: state.users.find(user => user.id === dbCase.ownerId)?.email, role: state.users.find(user => user.id === dbCase.ownerId)?.role },
+                    _count: {
+                        evidence: state.evidenceFragments.filter(entry => entry.caseId === dbCase.id).length,
+                        provenanceEntries: state.provenanceEntries.filter(entry => entry.caseId === dbCase.id).length,
+                        candidates: 0,
+                    },
+                } : dbCase),
             count: async ({ where }: any) => state.cases
-                .filter(dbCase => !where?.ownerId || dbCase.ownerId === where.ownerId).length,
+                .filter(dbCase => !where?.ownerId || dbCase.ownerId === where.ownerId)
+                .filter(dbCase => !where?.status || dbCase.status === where.status)
+                .filter(dbCase => !where?.OR || where.OR.some((condition: any) =>
+                    (condition.name?.contains && dbCase.name.includes(condition.name.contains)) ||
+                    (condition.id?.contains && dbCase.id.includes(condition.id.contains)) ||
+                    (condition.owner?.email?.contains && state.users.find(user => user.id === dbCase.ownerId)?.email.includes(condition.owner.email.contains)))).length,
             findUnique: async ({ where }: any) => state.cases.find(dbCase => dbCase.id === where.id) ?? null,
             update: async ({ where, data }: any) => {
                 const dbCase = state.cases.find(candidate => candidate.id === where.id);
@@ -151,6 +183,38 @@ function createFakePrisma() {
             .filter(entry => where.sequence?.equals === undefined || entry.sequence === where.sequence.equals)
                 .sort((a, b) => orderBy.sequence === 'asc' ? a.sequence - b.sequence : b.sequence - a.sequence),
         },
+        sourceDocumentLocation: {
+            findMany: async ({ where, orderBy, take }: any) => state.sourceLocations
+                .filter(entry => !where?.ownerId || entry.ownerId === where.ownerId)
+                .filter(entry => !where?.demoKey?.in || where.demoKey.in.includes(entry.demoKey))
+                .sort((a, b) => (orderBy?.updatedAt === 'desc' ? b.updatedAt.getTime() - a.updatedAt.getTime() : a.departmentName.localeCompare(b.departmentName)))
+                .slice(0, take ?? state.sourceLocations.length)
+                .map(entry => where?.select ? Object.fromEntries(Object.keys(where.select).filter(key => where.select[key]).map(key => [key, entry[key]])) : entry),
+            findUnique: async ({ where }: any) => state.sourceLocations.find(entry => entry.id === where.id) ?? null,
+            create: async ({ data }: any) => {
+                const now = new Date();
+                const entry = { id: `source-location-${state.nextSourceLocationId++}`, createdAt: now, updatedAt: now, ...data };
+                state.sourceLocations.push(entry);
+                return entry;
+            },
+            createMany: async ({ data, skipDuplicates }: any) => {
+                let count = 0;
+                for (const item of data) {
+                    const duplicate = item.demoKey && state.sourceLocations.some(entry => entry.ownerId === item.ownerId && entry.demoKey === item.demoKey);
+                    if (duplicate && skipDuplicates) continue;
+                    const now = new Date();
+                    state.sourceLocations.push({ id: `source-location-${state.nextSourceLocationId++}`, createdAt: now, updatedAt: now, ...item });
+                    count += 1;
+                }
+                return { count };
+            },
+            update: async ({ where, data }: any) => {
+                const entry = state.sourceLocations.find(item => item.id === where.id);
+                if (!entry) throw new Error('Document location not found');
+                Object.assign(entry, data, { updatedAt: new Date() });
+                return entry;
+            },
+        },
     };
     fake.$transaction = async (operation: (tx: any) => Promise<unknown>) => operation(fake);
 
@@ -178,6 +242,26 @@ test('production metrics endpoint is hidden unless an operator token is configur
         if (previousNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousNodeEnv;
         if (previousMetricsToken === undefined) delete process.env.METRICS_TOKEN; else process.env.METRICS_TOKEN = previousMetricsToken;
     }
+});
+
+test('saved browser sessions can restore the authenticated user profile after a page reload', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        await fetch(`${api}/api/auth/register`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'restore-session@example.test', password: 'Password123!' }),
+        });
+        const login = await fetch(`${api}/api/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'restore-session@example.test', password: 'Password123!' }),
+        });
+        const { token } = await login.json() as { token: string };
+        const response = await fetch(`${api}/api/auth/session`, { headers: { Authorization: `Bearer ${token}` } });
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), { userId: 'user-1', email: 'restore-session@example.test', role: 'INVESTIGATOR' });
+        const unauthenticated = await fetch(`${api}/api/auth/session`);
+        assert.equal(unauthenticated.status, 401);
+    });
 });
 
 test('readiness endpoint checks database connectivity separately from liveness', async () => {
@@ -310,6 +394,53 @@ test('operator provisioning creates an ADMIN that can use admin-only deletion', 
     });
 });
 
+test('administrator case queue requires ADMIN and returns searchable metadata without evidence values', async () => {
+    const fake = createFakePrisma();
+    await provisionAdmin(fake.client, 'queue-admin@example.test', 'LongQueueAdminPassword123!');
+
+    await withServer(fake.client, async api => {
+        const registration = await fetch(`${api}/api/auth/register`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'teacher-values@example.test', password: 'TeacherValuesPassword123!' }),
+        });
+        assert.equal(registration.status, 201);
+        const investigatorLogin = await fetch(`${api}/api/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'teacher-values@example.test', password: 'TeacherValuesPassword123!' }),
+        });
+        const investigator = await investigatorLogin.json() as { token: string };
+        const createCase = await fetch(`${api}/api/cases`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${investigator.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Teacher supplied values' }),
+        });
+        assert.equal(createCase.status, 200);
+
+        const unauthenticated = await fetch(`${api}/api/admin/cases`);
+        assert.equal(unauthenticated.status, 401);
+        const forbidden = await fetch(`${api}/api/admin/cases`, { headers: { Authorization: `Bearer ${investigator.token}` } });
+        assert.equal(forbidden.status, 403);
+
+        const adminLogin = await fetch(`${api}/api/auth/login`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'queue-admin@example.test', password: 'LongQueueAdminPassword123!' }),
+        });
+        const admin = await adminLogin.json() as { token: string };
+        const response = await fetch(`${api}/api/admin/cases?search=teacher-values%40example.test&status=ACTIVE`, {
+            headers: { Authorization: `Bearer ${admin.token}` },
+        });
+        assert.equal(response.status, 200);
+        const payload = await response.json() as { cases: Array<Record<string, any>>; pagination: { total: number; page: number } };
+        assert.equal(payload.pagination.total, 1);
+        assert.equal(payload.pagination.page, 1);
+        assert.equal(payload.cases[0]?.name, 'Teacher supplied values');
+        assert.equal(payload.cases[0]?.owner.email, 'teacher-values@example.test');
+        assert.equal(payload.cases[0]?._count.evidence, 0);
+        assert.equal('recentEvidence' in payload.cases[0]!, false, 'the queue must not return raw evidence values');
+        assert.equal('bestState' in payload.cases[0]!, false, 'the queue must not materialize candidate data');
+    });
+});
+
 test('expired sessions are evicted when authentication rejects them', async () => {
     const fake = createFakePrisma();
     const token = 'a'.repeat(64);
@@ -401,6 +532,253 @@ test('over-limit reconstruction evidence returns 422 without persisting a partia
         assert.equal((await response.json() as { code: string }).code, 'SEARCH_SPACE_LIMIT');
         assert.equal(fake.state.evidenceFragments.length, 0, 'rejected evidence must not be persisted');
         assert.equal(fake.state.cases[0].currentState, priorState, 'rejected evidence must preserve the prior reconstruction');
+    });
+});
+
+test('complete-case comparison evaluates both full evidence sets without saving either case', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        await fetch(`${api}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'casepair@example.test', password: 'Password123!' }) });
+        const login = await fetch(`${api}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'casepair@example.test', password: 'Password123!' }) });
+        const { token } = await login.json() as { token: string };
+        const createCase = await fetch(`${api}/api/cases`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        const { id } = await createCase.json() as { id: string };
+        const observations = (name: string, rival: string, confidence: number) => [
+            { table: 'Person', recordId: 1, field: 'id', value: 1, confidence: 1 },
+            { table: 'Person', recordId: 1, field: 'name', value: name, confidence, sourceRef: 'primary-analyst' },
+            { table: 'Person', recordId: 1, field: 'name', value: rival, confidence: 0.55, sourceRef: 'secondary-analyst' },
+        ];
+        const response = await fetch(`${api}/api/cases/${id}/simulate-comparison`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ schemaDefinition: INCIDENT_RESPONSE_SCHEMA, baseline: observations('Asha Rao', 'A. Rao', 0.9), alternative: observations('A. Rao', 'Asha Rao', 0.4) }),
+        });
+        assert.equal(response.status, 200);
+        const pair = await response.json() as { baseline: { bestState: { data: Record<string, Array<Record<string, unknown>>> }; candidates: Array<{ score: number }> }; alternative: { bestState: { data: Record<string, Array<Record<string, unknown>>> }; candidates: Array<{ score: number }> }; committed: boolean };
+        assert.equal(pair.committed, false);
+        assert.equal(pair.baseline.bestState.data.Person?.[0]?.name, 'Asha Rao');
+        assert.equal(pair.alternative.bestState.data.Person?.[0]?.name, 'Asha Rao', 'the weaker primary reading should lose to the 55% rival source');
+        assert.equal(pair.baseline.candidates.length, 2);
+        assert.equal(pair.alternative.candidates.length, 2);
+        assert.ok(pair.baseline.candidates[0].score > pair.baseline.candidates[1].score);
+        assert.ok(pair.alternative.candidates[0].score > pair.alternative.candidates[1].score);
+        assert.equal(fake.state.evidenceFragments.length, 0);
+        assert.equal(fake.state.provenanceEntries.length, 0);
+        assert.equal(fake.state.cases[0].provenanceSequence, 0);
+    });
+});
+
+test('what-if evidence simulation returns before/after results without saving evidence or provenance', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        await fetch(`${api}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'simulation@example.test', password: 'Password123!' }) });
+        const login = await fetch(`${api}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'simulation@example.test', password: 'Password123!' }) });
+        const { token } = await login.json() as { token: string };
+        const createCase = await fetch(`${api}/api/cases`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        const { id } = await createCase.json() as { id: string };
+        const preview = await fetch(`${api}/api/cases/${id}/simulate`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ evidence: { table: 'Department', recordId: 1, field: 'name', value: 'Hypothetical' } }),
+        });
+        assert.equal(preview.status, 200);
+        const result = await preview.json() as { before: { candidateCount: number }; after: { candidateCount: number; bestState: { data: Record<string, unknown[]> } }; committed: boolean };
+        assert.equal(result.committed, false);
+        assert.equal(result.before.candidateCount, 1);
+        assert.equal(result.after.candidateCount, 1);
+        assert.equal(fake.state.evidenceFragments.length, 0);
+        assert.equal(fake.state.provenanceEntries.length, 0);
+        assert.equal(fake.state.cases[0].provenanceSequence, 0);
+    });
+});
+
+test('evidence lifecycle preview simulates expiry and replacement from the verified case ledger without persisting either', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        await fetch(`${api}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'lifecycle@example.test', password: 'Password123!' }) });
+        const login = await fetch(`${api}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'lifecycle@example.test', password: 'Password123!' }) });
+        const { token } = await login.json() as { token: string };
+        const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const schemaDefinition = {
+            name: 'Lifecycle demo', tables: ['Person'],
+            tableDefinitions: [{ name: 'Person', columns: [
+                { name: 'id', type: 'NUMBER', required: true, unique: true },
+                { name: 'name', type: 'TEXT', required: true },
+                { name: 'dateOfBirth', type: 'TEXT' },
+            ] }],
+            constraints: [{ type: 'UNIQUE', table: 'Person', field: 'id' }, { type: 'NOT_NULL', table: 'Person', field: 'name' }],
+        };
+        const created = await fetch(`${api}/api/cases`, { method: 'POST', headers, body: JSON.stringify({ name: 'Lifecycle demo case', schemaDefinition }) });
+        assert.equal(created.status, 200);
+        const { id } = await created.json() as { id: string };
+        const accepted = await fetch(`${api}/api/cases/${id}/evidence`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ evidence: [
+                { table: 'Person', recordId: 1, field: 'id', value: 1, sourceRef: 'register' },
+                { table: 'Person', recordId: 1, field: 'name', value: 'Asha Rao', sourceRef: 'register' },
+                { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '14-08-1998', sourceRef: 'old register' },
+                { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '18-08-1998', sourceRef: 'hospital copy' },
+            ] }),
+        });
+        assert.equal(accepted.status, 200);
+        const caseResponse = await fetch(`${api}/api/cases/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const casePayload = await caseResponse.json() as { recentEvidence: Array<{ sequence: number; field: string; value: unknown }> };
+        const oldObservation = casePayload.recentEvidence.find(item => item.field === 'dateOfBirth' && item.value === '14-08-1998');
+        assert.ok(oldObservation);
+        const beforeSequence = fake.state.cases[0]?.provenanceSequence;
+
+        const expire = await fetch(`${api}/api/cases/${id}/simulate-evidence-lifecycle`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ targetSequence: oldObservation.sequence, action: 'EXPIRE' }),
+        });
+        assert.equal(expire.status, 200);
+        const expired = await expire.json() as { baseline: { candidateCount: number }; alternative: { candidateCount: number }; committed: boolean; persistedEvidenceUnchanged: boolean };
+        assert.equal(expired.baseline.candidateCount, 2);
+        assert.equal(expired.alternative.candidateCount, 1);
+        assert.equal(expired.committed, false);
+        assert.equal(expired.persistedEvidenceUnchanged, true);
+
+        const replace = await fetch(`${api}/api/cases/${id}/simulate-evidence-lifecycle`, {
+            method: 'POST', headers,
+            body: JSON.stringify({ targetSequence: oldObservation.sequence, action: 'REPLACE', replacementValue: '16-08-1998', replacementSource: 'corrected municipal register' }),
+        });
+        assert.equal(replace.status, 200);
+        const replaced = await replace.json() as { replacement: { value: unknown; sourceRef: string }; committed: boolean };
+        assert.equal(replaced.replacement.value, '16-08-1998');
+        assert.equal(replaced.replacement.sourceRef, 'corrected municipal register');
+        assert.equal(replaced.committed, false);
+        assert.equal(fake.state.evidenceFragments.length, 4);
+        assert.equal(fake.state.provenanceEntries.length, 4);
+        assert.equal(fake.state.cases[0]?.provenanceSequence, beforeSequence);
+    });
+});
+
+test('interdepartmental verification checks one imported-extract field, requires a real conflict, and audit-logs without changing the case', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        await fetch(`${api}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'department-check@example.test', password: 'Password123!' }) });
+        const login = await fetch(`${api}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'department-check@example.test', password: 'Password123!' }) });
+        const { token } = await login.json() as { token: string };
+        const schemaDefinition = {
+            name: 'Synthetic government records', preset: 'government-record-recovery', tables: ['Person'],
+            tableDefinitions: [{ name: 'Person', columns: [
+                { name: 'id', type: 'NUMBER', required: true, unique: true },
+                { name: 'fullName', type: 'TEXT', required: true },
+                { name: 'dateOfBirth', type: 'TEXT' },
+                { name: 'village', type: 'TEXT' },
+            ] }],
+            constraints: [
+                { type: 'UNIQUE', table: 'Person', field: 'id' },
+                { type: 'NOT_NULL', table: 'Person', field: 'fullName' },
+            ],
+        };
+        const created = await fetch(`${api}/api/cases`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Synthetic Kolar birth record', schemaDefinition }),
+        });
+        assert.equal(created.status, 200);
+        const { id } = await created.json() as { id: string };
+        const accepted = await fetch(`${api}/api/cases/${id}/evidence`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ evidence: [
+                { table: 'Person', recordId: 1, field: 'id', value: 1, sourceRef: 'municipal-register' },
+                { table: 'Person', recordId: 1, field: 'fullName', value: 'Anjali Kumari', sourceRef: 'municipal-register' },
+                { table: 'Person', recordId: 1, field: 'village', value: 'Kolar', sourceRef: 'family-register' },
+                { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '14-08-1998', sourceRef: 'civil-copy' },
+                { table: 'Person', recordId: 1, field: 'dateOfBirth', value: '18-08-1998', sourceRef: 'school-copy' },
+            ] }),
+        });
+        assert.equal(accepted.status, 200);
+        const beforeSequence = fake.state.cases[0]?.provenanceSequence;
+        const check = await fetch(`${api}/api/cases/${id}/department-verifications`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                table: 'Person', recordId: 1, field: 'dateOfBirth', departmentName: 'District Education Office',
+                partnerField: 'birth_date', value: '14-08-1998', sourceReference: 'school-export.csv', sourceVersion: '2026-Q3',
+                datasetDigest: 'e'.repeat(64), partnerValue: '1', matchKey: { caseField: 'id', caseValue: 1, partnerKeyField: 'person_no' },
+            }),
+        });
+        assert.equal(check.status, 200);
+        const receipt = await check.json() as {
+            existingValues: unknown[];
+            response: { value: string; sourceMode: string; departmentName: string; partnerField: string; departmentAuthenticated: boolean; matchStatus: string };
+            receipt: { requestId: string; responseDigest: string; datasetDigest: string; auditLogged: boolean };
+            committed: boolean;
+        };
+        assert.deepEqual(receipt.existingValues.sort(), ['14-08-1998', '18-08-1998']);
+        assert.equal(receipt.response.value, '14-08-1998');
+        assert.equal(receipt.response.sourceMode, 'USER_SUPPLIED_PARTNER_EXTRACT');
+        assert.equal(receipt.response.departmentName, 'District Education Office');
+        assert.equal(receipt.response.partnerField, 'birth_date');
+        assert.equal(receipt.response.departmentAuthenticated, false);
+        assert.equal(receipt.response.matchStatus, 'MATCHES_AN_EXISTING_READING');
+        assert.match(receipt.receipt.responseDigest, /^[a-f0-9]{64}$/);
+        assert.equal(receipt.receipt.datasetDigest, 'e'.repeat(64));
+        assert.equal(receipt.receipt.auditLogged, true);
+        assert.equal(receipt.committed, false);
+        assert.equal(JSON.stringify(receipt).includes('Anjali Kumari'), false, 'the department response must not disclose a full partner row');
+        assert.equal(fake.state.evidenceFragments.length, 5);
+        assert.equal(fake.state.provenanceEntries.length, 5);
+        assert.equal(fake.state.cases[0]?.provenanceSequence, beforeSequence);
+        assert.equal(fake.state.auditEvents.filter(entry => entry.action === 'INTERDEPARTMENTAL_VERIFICATION').length, 1);
+
+        const noConflict = await fetch(`${api}/api/cases/${id}/department-verifications`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                table: 'Person', recordId: 1, field: 'village', departmentName: 'District Education Office',
+                partnerField: 'birth_date', value: '14-08-1998', sourceReference: 'school-export.csv',
+                datasetDigest: 'e'.repeat(64), partnerValue: '1', matchKey: { caseField: 'id', caseValue: 1, partnerKeyField: 'person_no' },
+            }),
+        });
+        assert.equal(noConflict.status, 409, 'single-valued fields must not trigger unnecessary partner checks');
+
+        const invalidMatch = await fetch(`${api}/api/cases/${id}/department-verifications`, {
+            method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                table: 'Person', recordId: 1, field: 'dateOfBirth', departmentName: 'District Education Office',
+                partnerField: 'birth_date', value: '14-08-1998', sourceReference: 'school-export.csv',
+                datasetDigest: 'e'.repeat(64), partnerValue: '99', matchKey: { caseField: 'id', caseValue: 99, partnerKeyField: 'person_no' },
+            }),
+        });
+        assert.equal(invalidMatch.status, 400, 'a partner extract must link to a single-valued key actually present in the case');
+    });
+});
+
+test('document locator registers, searches, updates, and scopes source storage locations to the signed-in investigator', async () => {
+    const fake = createFakePrisma();
+    await withServer(fake.client, async api => {
+        const register = async (email: string) => {
+            await fetch(`${api}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Password123!' }) });
+            const login = await fetch(`${api}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: 'Password123!' }) });
+            return (await login.json() as { token: string }).token;
+        };
+        const token = await register('locator@example.test');
+        const demoResponse = await fetch(`${api}/api/source-document-locations/demo`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' });
+        assert.equal(demoResponse.status, 200);
+        const demo = await demoResponse.json() as { locations: any[]; added: number };
+        assert.equal(demo.added, 3);
+        assert.equal(demo.locations.length, 3);
+        assert.equal(demo.locations.every(location => location.demoKey), true, 'demo records must remain explicitly identifiable');
+
+        const secondLoad = await fetch(`${api}/api/source-document-locations/demo`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' });
+        assert.equal((await secondLoad.json() as { added: number }).added, 0, 'loading samples repeatedly must not duplicate them');
+
+        const search = await fetch(`${api}/api/source-document-locations?q=${encodeURIComponent('example:hospital-register')}`, { headers: { Authorization: `Bearer ${token}` } });
+        assert.equal(search.status, 200);
+        const matches = await search.json() as { locations: any[]; total: number };
+        assert.equal(matches.total, 1);
+        assert.equal(matches.locations[0].departmentName, 'Kolar Taluk Hospital');
+        assert.equal(matches.locations[0].storageLocation, 'Basement Archive · Cabinet B · Box 4');
+
+        const update = await fetch(`${api}/api/source-document-locations/${matches.locations[0].id}`, {
+            method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...matches.locations[0], status: 'CHECKED_OUT' }),
+        });
+        assert.equal(update.status, 200);
+        assert.equal(((await update.json()) as { location: { status: string } }).location.status, 'CHECKED_OUT');
+
+        const otherToken = await register('other-locator@example.test');
+        const isolated = await fetch(`${api}/api/source-document-locations`, { headers: { Authorization: `Bearer ${otherToken}` } });
+        assert.equal((await isolated.json() as { total: number }).total, 0, 'one investigator must not see another investigator’s storage directory');
+        assert.equal(fake.state.auditEvents.filter(entry => String(entry.action).includes('SOURCE_LOCATION')).length >= 1, true);
     });
 });
 

@@ -73,6 +73,7 @@ describe('LAZARUS-X investigator console', () => {
     vi.stubGlobal('crypto', webcrypto);
     vi.restoreAllMocks();
     window.history.replaceState({}, '', '/');
+    sessionStorage.clear();
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test-proof') });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
@@ -255,6 +256,44 @@ describe('LAZARUS-X investigator console', () => {
     fireEvent.click(screen.getByRole('tab', { name: /administrator login/i }));
     expect(screen.getByLabelText(/administrator email/i)).toHaveValue('admin@lazarus.local');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Admin2026!Pass');
+  });
+
+  it('gives administrators searchable case actions and verifies case history on demand', async () => {
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockImplementation(async input => {
+      const url = String(input);
+      if (url.endsWith('/auth/login')) return fakeResponse({ token: 'a'.repeat(64), email: 'admin@example.test', role: 'ADMIN' }) as Response;
+      if (url.endsWith('/cases')) return fakeResponse({ cases: [] }) as Response;
+      if (url.endsWith('/admin/overview')) return fakeResponse({ cases: 1, evidenceFragments: 3, auditLogs: 4, users: 2, administrators: 1, databaseProvider: 'postgresql', generatedAt: new Date().toISOString() }) as Response;
+      if (url.includes('/admin/cases')) return fakeResponse({
+        cases: [{
+          id: 'case-teacher-01', name: 'Teacher supplied values', status: 'ACTIVE',
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 3,
+          owner: { email: 'teacher@example.test', role: 'INVESTIGATOR' },
+          _count: { evidence: 3, provenanceEntries: 3, candidates: 2 },
+        }],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      }) as Response;
+      if (url.endsWith('/health/ready')) return fakeResponse({ status: 'READY', database: 'UP' }) as Response;
+      if (url.includes('/provenance?limit=1')) return fakeResponse({ valid: true, checkedEntries: 3, totalEntries: 3 }) as Response;
+      return fakeResponse({}) as Response;
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: /administrator login/i }));
+    fireEvent.click(screen.getByRole('button', { name: /authenticate/i }));
+
+    expect(await screen.findByRole('heading', { name: 'Case operations' })).toBeInTheDocument();
+    expect(await screen.findByText('Teacher supplied values')).toBeInTheDocument();
+    expect(screen.getByText(/Supabase PostgreSQL/i)).toBeInTheDocument();
+    const queueRequestCount = () => fetchMock.mock.calls.filter(([input]) => String(input).includes('/admin/cases')).length;
+    const initialQueueRequests = queueRequestCount();
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect' }));
+    expect(screen.getByRole('complementary', { name: /selected case details/i })).toHaveTextContent('3 evidence fragments');
+    expect(queueRequestCount()).toBe(initialQueueRequests);
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify history' }));
+    expect(await screen.findByText(/verified 3 ledger events/i)).toBeInTheDocument();
+    expect(queueRequestCount()).toBe(initialQueueRequests);
   });
 
   it('authenticates and loads the investigator case workspace', async () => {
@@ -730,14 +769,14 @@ describe('LAZARUS-X investigator console', () => {
 
     const scenarioSelect = screen.getByLabelText(/select example scenario/i);
     expect(scenarioSelect).toBeInTheDocument();
-    expect(screen.getByText(/clean incident \(no conflicts\)/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 surviving interpretation, entropy 0.000/i)).toBeInTheDocument();
+    expect(screen.getByText(/clean cyber case/i)).toBeInTheDocument();
+    expect(screen.getByText(/Conclusion: All submitted records agree/i)).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /load scenario/i })).not.toBeDisabled();
 
     // 1. Mismatched preset check: switch scenario dropdown to 'wf-clean' (preset workforce-orders on incident-response case)
     fireEvent.change(scenarioSelect, { target: { value: 'wf-clean' } });
-    expect(screen.getByText(/Workforce and orders \(clean\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/clean staff and purchase case/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /load scenario/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /load scenario/i })).toHaveAttribute(
       'title',
@@ -802,5 +841,80 @@ describe('LAZARUS-X investigator console', () => {
     });
   });
 
-});
+  it('loads the What we had report directly and returns to the same case', async () => {
+    const schema = createPresetSchema('workforce-orders');
+    const state = {
+      id: 'S-1', data: { Department: [{ _recordId: 1, id: 1, name: 'Finance' }], Employee: [], Order: [] },
+      probabilityScore: 1, fatalViolations: 0, resolvableViolations: 0,
+    };
+    window.history.replaceState({}, '', '/final-data-summary?case=case-report');
+    sessionStorage.setItem('lazarus-x-token', 'a'.repeat(64));
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(fakeResponse({
+      id: 'case-report', name: 'Finance recovery', status: 'ACTIVE', schemaDefinition: schema,
+      bestState: state, recentEvidence: [{ id: 'e1', table: 'Department', recordId: 1, field: 'name', value: 'Finance', sourceRef: 'finance-register-2025', at: new Date().toISOString() }],
+      evidenceRecommendations: [],
+    }) as Response);
 
+    render(<App />);
+    expect(await screen.findByRole('heading', { level: 1, name: /what we had and what we found/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Finance recovery' })).toBeInTheDocument();
+    expect(screen.getByText('Matches source')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to case workspace/i })).toHaveAttribute('href', '/?case=case-report');
+    expect(screen.getByRole('link', { name: /open what-if lab/i })).toHaveAttribute('href', '/what-if-lab?case=case-report');
+    expect(screen.getByRole('link', { name: /find source document finance-register-2025/i })).toHaveAttribute('href', '/document-locator?q=finance-register-2025&case=case-report');
+    expect(screen.getByRole('link', { name: /find source documents/i })).toHaveAttribute('href', '/document-locator?case=case-report');
+  });
+
+  it('restores the signed-in session and requested case when returning from a standalone page', async () => {
+    const schema = createPresetSchema('workforce-orders');
+    const state = { id: 'S-1', data: { Department: [], Employee: [], Order: [] }, probabilityScore: 1, fatalViolations: 0, resolvableViolations: 0 };
+    window.history.replaceState({}, '', '/?case=case-return');
+    sessionStorage.setItem('lazarus-x-token', 'c'.repeat(64));
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(fakeResponse({ email: 'investigator@example.test', role: 'INVESTIGATOR' }) as Response)
+      .mockResolvedValueOnce(fakeResponse({ cases: [{ id: 'case-return', name: 'Returned case', status: 'ACTIVE', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), provenanceSequence: 0 }], pagination: { total: 1, page: 1, limit: 8, totalPages: 1 } }) as Response)
+      .mockResolvedValueOnce(fakeResponse({ id: 'case-return', name: 'Returned case', status: 'ACTIVE', schemaDefinition: schema, bestState: state, candidates: [{ id: 'S-1', rank: 1, score: 1, fatalViolations: 0, resolvableViolations: 0, fuzzyPenalty: 0, isSelected: true }], ambiguityReduction: null, evidenceRecommendations: [], branchingDiagnostics: null, recentEvidence: [], ambiguity: { entropyBits: 0, candidateCount: 1 } }) as Response)
+      .mockResolvedValueOnce(fakeResponse(emptyAudit) as Response);
+
+    render(<App />);
+    expect(await screen.findByText(/case restored from its verified evidence ledger/i)).toBeInTheDocument();
+    expect(screen.getByText('investigator@example.test')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /returned case/i })).toHaveClass('selected');
+  });
+
+  it('compares full raw test tables, confidence settings, and isolated reconstructions', async () => {
+    const schema = createPresetSchema('workforce-orders');
+    const initialState = { id: 'S-0', data: { Department: [], Employee: [], Order: [] }, probabilityScore: 1, fatalViolations: 0, resolvableViolations: 0 };
+    const bestState = { ...initialState, id: 'S-1', data: { Department: [{ _recordId: 1, id: 1, name: 'Finance' }], Employee: [], Order: [{ _recordId: 1, id: 1, amount: 2500 }] } };
+    window.history.replaceState({}, '', '/what-if-lab?case=case-lab');
+    sessionStorage.setItem('lazarus-x-token', 'b'.repeat(64));
+    vi.mocked(globalThis.fetch)
+      .mockResolvedValueOnce(fakeResponse({ id: 'case-lab', name: 'Procurement review', status: 'ACTIVE', schemaDefinition: schema, bestState: initialState, ambiguity: { candidateCount: 1, entropyBits: 0 } }) as Response)
+      .mockResolvedValueOnce(fakeResponse({
+        baseline: { bestState, candidates: [], candidateCount: 2, entropyBits: 0.82 },
+        alternative: { bestState: { ...bestState, data: { ...bestState.data, Order: [{ _recordId: 1, id: 1, amount: 2750 }] } }, candidates: [], candidateCount: 1, entropyBits: 0 },
+        committed: false,
+      }) as Response);
+
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /choose a reconstruction test case/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /incident-response identity check/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /damaged birth-register recovery/i })).toBeEnabled();
+    expect(screen.getAllByRole('table').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/the invoice and receipt amounts conflict in both datasets/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /b stronger · 40 \/ 90/i }));
+    expect(screen.getByLabelText('Dataset A source confidence')).toHaveValue('0.4');
+    expect(screen.getByLabelText('Dataset B source confidence')).toHaveValue('0.9');
+    fireEvent.click(screen.getByRole('button', { name: /reconstruct and compare both tables/i }));
+    expect(await screen.findByRole('region', { name: /before and after simulation results/i })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Order[1].amount' })).toBeInTheDocument();
+    expect(screen.getAllByRole('cell', { name: '2500' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('cell', { name: '2750' }).length).toBeGreaterThan(0);
+    const requestBody = JSON.parse(String(vi.mocked(globalThis.fetch).mock.calls[1][1]?.body));
+    expect(requestBody.schemaDefinition.preset).toBe('workforce-orders');
+    expect(requestBody.baseline.find((item: { sourceRef?: string }) => item.sourceRef === 'DEMO:INVOICE-PRIMARY-AMOUNT').confidence).toBe(0.4);
+    expect(requestBody.alternative.find((item: { sourceRef?: string }) => item.sourceRef === 'DEMO:INVOICE-PRIMARY-AMOUNT').confidence).toBe(0.9);
+    expect(screen.getByRole('link', { name: /back to case workspace/i })).toHaveAttribute('href', '/?case=case-lab');
+  });
+
+});

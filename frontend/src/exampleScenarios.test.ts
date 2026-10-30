@@ -6,10 +6,11 @@ describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793 & 
   const vidushi24BCE0786_divyank24BCE0793_testScenarios: ExampleScenario[] = divyank24BCE0793_EXAMPLE_SCENARIOS;
   const divyank24BCE0793_testScenarios = vidushi24BCE0786_divyank24BCE0793_testScenarios;
 
-  it('contains all 9 required scenarios with valid metadata', () => {
-    expect(vidushi24BCE0786_divyank24BCE0793_testScenarios).toHaveLength(9);
+  it('contains all required scenarios with valid metadata', () => {
+    expect(vidushi24BCE0786_divyank24BCE0793_testScenarios).toHaveLength(10);
     const ids = vidushi24BCE0786_divyank24BCE0793_testScenarios.map(s => s.id);
     expect(ids).toEqual([
+      'gov-birth-register',
       'ir-clean',
       'ir-out-of-order',
       'ir-name-conflict',
@@ -24,7 +25,9 @@ describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793 & 
 
   it('ensures all fragments adhere to strict schema typing, confidence, and sourceRef constraints', () => {
     for (const scenario of divyank24BCE0793_testScenarios) {
-      expect(['incident-response', 'workforce-orders']).toContain(scenario.preset);
+      expect(scenario.expected.note.trim().startsWith('Conclusion:'), `${scenario.id} must state a final conclusion`).toBe(true);
+      expect(scenario.learningGoal.trim().length, `${scenario.id} must explain its purpose`).toBeGreaterThan(20);
+      expect(['incident-response', 'workforce-orders', 'government-record-recovery']).toContain(scenario.preset);
       const schema = createPresetSchema(scenario.preset);
       expect(scenario.evidence.length).toBeGreaterThan(0);
       expect(scenario.evidence.length).toBeLessThanOrEqual(50); // Well under batch limits
@@ -71,7 +74,7 @@ describe('LAZARUS-X Example Scenarios Validation (Divyank Seervi · 24BCE0793 & 
   });
 
   it('validates that clean scenarios (0 violations) provide all required fields for each record', () => {
-    const cleanScenarios = divyank24BCE0793_testScenarios.filter(s => s.expected.note.includes('0 violations'));
+    const cleanScenarios = divyank24BCE0793_testScenarios.filter(s => s.expected.survivingInterpretations === 1 && s.expected.note.includes('one'));
     expect(cleanScenarios.length).toBeGreaterThanOrEqual(2); // ir-clean and wf-clean
 
     for (const scenario of cleanScenarios) {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Split, CheckCircle2, AlertCircle, ArrowRight, Filter } from 'lucide-react';
 
 interface ValueDistribution {
-    value: string | number | boolean | null;
+    value: unknown;
     probability: number;
     candidateCount: number;
 }
@@ -12,6 +12,8 @@ export interface DisputedFieldRecommendation {
     recordId: number;
     field: string;
     expectedInformationGain: number;
+    /** The API calls these candidateValues; predictedValues is retained for old responses. */
+    candidateValues?: ValueDistribution[];
     predictedValues?: ValueDistribution[];
     explanation?: string;
 }
@@ -61,9 +63,9 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
             <div className="diff-matrix-header">
                 <div className="diff-matrix-title">
                     <Split size={16} className="text-cyan" />
-                    <strong>Candidate Conflict & Field Inspection</strong>
+                        <strong>Compare different answers <span className="legacy-term">(Candidate Conflict &amp; Field Inspection)</span></strong>
                     <span className="candidate-badge">
-                        Comparing {candidateCount} surviving interpretation{candidateCount === 1 ? '' : 's'}
+                            {candidateCount} possible answer{candidateCount === 1 ? '' : 's'}
                     </span>
                 </div>
 
@@ -90,20 +92,22 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                         onClick={() => setFilterDisputedOnly(!filterDisputedOnly)}
                     >
                         <Filter size={12} />
-                        Disputed cells only ({disputedInTableCount})
+                        Differences only ({disputedInTableCount})
                     </button>
                 </div>
             </div>
 
             <div className="matrix-stats-bar">
-                <span>Relation: <b>{selectedTable}</b> ({rows.length} records)</span>
+                <span>Record type: <b>{selectedTable}</b> ({rows.length} records)</span>
                 <span className="stats-divider">•</span>
-                <span className="stat-consensus">
-                    <CheckCircle2 size={12} className="text-emerald" /> No surfaced conflict in this recommendation set
+                <span className={disputedInTableCount > 0 ? 'stat-conflict' : 'stat-consensus'}>
+                    {disputedInTableCount > 0
+                        ? <><AlertCircle size={12} className="text-amber" /> {disputedInTableCount} detail{disputedInTableCount === 1 ? '' : 's'} still need checking</>
+                        : <><CheckCircle2 size={12} className="text-emerald" /> No differences found here</>}
                 </span>
                 <span className="stats-divider">•</span>
                 <span className="stat-conflict">
-                    <AlertCircle size={12} className="text-amber" /> {disputedInTableCount} disputed attribute{disputedInTableCount === 1 ? '' : 's'}
+                    <AlertCircle size={12} className="text-amber" /> {disputedInTableCount} difference{disputedInTableCount === 1 ? '' : 's'}
                 </span>
             </div>
 
@@ -142,20 +146,20 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                                                     <div className="dispute-card">
                                                         <div className="dispute-top">
                                                             <span className="dispute-label">
-                                                                <AlertCircle size={11} /> Disputed ({dispute.expectedInformationGain.toFixed(2)} bits)
+                                                                <AlertCircle size={11} /> Needs checking
                                                             </span>
                                                             <button
                                                                 type="button"
                                                                 className="seed-inquiry-btn"
-                                                                title="Pre-fill evidence intake with this disputed cell"
+                                                                title="Ask for another source record about this detail"
                                                                 onClick={() => onSeedEvidence(selectedTable, recId, attr)}
                                                             >
-                                                                Inquire <ArrowRight size={10} />
+                                                                Check another source <ArrowRight size={10} />
                                                             </button>
                                                         </div>
                                                         <div className="dispute-values">
-                                                            {dispute.predictedValues && dispute.predictedValues.length > 0 ? (
-                                                                dispute.predictedValues.map((pv, idx) => (
+                                                            {(dispute.candidateValues ?? dispute.predictedValues)?.length ? (
+                                                                (dispute.candidateValues ?? dispute.predictedValues ?? []).map((pv, idx) => (
                                                                     <div key={idx} className="pred-val-row">
                                                                         <span className="val-text">"{String(pv.value)}"</span>
                                                                         <div className="val-bar-bg">
@@ -169,10 +173,15 @@ export const CandidateDiffMatrix: React.FC<CandidateDiffMatrixProps> = ({
                                                                 ))
                                                             ) : (
                                                                 <div className="pred-val-row">
-                                                                    <span className="val-text">Current: "{displayVal}"</span>
+                                                                    <span className="val-text">No candidate values were returned. Current view: "{displayVal}"</span>
                                                                 </div>
                                                             )}
                                                         </div>
+                                                        <p className="dispute-explanation">
+                                                            <strong>Why this is disputed:</strong> the surviving reconstructions agree on the record, but disagree on this field.
+                                                            <br />
+                                                            <strong>What resolves it:</strong> add one independent observation for this exact record and field.
+                                                        </p>
                                                     </div>
                                                 </td>
                                             );

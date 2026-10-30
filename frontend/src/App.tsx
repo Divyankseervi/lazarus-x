@@ -8,12 +8,16 @@ import { AuditLogsModal } from './AuditLogsModal';
 import { SchemaStudio } from './SchemaStudio';
 import { createPresetSchema, createWalkthroughEvidence, hasWalkthroughConflictTarget, type CaseSchema } from './schemaTypes';
 import { parseEvidenceCsv, type ImportedEvidenceFragment } from './evidenceCsv';
-import { divyank24BCE0793_EXAMPLE_SCENARIOS } from './exampleScenarios';
+import { divyank24BCE0793_EXAMPLE_SCENARIOS, type ExampleScenarioFragment } from './exampleScenarios';
+import { completeCaseExperiments, type CompleteCaseExperiment } from './whatIfExamples';
+import { DepartmentVerificationPage } from './DepartmentVerificationPage';
+import { EvidenceExpiryLabPage } from './EvidenceExpiryLabPage';
+import { DocumentLocatorPage } from './DocumentLocatorPage';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, ArrowDownToLine, ArrowRight, Award, BadgeCheck, Boxes, ChevronDown, CircleAlert,
   ClipboardCheck, Cpu, Database, Edit2, Fingerprint, FileSpreadsheet, GitBranch, KeyRound, Loader2, Lock, LogOut, Mail, Split,
-  Plus, RefreshCw, Search, Shield, ShieldCheck, Sparkles, TimerReset, Trash2, Upload, Zap,
+  Plus, RefreshCw, Search, Shield, ShieldCheck, Sparkles, Table2, TimerReset, Trash2, Upload, Zap,
 } from 'lucide-react';
 import {
   deriveEnvelopeMerkleProofDetails,
@@ -26,6 +30,7 @@ import {
 } from './provenanceVerifier';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const currentIsoTimestamp = () => new Date().toISOString();
 
 type CandidateState = {
   id: string;
@@ -46,6 +51,13 @@ type CandidateSummary = {
   fuzzyPenalty: number;
   sourceReliabilityPenalty?: number;
   isSelected: boolean;
+};
+
+type WhatIfResult = {
+  before: { bestState: CandidateState; candidates: CandidateSummary[]; candidateCount: number; entropyBits: number };
+  after: { bestState: CandidateState; candidates: CandidateSummary[]; candidateCount: number; entropyBits: number; diagnostics?: { propagation?: { status?: string; revisions?: number; prunedValues?: number } } };
+  hypothetical: { table: string; recordId: number; field: string; value: unknown };
+  committed: false;
 };
 
 type CaseSummary = {
@@ -87,6 +99,7 @@ type AuditResponse = {
   valid: boolean;
   checkedEntries: number;
   totalEntries: number;
+  error?: string;
   nextAfterSequence: number | null;
   entries: PublicEnvelopeEntry[];
   publicEnvelope: {
@@ -99,18 +112,77 @@ type AuditResponse = {
   };
 };
 
+function CaseTimeMachinePage() {
+  const params = new URLSearchParams(window.location.search);
+  const caseId = params.get('case');
+  const workspaceHref = caseId ? `/?case=${encodeURIComponent(caseId)}` : '/';
+  const token = sessionStorage.getItem('lazarus-x-token');
+  const [entries, setEntries] = useState<PublicEnvelopeEntry[]>([]);
+  const [caseName, setCaseName] = useState('Selected case');
+  const [visibleCount, setVisibleCount] = useState(0);
+  const [error, setError] = useState(() => (!caseId || !token ? 'Open this page from an authenticated case workspace.' : ''));
+
+  useEffect(() => {
+    if (!caseId || !token) {
+      return;
+    }
+    let active = true;
+    Promise.all([
+      request<AuditResponse>(`/cases/${encodeURIComponent(caseId)}/provenance?view=commitments&limit=200`, token),
+      request<{ name?: string }>(`/cases/${encodeURIComponent(caseId)}`, token),
+    ]).then(([audit, currentCase]) => {
+      if (!active) return;
+      setEntries(audit.entries);
+      setVisibleCount(audit.entries.length);
+      setCaseName(currentCase.name || 'Selected case');
+    }).catch(cause => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Could not load this case history.');
+    });
+    return () => { active = false; };
+  }, [caseId, token]);
+
+  const visibleEntries = entries.slice(0, visibleCount);
+  const selected = visibleEntries[visibleEntries.length - 1];
+  return (
+    <div className="time-machine-page">
+      <header className="time-machine-header">
+        <a className="secondary-button" href={workspaceHref}>← Back to case workspace</a>
+        <div><span className="eyebrow">LAZARUS-X / REPLAY LAB</span><h1>Case Time Machine</h1><p>See what the system knew, when it knew it, without changing the saved case.</p></div>
+        <span className="live-tag"><i /> READ-ONLY REPLAY</span>
+      </header>
+      {error ? <section className="panel time-machine-empty"><CircleAlert size={20} /><strong>{error}</strong><a href="/">Return to the workspace</a></section> : (
+        <main className="time-machine-main">
+          <section className="panel time-machine-hero">
+            <span className="eyebrow">REPLAYING CASE</span><h2>{caseName}</h2><p>Move the slider to rewind the evidence ledger. Replay states are temporary and never overwrite your case.</p>
+            <div className="time-machine-slider-row"><span>Start</span><input aria-label="Replay evidence history" type="range" min="0" max={entries.length} value={visibleCount} onChange={event => setVisibleCount(Number(event.target.value))} /><span>Now</span></div>
+            <div className="time-machine-progress"><strong>{visibleCount}</strong><span>of {entries.length} ledger events visible</span><strong>{entries.length - visibleCount}</strong><span>events still ahead</span></div>
+          </section>
+          <section className="time-machine-grid">
+            <section className="panel time-machine-state"><div className="time-machine-section-title"><TimerReset size={16} /><h2>What was known at this point</h2></div>
+              {selected ? <div className="replay-state-card"><span className="event-type-badge badge-evidence">{selected.eventType === 'FUZZY_CORRECTION' ? 'Correction' : 'Evidence accepted'}</span><strong>Ledger event #{String(selected.sequence).padStart(5, '0')}</strong><span>{new Date(selected.receivedAt).toLocaleString()}</span><small>Payload remains protected in the audit ledger. This replay shows event order and integrity commitments without exposing hidden values.</small></div> : <div className="time-machine-empty compact">No evidence had arrived at this point.</div>}
+            </section>
+            <section className="panel time-machine-events"><div className="time-machine-section-title"><GitBranch size={16} /><h2>Case evolution</h2></div><div className="replay-event-list">{visibleEntries.slice().reverse().map(entry => <div key={`${entry.sequence}-${entry.envelopeHash}`} className="replay-event"><span>{String(entry.sequence).padStart(3, '0')}</span><div><strong>{entry.eventType === 'FUZZY_CORRECTION' ? 'Correction recorded' : 'Evidence accepted'}</strong><small>{new Date(entry.receivedAt).toLocaleTimeString()}</small></div></div>)}{visibleEntries.length === 0 && <div className="time-machine-empty compact">Move the slider forward to replay the case.</div>}</div></section>
+          </section>
+          <div className="time-machine-disclaimer"><ShieldCheck size={14} /> This is a read-only historical view. It explains sequence and custody; it does not recreate unavailable facts or certify an official decision.</div>
+        </main>
+      )}
+    </div>
+  );
+}
+
 type EvidenceTimelineItem = {
   id: string;
   table: string;
   recordId: number;
   field: string;
   value: string | number | boolean | null;
+  confidence?: number;
   at: string;
   sourceRef?: string;
   sourceSha256?: string;
 };
 
-type AppError = Error & { code?: string };
+type AppError = Error & { code?: string; status?: number };
 type ClaimVerificationStatus = { kind: 'valid' | 'invalid' | 'error'; message: string } | null;
 type ProofStatus = { sequence: number; kind: 'valid' | 'invalid' | 'error'; message: string } | null;
 type ProofInspection = {
@@ -135,6 +207,7 @@ async function request<T>(path: string, token?: string, init?: RequestInit): Pro
   if (!response.ok) {
     const error = new Error(payload.error || `Request failed (${response.status})`) as AppError;
     error.code = payload.code;
+    error.status = response.status;
     throw error;
   }
   return payload;
@@ -212,6 +285,266 @@ export class CaseViewErrorBoundary extends Component<{ children: ReactNode; onRe
     }
     return this.props.children;
   }
+}
+
+function FinalDataSummary({
+  state,
+  sourceRecords,
+  recommendations,
+  schema,
+  caseId,
+}: {
+  state: CandidateState;
+  sourceRecords: EvidenceTimelineItem[];
+  recommendations: NonNullable<Recommendation>[];
+  schema: CaseSchema | null;
+  caseId?: string;
+}) {
+  const recordKeys = new Set<string>();
+  Object.entries(state.data).forEach(([table, rows]) => rows.forEach((row, index) => {
+    recordKeys.add(`${table}:${Number(row._recordId ?? index + 1)}`);
+  }));
+  sourceRecords.forEach(item => recordKeys.add(`${item.table}:${item.recordId}`));
+  const rows = Array.from(recordKeys).map(key => {
+    const separator = key.indexOf(':');
+    return { table: key.slice(0, separator), recordId: Number(key.slice(separator + 1)) };
+  });
+  const summaryRows = rows.flatMap(({ table, recordId }) => {
+    const selectedRows = state.data[table] ?? [];
+    const selectedRow = selectedRows.find((row, index) => Number(row._recordId ?? index + 1) === recordId) ?? {};
+    const records = sourceRecords.filter(item => item.table === table && item.recordId === recordId);
+    const fields = Array.from(new Set([
+      ...Object.keys(selectedRow).filter(field => field !== '_recordId'),
+      ...records.map(item => item.field),
+    ]));
+    return fields.map(field => {
+      const rawRecords = records.filter(item => item.field === field);
+      const rawValues = Array.from(new Set(rawRecords.map(item => String(item.value ?? '—'))));
+      const found = selectedRow[field] === undefined ? 'Not found' : String(selectedRow[field] ?? '—');
+      const recommendedForReview = recommendations.some(item => item.table === table && item.recordId === recordId && item.field === field);
+      const sourceConflict = rawValues.length > 1;
+      const hasSourceValue = rawValues.length > 0;
+      const matchesSource = hasSourceValue && rawValues.includes(found);
+      const disputed = recommendedForReview || sourceConflict || (hasSourceValue && !matchesSource);
+      const status = !hasSourceValue ? 'No source value' : sourceConflict ? 'Sources disagree' : matchesSource ? 'Matches source' : 'Differs from source';
+      return {
+        table,
+        recordId,
+        field,
+        rawValues,
+        sourceReferences: Array.from(new Set(rawRecords.map(item => item.sourceRef).filter((value): value is string => Boolean(value)))),
+        sources: Array.from(new Set(rawRecords.map(item => item.sourceRef).filter(Boolean))).join(', ') || 'Source not named',
+        found,
+        disputed,
+        status,
+      };
+    });
+  });
+  const disputedCount = summaryRows.filter(row => row.disputed).length;
+  const sourceCount = sourceRecords.length;
+  const primaryKeyRows = rows.map(({ table, recordId }) => {
+    const tableDefinition = schema?.tableDefinitions.find(definition => definition.name === table);
+    const keyColumn = tableDefinition?.columns.find(column => column.name.toLowerCase() === 'id')
+      ?? tableDefinition?.columns.find(column => column.unique);
+    const selectedRow = (state.data[table] ?? []).find((row, index) => Number(row._recordId ?? index + 1) === recordId);
+    const keyValue = keyColumn
+      ? selectedRow?.[keyColumn.name] ?? sourceRecords.find(item => item.table === table && item.recordId === recordId && item.field === keyColumn.name)?.value
+      : recordId;
+    return { table, recordId, keyName: keyColumn?.name ?? '_recordId', keyValue: keyValue ?? 'Not found' };
+  });
+
+  return (
+    <section className="panel government-final-summary" aria-label="Final data summary">
+      <div className="panel-heading">
+        <div className="panel-title">
+          <span className="panel-icon teal-icon"><BadgeCheck size={17} /></span>
+          <div>
+            <h2>Final data summary</h2>
+            <p>Every raw value entered, compared with the current result for each record.</p>
+          </div>
+        </div>
+        <span className="role-tag">REVIEW BEFORE USE</span>
+      </div>
+      <div className="government-result-note">
+        <strong>Simple conclusion:</strong>{' '}
+        {sourceCount === 0
+          ? 'No source records have been entered yet.'
+          : disputedCount > 0
+            ? `${disputedCount} detail${disputedCount === 1 ? '' : 's'} still need checking because sources disagree or the app needs another source.`
+          : summaryRows.some(row => row.rawValues.length === 0)
+            ? `${summaryRows.filter(row => row.rawValues.length === 0).length} result field${summaryRows.filter(row => row.rawValues.length === 0).length === 1 ? '' : 's'} have no direct source observation. Review the source trail before relying on them.`
+            : 'The entered source values match the current result. An authorised reviewer should still check the original documents.'}
+      </div>
+      <div className="primary-key-heading"><strong>Primary keys in this case</strong><span>One key is shown for each record so you can identify it clearly.</span></div>
+      <div className="government-summary-table-wrap primary-key-table-wrap">
+        <table className="government-summary-table primary-key-table">
+          <thead><tr><th>Record type</th><th>Record number</th><th>Key field</th><th>Key value</th></tr></thead>
+          <tbody>
+            {primaryKeyRows.map(row => (
+              <tr key={`key-${row.table}-${row.recordId}`}>
+                <td><strong>{row.table}</strong></td>
+                <td>{row.recordId}</td>
+                <td>{row.keyName}</td>
+                <td><strong>{String(row.keyValue)}</strong></td>
+              </tr>
+            ))}
+            {primaryKeyRows.length === 0 && <tr><td colSpan={4} className="raw-records-empty">No record keys are available yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div className="primary-key-heading"><strong>What we had and what we found</strong><span>All raw values are compared with the current result.</span></div>
+      <div className="government-summary-table-wrap">
+        <table className="government-summary-table">
+          <thead><tr><th>Record</th><th>Detail</th><th>What we had</th><th>Source / locate</th><th>What we found</th><th>Status</th></tr></thead>
+          <tbody>
+            {summaryRows.map(row => {
+              return (
+                <tr key={`${row.table}-${row.recordId}-${row.field}`}>
+                  <td><strong>{row.table} #{row.recordId}</strong></td>
+                  <td>{row.field}</td>
+                  <td>{row.rawValues.length > 0 ? row.rawValues.join(' / ') : 'No source entry'}</td>
+                  <td><div className="source-locate-cell"><span>{row.sources}</span>{row.sourceReferences.map(reference => <a key={reference} className="source-locate-link" href={`/document-locator?q=${encodeURIComponent(reference)}${caseId ? `&case=${encodeURIComponent(caseId)}` : ''}`} aria-label={`Find source document ${reference}`}><Search size={12}/> Find document</a>)}</div></td>
+                  <td>{row.found}</td>
+                  <td><span className={`government-status ${row.disputed ? 'government-status-review' : 'government-status-supported'}`}>{row.status}</span></td>
+                </tr>
+              );
+            })}
+            {summaryRows.length === 0 && <tr><td colSpan={6} className="raw-records-empty">No result is available yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <div className="government-source-list">
+        <strong>Raw entries:</strong> {sourceCount} &nbsp;·&nbsp; <strong>Details needing review:</strong> {disputedCount}
+      </div>
+    </section>
+  );
+}
+
+function FinalDataSummaryPage() {
+  const caseId = new URLSearchParams(window.location.search).get('case');
+  const workspaceHref = caseId ? `/?case=${encodeURIComponent(caseId)}` : '/';
+  const token = sessionStorage.getItem('lazarus-x-token');
+  const [payload, setPayload] = useState<{
+    name: string;
+    status: string;
+    schemaDefinition: CaseSchema;
+    bestState: CandidateState;
+    recentEvidence: EvidenceTimelineItem[];
+    evidenceRecommendations: NonNullable<Recommendation>[];
+  } | null>(null);
+  const [error, setError] = useState(() => (!caseId || !token ? 'Open this page from an authenticated case workspace.' : ''));
+
+  useEffect(() => {
+    if (!caseId || !token) return;
+    let active = true;
+    request<typeof payload>(`/cases/${encodeURIComponent(caseId)}`, token)
+      .then(data => { if (active) setPayload(data); })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load the final data report.'); });
+    return () => { active = false; };
+  }, [caseId, token]);
+
+  return (
+    <div className="standalone-report-page">
+      <header className="standalone-report-header">
+        <a className="secondary-button" href={workspaceHref}>← Back to case workspace</a>
+        <div><span className="eyebrow">LAZARUS-X / RESULTS</span><h1>What we had and what we found</h1><p>A complete comparison of surviving source values and the current selected result.</p></div>
+        {caseId ? <div className="standalone-report-actions"><a className="secondary-button" href={`/document-locator?case=${encodeURIComponent(caseId)}`}><Search size={14}/> Find source documents</a><a className="secondary-button" href={`/department-verification?case=${encodeURIComponent(caseId)}`}><ShieldCheck size={14}/> Check with another department</a><a className="secondary-button" href={`/what-if-lab?case=${encodeURIComponent(caseId)}`}>Open what-if lab →</a></div> : <a className="secondary-button" href="/document-locator"><Search size={14}/> Open Document Locator</a>}
+      </header>
+      <main className="standalone-report-main">
+        {error ? <section className="panel time-machine-empty"><CircleAlert size={20} /><strong>{error}</strong><a href="/">Return to the workspace</a></section> : payload ? (
+          <>
+            <section className="panel standalone-report-context"><span className="eyebrow">CASE</span><h2>{payload.name}</h2><span>Status: {payload.status} · Source entries: {payload.recentEvidence.length}</span></section>
+            <FinalDataSummary state={payload.bestState} sourceRecords={payload.recentEvidence} recommendations={payload.evidenceRecommendations} schema={payload.schemaDefinition} caseId={caseId ?? undefined} />
+          </>
+        ) : <section className="panel time-machine-empty"><Loader2 className="spin" size={20} /><strong>Loading final data report…</strong></section>}
+      </main>
+    </div>
+  );
+}
+
+function WhatIfComparison({ result, onClear, subtitle }: { result: WhatIfResult; onClear: () => void; subtitle?: string }) {
+  const rows = new Map<string, { before: unknown; after: unknown }>();
+  const locate = (state: CandidateState, side: 'before' | 'after') => {
+    for (const [tableName, records] of Object.entries(state.data ?? {})) records.forEach((record, index) => {
+      const id = String(record._recordId ?? index + 1);
+      for (const [fieldName, fieldValue] of Object.entries(record)) {
+        if (fieldName === '_recordId') continue;
+        const key = `${tableName}[${id}].${fieldName}`;
+        const entry = rows.get(key) ?? { before: undefined, after: undefined };
+        entry[side] = fieldValue;
+        rows.set(key, entry);
+      }
+    });
+  };
+  locate(result.before.bestState, 'before');
+  locate(result.after.bestState, 'after');
+  const changed = Array.from(rows.entries()).filter(([, values]) => JSON.stringify(values.before) !== JSON.stringify(values.after));
+  const countDelta = result.after.candidateCount - result.before.candidateCount;
+  return <section className="panel whatif-results" aria-label="Before and after simulation results">
+    <div className="panel-heading"><div className="panel-title"><span className="panel-icon amber-icon"><Activity size={17}/></span><div><h2>Before and after</h2><p>{subtitle ?? `Temporary engine run for ${result.hypothetical.table}[${result.hypothetical.recordId}].${result.hypothetical.field} = ${String(result.hypothetical.value)}`}</p></div></div><button type="button" className="secondary-button" onClick={onClear}>Clear preview</button></div>
+    <div className="whatif-metrics">
+      <article><span>Surviving interpretations</span><strong>{result.before.candidateCount.toLocaleString()} <i>→</i> {result.after.candidateCount.toLocaleString()}</strong><small>{countDelta === 0 ? 'No change in count' : `${Math.abs(countDelta).toLocaleString()} ${countDelta < 0 ? 'fewer' : 'additional'} candidates`}</small></article>
+      <article><span>Candidate entropy</span><strong>{result.before.entropyBits.toFixed(3)} <i>→</i> {result.after.entropyBits.toFixed(3)} bits</strong><small>{result.after.entropyBits < result.before.entropyBits ? 'Ambiguity reduced' : result.after.entropyBits > result.before.entropyBits ? 'Ambiguity increased' : 'No entropy change'} · heuristic measure</small></article>
+      <article><span>Top result fields changed</span><strong>{changed.length}</strong><small>{result.after.bestState.fatalViolations} fatal · {result.after.bestState.resolvableViolations} resolvable violations after preview</small></article>
+    </div>
+    <div className="whatif-diff-wrap"><table className="government-summary-table whatif-diff-table"><thead><tr><th>Record field</th><th>Before</th><th>After</th><th>Effect</th></tr></thead><tbody>
+      {changed.slice(0, 80).map(([key, values]) => <tr key={key}><td><strong>{key}</strong></td><td>{values.before === undefined ? '—' : String(values.before ?? 'NULL')}</td><td>{values.after === undefined ? '—' : String(values.after ?? 'NULL')}</td><td><span className="government-status government-status-review">Changed</span></td></tr>)}
+      {changed.length === 0 && <tr><td colSpan={4} className="raw-records-empty">The top-ranked field values did not change. Check candidate count and violations above for other effects.</td></tr>}
+    </tbody></table></div>
+    <div className="whatif-footer"><ShieldCheck size={14}/> Preview only · not saved as evidence · no provenance event was created{changed.length > 80 ? ` · showing 80 of ${changed.length} changed fields` : ''}</div>
+  </section>;
+}
+
+function CompleteCaseRawComparison({
+  experiment,
+  baselineConfidence,
+  alternativeConfidence,
+}: {
+  experiment: CompleteCaseExperiment;
+  baselineConfidence: number;
+  alternativeConfidence: number;
+}) {
+  const applyConfidence = (items: ExampleScenarioFragment[], confidence: number) => items.map(item =>
+    item.sourceRef === experiment.confidenceSourceRef ? { ...item, confidence } : item,
+  );
+  const baseline = applyConfidence(experiment.baselineEvidence, baselineConfidence);
+  const alternative = applyConfidence(experiment.alternativeEvidence, alternativeConfidence);
+  const rowKey = (item: ExampleScenarioFragment) => JSON.stringify([item.table, item.recordId, item.field, item.sourceRef ?? '']);
+  const baselineByKey = new Map(baseline.map(item => [rowKey(item), item]));
+  const alternativeByKey = new Map(alternative.map(item => [rowKey(item), item]));
+  const allKeys = [...new Set([...baselineByKey.keys(), ...alternativeByKey.keys()])];
+  const differentKeys = new Set(allKeys.filter(key => {
+    const left = baselineByKey.get(key);
+    const right = alternativeByKey.get(key);
+    return !left || !right || JSON.stringify(left.value) !== JSON.stringify(right.value) || left.confidence !== right.confidence;
+  }));
+  const formatValue = (value: unknown) => value === null ? 'NULL' : value === undefined ? '—' : String(value);
+  const renderTable = (items: ExampleScenarioFragment[], side: 'baseline' | 'alternative') => (
+    <div className="raw-case-table-wrap">
+      <table className="raw-case-table">
+        <thead><tr><th>Record</th><th>Field</th><th>Raw value</th><th>Source</th><th>Confidence</th></tr></thead>
+        <tbody>{items.map((item, index) => {
+          const key = rowKey(item);
+          const counterpart = (side === 'baseline' ? alternativeByKey : baselineByKey).get(key);
+          const changedValue = !counterpart || JSON.stringify(item.value) !== JSON.stringify(counterpart.value);
+          const changedConfidence = !!counterpart && item.confidence !== counterpart.confidence;
+          return <tr key={`${key}-${index}`} className={differentKeys.has(key) ? 'raw-case-different' : ''}>
+            <td>{item.table}[{item.recordId}]</td><td>{item.field}</td>
+            <td className={changedValue ? 'raw-case-different-cell' : ''}>{formatValue(item.value)}</td>
+            <td>{item.sourceRef || 'Unlabelled source'}</td>
+            <td className={changedConfidence ? 'raw-case-different-cell' : ''}>{Math.round(item.confidence * 100)}%</td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>
+  );
+  return <section className="panel raw-case-comparison" aria-label="Compare both raw evidence tables">
+    <div className="panel-heading"><div className="panel-title"><span className="panel-icon violet-icon"><Table2 size={17}/></span><div><h2>Raw evidence tables</h2><p>Every submitted observation is shown. Amber rows mark values or confidence levels that differ.</p></div></div><span className="role-tag">{differentKeys.size} DIFFERING ROWS</span></div>
+    <div className="raw-case-table-grid">
+      <section className="raw-case-side"><div className="raw-case-side-heading"><div><span className="eyebrow">DATASET A</span><h3>{experiment.baselineLabel}</h3></div><span>{baseline.length} observations</span></div>{renderTable(baseline, 'baseline')}</section>
+      <section className="raw-case-side"><div className="raw-case-side-heading"><div><span className="eyebrow">DATASET B</span><h3>{experiment.alternativeLabel}</h3></div><span>{alternative.length} observations</span></div>{renderTable(alternative, 'alternative')}</section>
+    </div>
+  </section>;
 }
 
 function RowGraph({ state, tables, schema }: { state: CandidateState | null; tables: string[]; schema: CaseSchema | null }) {
@@ -308,8 +641,45 @@ type AdminOverview = {
   auditLogs: number;
   users: number;
   administrators: number;
+  databaseProvider: 'sqlite' | 'postgresql' | string;
   generatedAt: string;
 };
+
+type AdminCaseSummary = {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  provenanceSequence: number;
+  owner: { email: string; role: string };
+  _count: { evidence: number; provenanceEntries: number; candidates: number };
+};
+
+type AdminCaseQueue = {
+  cases: AdminCaseSummary[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+};
+
+function downloadAdminSnapshot(overview: AdminOverview | null, email: string) {
+  if (!overview) return;
+  const snapshot = {
+    exportedAt: new Date().toISOString(),
+    exportedBy: email,
+    purpose: 'LAZARUS-X administrator operational snapshot',
+    metrics: overview,
+    note: 'Counts only. Raw evidence and credentials are not included.',
+  };
+  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `lazarus-x-admin-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 function exportTableAsCSV(relationName: string, rows: Record<string, unknown>[]) {
   if (!rows || rows.length === 0) return;
@@ -368,16 +738,102 @@ function AdministratorDashboard({
   const [auditOpen, setAuditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [caseRows, setCaseRows] = useState<AdminCaseSummary[]>([]);
+  const [caseSearch, setCaseSearch] = useState('');
+  const [submittedCaseSearch, setSubmittedCaseSearch] = useState('');
+  const [caseStatusFilter, setCaseStatusFilter] = useState('ALL');
+  const [casePage, setCasePage] = useState(1);
+  const [casePagination, setCasePagination] = useState<AdminCaseQueue['pagination']>({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [caseQueueLoading, setCaseQueueLoading] = useState(true);
+  const [caseQueueError, setCaseQueueError] = useState('');
+  const [selectedAdminCase, setSelectedAdminCase] = useState<AdminCaseSummary | null>(null);
+  const [caseVerification, setCaseVerification] = useState<Record<string, { state: 'checking' | 'valid' | 'invalid' | 'error'; checked: number; message: string }>>({});
+  const [caseAction, setCaseAction] = useState('');
+  const [caseActionError, setCaseActionError] = useState('');
+  const [readiness, setReadiness] = useState<'checking' | 'ready' | 'down'>('checking');
+  const [readinessCheckedAt, setReadinessCheckedAt] = useState<string | null>(null);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       setOverview(await request<AdminOverview>('/admin/overview', token));
+      setLastRefresh(new Date().toISOString());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load administrator overview.');
     } finally {
       setLoading(false);
+    }
+  }, [token]);
+
+  const loadCaseQueue = useCallback(async () => {
+    setCaseQueueLoading(true);
+    setCaseQueueError('');
+    try {
+      const params = new URLSearchParams({ page: String(casePage), limit: '10', status: caseStatusFilter });
+      if (submittedCaseSearch) params.set('search', submittedCaseSearch);
+      const result = await request<AdminCaseQueue>(`/admin/cases?${params.toString()}`, token);
+      setCaseRows(result.cases);
+      setCasePagination(result.pagination);
+      setSelectedAdminCase(current => current
+        ? result.cases.find(item => item.id === current.id) ?? null
+        : null);
+    } catch (cause) {
+      setCaseQueueError(cause instanceof Error ? cause.message : 'Could not load the administrator case queue.');
+    } finally {
+      setCaseQueueLoading(false);
+    }
+  }, [token, casePage, caseStatusFilter, submittedCaseSearch]);
+
+  const checkReadiness = useCallback(async () => {
+    setReadiness('checking');
+    try {
+      const result = await request<{ status: string; database: string }>('/health/ready');
+      setReadiness(result.status === 'READY' && result.database === 'UP' ? 'ready' : 'down');
+    } catch {
+      setReadiness('down');
+    } finally {
+      setReadinessCheckedAt(new Date().toISOString());
+    }
+  }, []);
+
+  const verifyCaseHistory = useCallback(async (record: AdminCaseSummary) => {
+    setCaseVerification(current => ({ ...current, [record.id]: { state: 'checking', checked: 0, message: 'Checking complete evidence and provenance chain…' } }));
+    try {
+      const result = await request<AuditResponse>(`/cases/${encodeURIComponent(record.id)}/provenance?limit=1`, token);
+      setCaseVerification(current => ({ ...current, [record.id]: {
+        state: result.valid ? 'valid' : 'invalid',
+        checked: result.checkedEntries,
+        message: result.valid ? `Verified ${result.checkedEntries.toLocaleString()} ledger events.` : (result.error || 'Ledger integrity check failed.'),
+      } }));
+    } catch (cause) {
+      setCaseVerification(current => ({ ...current, [record.id]: { state: 'error', checked: 0, message: cause instanceof Error ? cause.message : 'Could not verify this case history.' } }));
+    }
+  }, [token]);
+
+  const exportCaseBundle = useCallback(async (record: AdminCaseSummary) => {
+    setCaseAction(record.id);
+    setCaseActionError('');
+    try {
+      const response = await fetch(`${API_BASE}/cases/${encodeURIComponent(record.id)}/export/audit-bundle`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(payload.error || `Export failed (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `lazarus-x-${record.id}-audit-bundle.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (cause) {
+      setCaseActionError(cause instanceof Error ? cause.message : 'Could not export the case audit bundle.');
+    } finally {
+      setCaseAction('');
     }
   }, [token]);
 
@@ -387,6 +843,7 @@ function AdministratorDashboard({
       .then(data => {
         if (!ignore) {
           setOverview(data);
+          setLastRefresh(new Date().toISOString());
           setError('');
           setLoading(false);
         }
@@ -400,6 +857,13 @@ function AdministratorDashboard({
     return () => { ignore = true; };
   }, [token]);
 
+  useEffect(() => { void loadCaseQueue(); }, [loadCaseQueue]);
+  useEffect(() => { void checkReadiness(); }, [checkReadiness]);
+
+  const refreshAll = () => {
+    void Promise.all([loadOverview(), loadCaseQueue(), checkReadiness()]);
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -411,6 +875,7 @@ function AdministratorDashboard({
             <span className="slot-tag">L25+L26</span>
           </div>
           <div className="system-pill"><span className="status-light" /> ADMIN ENGINE ONLINE</div>
+          <a className="secondary-button topbar-nav-btn" href="/document-locator" title="Find source documents by department and office"><Search size={14}/> Document locator</a>
           <div className="user-pill"><span className="avatar">{email.slice(0, 1).toUpperCase()}</span><span>{email}</span><span className="role-tag">ADMIN</span></div>
           <button className="icon-button" aria-label="Log out" title="Log out" onClick={onLogout}><LogOut size={17} /></button>
         </div>
@@ -419,8 +884,8 @@ function AdministratorDashboard({
         <aside className="sidebar admin-sidebar">
           <div className="sidebar-head"><div><span className="eyebrow">ADMINISTRATION</span><h2>System controls</h2></div><ShieldCheck size={22} /></div>
           <button type="button" className="new-case-button" onClick={() => setAuditOpen(true)}><ClipboardCheck size={15} /> Audit trail</button>
-          <button type="button" className="secondary-button full-width" onClick={onBackup}><Database size={15} /> Native database backup</button>
-          <div className="sidebar-footer"><Shield size={15} /><span>Privileged actions are enforced by the API.</span></div>
+          {overview?.databaseProvider !== 'postgresql' && <button type="button" className="secondary-button full-width" onClick={onBackup}><Database size={15} /> Native database backup</button>}
+          <div className="sidebar-footer"><Shield size={15} /><span>Privileged actions are enforced by the API. Case evidence is shown only on explicit review.</span></div>
         </aside>
         <section className="main-column">
           <div className="page-heading">
@@ -430,18 +895,75 @@ function AdministratorDashboard({
               <p>Monitor platform-wide database activity, audit events, users, and recovery operations.</p>
             </div>
             <div className="heading-actions">
-              <button type="button" className="secondary-button" onClick={() => void loadOverview()} disabled={loading}><RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh overview</button>
-              <button type="button" className="secondary-button" onClick={onBackup}><Database size={15} /> Backup database</button>
+              <button type="button" className="secondary-button" onClick={refreshAll} disabled={loading || caseQueueLoading || readiness === 'checking'}><RefreshCw size={15} className={loading || caseQueueLoading || readiness === 'checking' ? 'spin' : ''} /> Refresh operations</button>
+              {overview?.databaseProvider !== 'postgresql' && <button type="button" className="secondary-button" onClick={onBackup}><Database size={15} /> Backup database</button>}
             </div>
           </div>
           {error && <div className="banner banner-error" role="alert"><CircleAlert size={16} />{error}</div>}
           <section className="panel admin-hero-panel">
             <div className="panel-heading"><div className="panel-title"><span className="panel-icon violet-icon"><ShieldCheck size={17} /></span><div><h2>Privileged operations</h2><p>This dashboard is intentionally separate from investigator reconstruction work.</p></div></div><span className="live-tag"><i /> ADMIN ONLY</span></div>
             <div className="admin-feature-grid">
-              <article><Database size={20} /><strong>Backup and recovery</strong><span>Generate a native SQLite backup and verify database integrity.</span><button type="button" className="secondary-button" onClick={onBackup}>Run backup</button></article>
+              <article><Database size={20} /><strong>{overview?.databaseProvider === 'postgresql' ? 'Supabase database' : 'Database backup'}</strong><span>{overview?.databaseProvider === 'postgresql' ? 'This app is connected to Supabase PostgreSQL. Manage scheduled backups and restores in the Supabase project dashboard.' : 'Generate a native SQLite backup and verify database integrity.'}</span>{overview?.databaseProvider !== 'postgresql' && <button type="button" className="secondary-button" onClick={onBackup}>Run backup</button>}</article>
               <article><ClipboardCheck size={20} /><strong>Cross-user audit visibility</strong><span>Review application events across all investigators with filters and pagination.</span><button type="button" className="secondary-button" onClick={() => setAuditOpen(true)}>Open audit trail</button></article>
-              <article><Activity size={20} /><strong>System monitoring</strong><span>Inspect counts for users, cases, evidence fragments, and audit records.</span><button type="button" className="secondary-button" onClick={() => void loadOverview()}>Refresh metrics</button></article>
+              <article><Activity size={20} /><strong>Live readiness check</strong><span>Check the running API and database connection now.</span><button type="button" className="secondary-button" onClick={() => void checkReadiness()} disabled={readiness === 'checking'}><RefreshCw size={14} className={readiness === 'checking' ? 'spin' : ''} /> Check connection</button></article>
             </div>
+          </section>
+          <section className="admin-control-grid" aria-label="Administrator control center">
+            <article className="panel admin-control-panel">
+              <div className="admin-section-heading"><div><span className="eyebrow">OPERATIONS</span><h2>Safe control center</h2></div><ShieldCheck size={18} /></div>
+              <div className="admin-action-list">
+                <button type="button" className="admin-action-row" onClick={() => setAuditOpen(true)}><span className="admin-action-icon blue"><ClipboardCheck size={16} /></span><span><strong>Review all activity</strong><small>Inspect who changed cases and when, with filters and pagination.</small></span><ArrowRight size={15} /></button>
+                <button type="button" className="admin-action-row" onClick={() => downloadAdminSnapshot(overview, email)} disabled={!overview}><span className="admin-action-icon teal"><ArrowDownToLine size={16} /></span><span><strong>Export counts-only snapshot</strong><small>Download platform counts without raw evidence or credentials.</small></span><ArrowRight size={15} /></button>
+                <button type="button" className="admin-action-row" onClick={refreshAll} disabled={loading || caseQueueLoading}><span className="admin-action-icon purple"><Activity size={16} /></span><span><strong>Refresh operating picture</strong><small>Reload metrics, case queue, and database readiness.</small></span><ArrowRight size={15} /></button>
+              </div>
+            </article>
+            <article className="panel admin-control-panel">
+              <div className="admin-section-heading"><div><span className="eyebrow">READINESS</span><h2>Platform health</h2></div><Activity size={18} /></div>
+              <div className="admin-health-list">
+                <div><span><i className={`health-dot ${readiness === 'ready' ? 'health-good' : readiness === 'down' ? 'health-bad' : 'health-watch'}`} />API and database</span><strong>{readiness === 'ready' ? 'Ready' : readiness === 'down' ? 'Unavailable' : 'Checking…'}</strong></div>
+                <div><span><i className="health-dot health-good" />Audit visibility</span><strong>Available</strong></div>
+                <div><span><i className="health-dot health-good" />Role protection</span><strong>Enforced</strong></div>
+                <div><span><i className={`health-dot ${overview?.databaseProvider === 'postgresql' ? 'health-watch' : 'health-good'}`} />Backup method</span><strong>{overview?.databaseProvider === 'postgresql' ? 'Supabase managed' : 'SQLite native'}</strong></div>
+              </div>
+              <p className="admin-health-note">{readinessCheckedAt ? `Last checked ${new Date(readinessCheckedAt).toLocaleTimeString()}. ` : ''}This checks service availability; it does not certify record correctness or legal status.</p>
+            </article>
+          </section>
+          <section className="panel admin-case-queue" aria-label="Case operations queue">
+            <div className="admin-section-heading admin-case-queue-heading"><div><span className="eyebrow">TRIAGE</span><h2>Case operations</h2><p>Find a case, inspect its operational metadata, verify its full history, or export its audit bundle.</p></div><span className="admin-case-total">{casePagination.total} case{casePagination.total === 1 ? '' : 's'}</span></div>
+            <form className="admin-case-filters" onSubmit={event => { event.preventDefault(); setCasePage(1); setSubmittedCaseSearch(caseSearch.trim()); }}>
+              <label className="admin-case-search"><Search size={15} /><input aria-label="Search cases" value={caseSearch} onChange={event => setCaseSearch(event.target.value)} placeholder="Search case, ID, or investigator…" /></label>
+              <label className="admin-status-filter"><span>Status</span><select aria-label="Filter cases by status" value={caseStatusFilter} onChange={event => { setCasePage(1); setCaseStatusFilter(event.target.value); }}><option value="ALL">All cases</option><option value="ACTIVE">Active</option><option value="SEALED">Sealed</option></select></label>
+              <button type="submit" className="primary-button"><Search size={14} /> Search</button>
+              <button type="button" className="secondary-button" onClick={() => { setCaseSearch(''); setSubmittedCaseSearch(''); setCaseStatusFilter('ALL'); setCasePage(1); void loadCaseQueue(); }}><RefreshCw size={14} /> Reset</button>
+            </form>
+            {caseQueueError && <div className="banner banner-error" role="alert">{caseQueueError}</div>}
+            {caseActionError && <div className="banner banner-error" role="alert">{caseActionError}</div>}
+            <div className="admin-case-table-wrap">
+              <table className="admin-case-table">
+                <thead><tr><th>Case</th><th>Investigator</th><th>Status</th><th>Evidence</th><th>Last activity</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {caseQueueLoading && <tr><td colSpan={6} className="admin-case-empty">Loading cases…</td></tr>}
+                  {!caseQueueLoading && caseRows.length === 0 && <tr><td colSpan={6} className="admin-case-empty">No cases match this search. Adjust the filters or refresh the queue.</td></tr>}
+                  {!caseQueueLoading && caseRows.map(record => {
+                    const verification = caseVerification[record.id];
+                    return <tr key={record.id} className={selectedAdminCase?.id === record.id ? 'admin-case-selected' : ''}>
+                      <td><strong>{record.name}</strong><small>{record.id}</small></td>
+                      <td><span>{record.owner.email}</span><small>{record.owner.role}</small></td>
+                      <td><span className={`admin-case-status ${record.status === 'SEALED' ? 'sealed' : 'active'}`}>{record.status}</span></td>
+                      <td><strong>{record._count.evidence.toLocaleString()}</strong><small>{record._count.provenanceEntries.toLocaleString()} history events</small></td>
+                      <td><span>{new Date(record.updatedAt).toLocaleDateString()}</span><small>{new Date(record.updatedAt).toLocaleTimeString()}</small></td>
+                      <td><div className="admin-case-actions">
+                        <button type="button" className="secondary-button" onClick={() => setSelectedAdminCase(record)}>Inspect</button>
+                        <button type="button" className="secondary-button" onClick={() => void verifyCaseHistory(record)} disabled={verification?.state === 'checking'}>{verification?.state === 'checking' ? 'Checking…' : 'Verify history'}</button>
+                        <button type="button" className="secondary-button" onClick={() => void exportCaseBundle(record)} disabled={caseAction === record.id}>{caseAction === record.id ? 'Exporting…' : 'Export bundle'}</button>
+                      </div>{verification && <small className={`admin-case-verification ${verification.state}`}>{verification.message}</small>}</td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="admin-case-pagination"><span>Page {casePagination.page} of {casePagination.totalPages}</span><div><button type="button" className="secondary-button" onClick={() => setCasePage(page => Math.max(1, page - 1))} disabled={casePagination.page <= 1 || caseQueueLoading}><ChevronDown size={14} className="admin-chevron-left" /> Previous</button><button type="button" className="secondary-button" onClick={() => setCasePage(page => Math.min(casePagination.totalPages, page + 1))} disabled={casePagination.page >= casePagination.totalPages || caseQueueLoading}>Next <ChevronDown size={14} className="admin-chevron-right" /></button></div></div>
+            {selectedAdminCase && <aside className="admin-case-inspector" aria-label="Selected case details"><div><span className="eyebrow">SELECTED CASE</span><h3>{selectedAdminCase.name}</h3><code>{selectedAdminCase.id}</code></div><div className="admin-case-inspector-facts"><span><strong>{selectedAdminCase._count.evidence}</strong> evidence fragments</span><span><strong>{selectedAdminCase.provenanceSequence}</strong> ledger events</span><span><strong>{selectedAdminCase._count.candidates}</strong> saved candidates</span><span><strong>{selectedAdminCase.owner.email}</strong> owner</span></div><button type="button" className="icon-button" aria-label="Close case details" onClick={() => setSelectedAdminCase(null)}>×</button></aside>}
           </section>
           <section className="admin-metric-grid" aria-label="Administrator system metrics">
             {[
@@ -451,6 +973,16 @@ function AdministratorDashboard({
               ['Evidence fragments', overview?.evidenceFragments ?? 0, 'Committed observations'],
               ['Audit events', overview?.auditLogs ?? 0, 'Cross-user visibility'],
             ].map(([label, value, hint]) => <article className="admin-metric-card" key={label}><span>{label}</span><strong>{loading ? '…' : value}</strong><small>{hint}</small></article>)}
+          </section>
+          <section className="panel admin-insight-panel">
+            <div className="admin-section-heading"><div><span className="eyebrow">OPERATING PICTURE</span><h2>What needs attention</h2></div><Sparkles size={18} /></div>
+            <div className="admin-insight-grid">
+              <div><strong>{overview?.administrators ?? 0}</strong><span>admin account{overview?.administrators === 1 ? '' : 's'} available for privileged review</span></div>
+              <div><strong>{overview?.cases ?? 0}</strong><span>case{overview?.cases === 1 ? '' : 's'} currently visible across investigators</span></div>
+              <div><strong>{overview?.evidenceFragments ?? 0}</strong><span>surviving observations retained in the platform</span></div>
+              <div><strong>{overview?.auditLogs ?? 0}</strong><span>audit event{overview?.auditLogs === 1 ? '' : 's'} available for traceability</span></div>
+            </div>
+            <div className="admin-refresh-note"><RefreshCw size={13} /> {lastRefresh ? `Last checked ${new Date(lastRefresh).toLocaleTimeString()}` : 'Waiting for first platform check'} · Generated by the protected administrator endpoint</div>
           </section>
         </section>
       </main>
@@ -470,9 +1002,11 @@ const DEFAULT_PORTAL_CREDENTIALS = {
   },
 } as const;
 
-function App() {
+function AppShell() {
   const initialPortal: 'INVESTIGATOR' | 'ADMIN' = window.location.pathname === '/admin-login' ? 'ADMIN' : 'INVESTIGATOR';
-  const [token, setToken] = useState<string | null>(null);
+  const restoredToken = useRef(sessionStorage.getItem('lazarus-x-token')).current;
+  const requestedCaseId = new URLSearchParams(window.location.search).get('case');
+  const [token, setToken] = useState<string | null>(restoredToken);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [authPortal, setAuthPortal] = useState<'INVESTIGATOR' | 'ADMIN'>(initialPortal);
@@ -488,6 +1022,7 @@ function App() {
   const [auditLogsModalOpen, setAuditLogsModalOpen] = useState(false);
   const [backupInProgress, setBackupInProgress] = useState(false);
   const [diffViewOpen, setDiffViewOpen] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
 
   const triggerAdminBackup = async () => {
     if (!token || role !== 'ADMIN') return;
@@ -635,6 +1170,7 @@ function App() {
         throw new Error(`This account belongs to the ${session.role.toLowerCase()} portal. Choose the matching login page.`);
       }
       setToken(session.token);
+      sessionStorage.setItem('lazarus-x-token', session.token);
       setEmail(session.email);
       setRole(session.role);
       await loadCases(session.token);
@@ -734,7 +1270,7 @@ function App() {
         ambiguityReduction: Recommendation;
         evidenceRecommendations?: NonNullable<Recommendation>[];
         branchingDiagnostics?: BranchingDiagnostics;
-        recentEvidence?: Array<{ id: string; sequence: number; table: string; recordId: number; field: string; value: string | number | boolean | null; sourceRef?: string; sourceSha256?: string; at: string }>;
+        recentEvidence?: Array<{ id: string; sequence: number; table: string; recordId: number; field: string; value: string | number | boolean | null; confidence?: number; sourceRef?: string; sourceSha256?: string; at: string }>;
         ambiguity: { entropyBits: number; candidateCount: number };
       }>(`/cases/${encodeURIComponent(id)}`, token);
       setCaseId(state.id);
@@ -751,6 +1287,8 @@ function App() {
         setDivyank24BCE0793_selectedScenarioId('wf-clean');
       } else if (openedSchema.preset === 'incident-response') {
         setDivyank24BCE0793_selectedScenarioId('ir-clean');
+      } else if (openedSchema.preset === 'government-record-recovery') {
+        setDivyank24BCE0793_selectedScenarioId('gov-birth-register');
       }
       const firstTable = openedSchema.tables[0] ?? 'Department';
       setTable(firstTable);
@@ -762,7 +1300,7 @@ function App() {
       setRankedRecommendations(state.evidenceRecommendations ?? (state.ambiguityReduction ? [state.ambiguityReduction] : []));
       setBranchingDiag(state.branchingDiagnostics ?? null);
       setEntropy({ after: state.ambiguity.entropyBits, candidateCount: state.ambiguity.candidateCount });
-      setTimeline((state.recentEvidence ?? []).map(item => ({ id: item.id || String(item.sequence), table: item.table, recordId: item.recordId, field: item.field, value: item.value, at: item.at, ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}) })));
+      setTimeline((state.recentEvidence ?? []).map(item => ({ id: item.id || String(item.sequence), table: item.table, recordId: item.recordId, field: item.field, value: item.value, at: item.at, ...(item.confidence !== undefined ? { confidence: item.confidence } : {}), ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}) })));
       setProofStatus(null);
       setProofInspection(null);
       await loadAudit(state.id, token);
@@ -773,6 +1311,31 @@ function App() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!restoredToken) return;
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      request<{ email: string; role: string }>('/auth/session', restoredToken),
+      loadCases(restoredToken),
+    ]).then(async ([session]) => {
+      if (!active) return;
+      setEmail(session.email);
+      setRole(session.role);
+      setError('');
+      if (requestedCaseId) await openCase(requestedCaseId);
+    }).catch(() => {
+      if (!active) return;
+      sessionStorage.removeItem('lazarus-x-token');
+      setToken(null);
+      setEmail('');
+      setRole('');
+      setCases([]);
+      setError('Your saved sign-in has expired. Sign in again to reopen this case.');
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [restoredToken]);
 
   const createCase = async (caseNameInput: string, schemaInput: CaseSchema, autoScenarioId?: string) => {
     if (!token) return;
@@ -788,6 +1351,8 @@ function App() {
         setDivyank24BCE0793_selectedScenarioId('wf-clean');
       } else if (createdSchema.preset === 'incident-response') {
         setDivyank24BCE0793_selectedScenarioId('ir-clean');
+      } else if (createdSchema.preset === 'government-record-recovery') {
+        setDivyank24BCE0793_selectedScenarioId('gov-birth-register');
       }
       setSchemaStudioOpen(false);
       setTable(createdSchema.tables[0] ?? 'Person');
@@ -830,6 +1395,21 @@ function App() {
             reduction: batchResponse.ambiguity.reductionBits,
             candidateCount: batchResponse.ambiguity.candidateCountAfter,
           });
+          const autoTimestamp = currentIsoTimestamp();
+          const autoEvents = Number.isSafeInteger(batchResponse.provenance.appendedEvents)
+            ? batchResponse.provenance.appendedEvents
+            : scenario.evidence.length;
+          setTimeline(scenario.evidence.map((item, index) => ({
+            id: `${batchResponse.provenance.sequence - autoEvents + index + 1}-${item.table}-${item.recordId}-${item.field}`,
+            table: item.table,
+            recordId: item.recordId,
+            field: item.field,
+            value: item.value,
+            confidence: item.confidence,
+            at: autoTimestamp,
+            ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}),
+            ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
+          })).reverse());
           setNotice(`New case initialized and auto-populated with ${scenario.evidence.length} evidence fragments for '${scenario.title}'!`);
           await loadAudit(created.id, token);
           await loadCases(token);
@@ -840,6 +1420,14 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startGovernmentRecovery = async () => {
+    await createCase(
+      'Birth record recovery - Kolar',
+      createPresetSchema('government-record-recovery'),
+      'gov-birth-register',
+    );
   };
 
   type EvidenceBatchResponse = {
@@ -877,18 +1465,22 @@ function App() {
       setRankedRecommendations(response.evidenceRecommendations ?? (response.ambiguityReduction ? [response.ambiguityReduction] : []));
       setBranchingDiag(response.branchingDiagnostics ?? null);
       setEntropy({ before: response.ambiguity.entropyBeforeBits, after: response.ambiguity.entropyAfterBits, reduction: response.ambiguity.reductionBits, candidateCount: response.ambiguity.candidateCountAfter });
-      const timestamp = new Date().toISOString();
+      const timestamp = currentIsoTimestamp();
       const appendedEvents = Number.isSafeInteger(response.provenance.appendedEvents) ? response.provenance.appendedEvents : evidence.length;
       const timelineItems = evidence.map((item, index) => ({
-        id: `${response.provenance.sequence - appendedEvents + index + 1}-${Date.now()}-${index}`,
-        table: item.table, recordId: item.recordId, field: item.field, value: item.value, at: timestamp, ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
+        id: `${response.provenance.sequence - appendedEvents + index + 1}-${item.table}-${item.recordId}-${item.field}`,
+        table: item.table, recordId: item.recordId, field: item.field, value: item.value, confidence: item.confidence, at: timestamp, ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}), ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
       })).reverse();
-      setTimeline(current => (replaceTimeline ? timelineItems : [...timelineItems, ...current]).slice(0, 50));
+      setTimeline(current => replaceTimeline ? timelineItems : [...timelineItems, ...current]);
       setValue('');
       setSourceRef('');
       setSourceSha256('');
       setFormErrors({});
-      setNotice(exactNotice ?? `${successMessage} · ${evidence.length} fragment(s) · ledger sequence ${response.provenance.sequence}`);
+      const firstEvidence = evidence[0];
+      const acceptedSummary = firstEvidence
+        ? ` · ${firstEvidence.field}: ${String(firstEvidence.value)}`
+        : '';
+      setNotice(exactNotice ?? `${successMessage} · ${evidence.length} fragment(s) · ledger sequence ${response.provenance.sequence}${acceptedSummary}`);
       // The evidence commit is durable before the secondary UI refreshes run. If a
       // refresh fails, don't tell the investigator to submit the same evidence again.
       await loadAudit(caseId, token);
@@ -1077,21 +1669,22 @@ function App() {
         candidateCount: batchResponse.ambiguity.candidateCountAfter,
       });
 
-      const timestamp = new Date().toISOString();
+      const timestamp = currentIsoTimestamp();
       const appendedEvents = Number.isSafeInteger(batchResponse.provenance.appendedEvents)
         ? batchResponse.provenance.appendedEvents
         : scenario.evidence.length;
       const timelineItems = scenario.evidence.map((item, index) => ({
-        id: `${batchResponse.provenance.sequence - appendedEvents + index + 1}-${Date.now()}-${index}`,
+        id: `${batchResponse.provenance.sequence - appendedEvents + index + 1}-${item.table}-${item.recordId}-${item.field}`,
         table: item.table,
         recordId: item.recordId,
         field: item.field,
         value: item.value,
+        confidence: item.confidence,
         at: timestamp,
         ...(item.sourceRef ? { sourceRef: item.sourceRef } : {}),
         ...(item.sourceSha256 ? { sourceSha256: item.sourceSha256 } : {}),
       })).reverse();
-      setTimeline(timelineItems.slice(0, 50));
+      setTimeline(timelineItems);
       setValue('');
       setSourceRef('');
       setSourceSha256('');
@@ -1116,18 +1709,10 @@ function App() {
     const scenario = divyank24BCE0793_scenarioList.find(s => s.id === scenarioId);
     if (!scenario) return;
 
-    // If current case exists, is active, and matches preset: commit directly!
-    if (caseId && caseSchema && caseSchema.preset === scenario.preset && caseStatus !== 'SEALED') {
-      await commitEvidenceBatch(
-        scenario.evidence,
-        `Scenario '${scenario.title}' auto-loaded`,
-        false,
-        `✓ Auto-loaded ${scenario.evidence.length} evidence fragments for '${scenario.title}'!`
-      );
-    } else {
-      // Otherwise auto-create matching case and populate seamlessly
-      await divyank24BCE0793_autoLaunchScenario(scenarioId);
-    }
+    // Auto-load is intentionally isolated: demo evidence must never silently mix
+    // with an investigator's real case. Use the explicit "Add to current case"
+    // action below when appending is genuinely intended.
+    await divyank24BCE0793_autoLaunchScenario(scenarioId);
   };
 
   const divyank24BCE0793_sampleFragments = useMemo(() => {
@@ -1150,6 +1735,14 @@ function App() {
         { label: 'Device #1: OwnerId 2 (Assigned)', table: 'Device', recordId: '1', field: 'ownerId', value: '2', confidence: 0.85, sourceRef: 'asset-inventory' },
         { label: 'Incident #1: Phishing email (Critical)', table: 'Incident', recordId: '1', field: 'title', value: 'Phishing email', confidence: 0.90, sourceRef: 'siem-alert' },
         { label: 'Artifact #1: Malicious URL (Hash)', table: 'Artifact', recordId: '1', field: 'kind', value: 'Malicious URL', confidence: 0.88, sourceRef: 'sandbox-report' },
+      ];
+    }
+    if (caseSchema.preset === 'government-record-recovery') {
+      return [
+        { label: 'Person #1: Anjali Kumari', table: 'Person', recordId: '1', field: 'fullName', value: 'Anjali Kumari', confidence: 0.90, sourceRef: 'municipal-register-scan' },
+        { label: 'Person #1: DOB 14-08-1998', table: 'Person', recordId: '1', field: 'dateOfBirth', value: '14-08-1998', confidence: 0.90, sourceRef: 'hospital-register' },
+        { label: 'Source #1: Damaged municipal scan', table: 'SourceDocument', recordId: '1', field: 'documentType', value: 'Municipal register scan', confidence: 1, sourceRef: 'municipal-office' },
+        { label: 'Office #1: Kolar Registrar Office', table: 'GovernmentOffice', recordId: '1', field: 'district', value: 'Kolar', confidence: 1, sourceRef: 'office-register' },
       ];
     }
     const list: Array<{ label: string; table: string; recordId: string; field: string; value: string; confidence: number; sourceRef: string }> = [];
@@ -1237,6 +1830,7 @@ function App() {
       setLoading(false);
     }
   };
+
 
   const loadNextAuditPage = async () => {
     if (!token || !caseId || auditNext === null) return;
@@ -1392,6 +1986,7 @@ function App() {
 
   const logout = async () => {
     if (token) await request('/auth/logout', token, { method: 'POST' }).catch(() => undefined);
+    sessionStorage.removeItem('lazarus-x-token');
     setToken(null);
     setEmail('');
     setRole('');
@@ -1597,6 +2192,7 @@ function App() {
             <div className="auth-foot">
               <ShieldCheck size={13} /> BCSE302P DBMS Project · Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786) · Slot L25+L26
             </div>
+            <a className="auth-document-locator-link" href="/document-locator"><Search size={13}/> Open Document Locator <small>sign-in required</small></a>
           </motion.section>
         </div>
       </div>
@@ -1610,7 +2206,7 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>INVESTIGATOR CONSOLE</small></div></div>
+        <div className="brand-lockup"><span className="brand-icon"><Cpu size={20} /></span><div><strong>LAZARUS<span>−</span>X</strong><small>RECORD RECOVERY WORKSPACE</small></div></div>
         <div className="topbar-right">
           <div className="student-pill" title="Lab Assessment Identity (Instruction 7)">
             <Award size={13} />
@@ -1619,10 +2215,18 @@ function App() {
           </div>
           <div className="system-version-pill" title="LAZARUS-X Platform">
             <ShieldCheck size={13} />
-            <span>LAZARUS-X</span>
+            <span>RECORD RECOVERY</span>
             <span className="slot-tag">v2.4</span>
           </div>
           <div className="system-pill"><span className="status-light" /> ENGINE ONLINE</div>
+          <button
+            type="button"
+            className="secondary-button topbar-nav-btn"
+            onClick={() => { window.location.href = '/document-locator'; }}
+            title="Find source documents by department and office"
+          >
+            <Search size={14} /> Document locator
+          </button>
           <button
             type="button"
             className="secondary-button topbar-nav-btn"
@@ -1649,8 +2253,8 @@ function App() {
 
       <main className="workspace">
         <aside className="sidebar">
-          <div className="sidebar-head"><div><span className="eyebrow">WORKSPACE</span><h2>Case files</h2></div><button className="square-button" onClick={() => setSchemaStudioOpen(true)} disabled={loading} aria-label="Create new case" title="Create new case"><Plus size={18} /></button></div>
-          <button className="new-case-button" onClick={() => setSchemaStudioOpen(true)} disabled={loading}><Plus size={15} /> New reconstruction</button>
+          <div className="sidebar-head"><div><span className="eyebrow">YOUR WORK</span><h2 aria-label="Case files">Cases</h2></div><button className="square-button" onClick={() => setSchemaStudioOpen(true)} disabled={loading} aria-label="Create new case" title="Create new case"><Plus size={18} /></button></div>
+          <button className="new-case-button" aria-label="New reconstruction case" onClick={() => setSchemaStudioOpen(true)} disabled={loading}><Plus size={15} /> New case</button>
 
           {/* Search Bar */}
           <div className="case-search-wrap">
@@ -1715,7 +2319,7 @@ function App() {
                       {item.status || 'ACTIVE'}
                     </span>
                   </div>
-                  <small>{item.provenanceSequence} ledger events · {new Date(item.updatedAt).toLocaleDateString()}</small>
+                  <small>{item.provenanceSequence} source updates · {new Date(item.updatedAt).toLocaleDateString()}</small>
                 </span>
                 <span className="case-chevron">›</span>
               </button>
@@ -1724,7 +2328,7 @@ function App() {
               <div className="empty-cases">
                 <Boxes size={21} />
                 <span>{caseSearch.trim() || caseStatusFilter !== 'ALL' ? 'No cases found' : 'No cases yet'}</span>
-                <small>{caseSearch.trim() || caseStatusFilter !== 'ALL' ? 'No cases match your filter criteria.' : 'Create a case to start collecting evidence.'}</small>
+                <small>{caseSearch.trim() || caseStatusFilter !== 'ALL' ? 'No cases match your search.' : 'Start a case to begin checking records.'}</small>
               </div>
             )}
           </div>
@@ -1805,7 +2409,7 @@ function App() {
               ) : (
                 <h1>Reconstruction overview</h1>
               )}
-              <p>{caseId ? `UUID: ${caseId}` : 'Select a case or create a new reconstruction to begin.'}</p>
+              <p>{caseId ? `Case number: ${caseId.slice(0, 12)}` : 'Choose a case or start a government record recovery.'}</p>
             </div>
             <div className="heading-actions">
               {caseId && (
@@ -1813,11 +2417,11 @@ function App() {
                   <button
                     type="button"
                     className="secondary-button dossier-btn"
-                    aria-label="Forensic dossier — Export reconstruction report"
+                    aria-label="Forensic dossier - Download case report"
                     onClick={() => setReportModalOpen(true)}
-                    title="Export an investigation report with ledger and candidate summaries"
+                    title="Download a simple report of this case"
                   >
-                    <Award size={14} className="text-cyan" /> <span aria-label="Forensic dossier">Export reconstruction report</span>
+                    <Award size={14} className="text-cyan" /> <span>Download case report</span>
                   </button>
                   <button
                     type="button"
@@ -1833,30 +2437,76 @@ function App() {
               {caseId && (caseStatus === 'SEALED' ? (
                 <span className="sealed-status-badge" aria-label="Case is sealed"><Lock size={13} /> SEALED &amp; FROZEN</span>
               ) : (
-                <button className="secondary-button seal-button" onClick={() => void sealCase()} disabled={!caseId || loading || caseStatus === "SEALED"} title="Seal the case in this application and block further evidence intake"><Lock size={13} /> Seal case</button>
+                <button className="secondary-button seal-button" aria-label="Seal case - close case" onClick={() => void sealCase()} disabled={!caseId || loading || caseStatus === "SEALED"} title="Close this case and stop new source updates"><Lock size={13} /> Close case</button>
               ))}
               <button className="secondary-button" onClick={() => caseId && token && void openCase(caseId)} disabled={!caseId || loading}>
-                <RefreshCw size={15} className={loading ? 'spin' : ''} /> Refresh
+                <RefreshCw size={15} className={loading ? 'spin' : ''} /> Reload
               </button>
             </div>
           </div>
           {(error || notice) && <div className={`banner ${error ? 'banner-error' : 'banner-success'}`} role={error ? 'alert' : 'status'}>{error ? <CircleAlert size={16} /> : <BadgeCheck size={16} />}{error || notice}<button onClick={() => { setError(''); setNotice(''); }} aria-label="Dismiss message">×</button></div>}
 
-          <nav className="reconstruction-pipeline" aria-label="Reconstruction workflow">
-            <div className={`pipeline-step ${caseSchema ? 'pipeline-done' : 'pipeline-current'}`}><span>01</span><div><strong>Define schema</strong><small>{caseSchema ? `${caseSchema.tables.length} relations · ${caseSchema.constraints.filter(c => c.type === 'FOREIGN_KEY').length} FK links` : 'Choose relations and constraints'}</small></div></div>
+          {!caseId && (
+            <section className="case-start-card" aria-label="Start government record recovery">
+              <div>
+                <span className="eyebrow">GOVERNMENT RECORDS</span>
+                <h2>Recover a damaged birth record</h2>
+                <p>Start with a ready-made Kolar example. It compares a damaged municipal record with hospital, school, and family records.</p>
+              </div>
+              <button type="button" className="primary-button" onClick={() => void startGovernmentRecovery()} disabled={loading}>
+                {loading ? <Loader2 size={15} className="spin" /> : <Plus size={15} />} Start government recovery
+              </button>
+            </section>
+          )}
+
+          <nav className="reconstruction-pipeline" aria-label="Case workflow">
+            <div className={`pipeline-step ${caseSchema ? 'pipeline-done' : 'pipeline-current'}`}><span>01</span><div><strong>Set up case</strong><small>{caseSchema ? `${caseSchema.tables.length} relations · ${caseSchema.constraints.filter(c => c.type === 'FOREIGN_KEY').length} links` : 'Choose relations and rules'}</small></div></div>
             <ArrowRight size={14}/>
-            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-done' : caseSchema ? 'pipeline-current' : ''}`}><span>02</span><div><strong>Collect fragments</strong><small>{auditTotal} provenance events committed</small></div></div>
+            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-done' : caseSchema ? 'pipeline-current' : ''}`}><span>02</span><div><strong>Add evidence</strong><small>{auditTotal} recorded event{auditTotal === 1 ? '' : 's'}</small></div></div>
             <ArrowRight size={14}/>
-            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-current' : ''}`}><span>03</span><div><strong>Compare hypotheses</strong><small>{entropy.candidateCount} surviving state(s)</small></div></div>
+            <div className={`pipeline-step ${auditTotal > 0 ? 'pipeline-current' : ''}`}><span>03</span><div><strong>Review possible answers</strong><small>{entropy.candidateCount} possible answer{entropy.candidateCount === 1 ? '' : 's'}</small></div></div>
             <ArrowRight size={14}/>
-            <div className={`pipeline-step ${auditValid ? 'pipeline-done' : ''}`}><span>04</span><div><strong>Verify custody</strong><small>{auditValid ? 'Ledger verified' : 'Inspect provenance when ready'}</small></div></div>
+            <div className={`pipeline-step ${auditValid ? 'pipeline-done' : ''}`}><span>04</span><div><strong>Check case history</strong><small>{auditValid ? 'History checked' : 'Check when ready'}</small></div></div>
           </nav>
+
+          <section className="case-brief" aria-label="Case at a glance">
+            <div className="case-brief-heading">
+              <div><span className="eyebrow">CASE AT A GLANCE</span><strong className="case-brief-name">{caseName || 'New case'}</strong></div>
+              <span className={`case-health-dot ${auditValid === false ? 'case-health-risk' : auditTotal > 0 ? 'case-health-active' : ''}`} title={auditValid === false ? 'History needs review' : auditTotal > 0 ? 'Evidence is being collected' : 'Waiting for evidence'} />
+            </div>
+            <div className="case-brief-grid">
+              <div><span>Stage</span><strong>{caseStatus === 'SEALED' ? 'Closed' : auditTotal > 0 ? 'Evidence review' : 'Ready to start'}</strong></div>
+              <div><span>Evidence</span><strong>{auditTotal} event{auditTotal === 1 ? '' : 's'}</strong></div>
+              <div><span>Next step</span><strong>{entropy.candidateCount > 1 ? 'Check differences' : auditTotal === 0 ? 'Add first source' : 'Review answer'}</strong></div>
+            </div>
+            <button type="button" className="case-checklist-toggle" onClick={() => setChecklistOpen(open => !open)} aria-expanded={checklistOpen}>
+            <ClipboardCheck size={14} /> Simple checklist <span>{checklistOpen ? 'Hide' : 'Show'}</span>
+            </button>
+            {checklistOpen && (
+              <div className="case-checklist">
+                <label><input type="checkbox" checked={Boolean(caseSchema)} readOnly /> Choose the record types</label>
+                <label><input type="checkbox" checked={auditTotal > 0} readOnly /> Add at least one source record</label>
+                <label><input type="checkbox" checked={auditTotal > 0 && entropy.candidateCount === 1} readOnly /> Review the answer and differences</label>
+                <label><input type="checkbox" checked={auditValid === true} readOnly /> Check the case history before closing</label>
+              </div>
+            )}
+          </section>
 
           <div className="metric-grid primary-metrics">
             <article className="metric-card"><span className="metric-icon teal"><GitBranch size={17} /></span><span className="metric-label">SURVIVING INTERPRETATIONS</span><strong>{entropy.candidateCount.toLocaleString()}</strong><small>Materialized candidate states under search limits</small></article>
             <article className="metric-card"><span className="metric-icon violet"><Activity size={17} /></span><span className="metric-label">CANDIDATE ENTROPY</span><strong>{entropy.after.toFixed(3)} <em>bits</em></strong><small>Derived from heuristic candidate weights; not calibrated truth probability</small></article>
             <article className="metric-card"><span className="metric-icon amber"><Fingerprint size={17} /></span><span className="metric-label">PROVENANCE EVENTS</span><strong>{auditTotal.toLocaleString()}</strong><small className={auditValid === false ? 'text-danger' : ''}>{auditValid === false ? 'Integrity check needs review' : auditValid ? 'Server and page commitment verified' : 'Awaiting ledger check'}</small></article>
           </div>
+          <section className="plain-language-guide" aria-label="Plain-language result explanation">
+            <div className="plain-language-guide-title"><Sparkles size={15} /> <strong>What the result means</strong></div>
+            {!engineState || auditTotal === 0 ? (
+              <p>This case has no committed observations yet. Add evidence or start a clean demo to let LAZARUS-X compare possible reconstructions.</p>
+            ) : entropy.candidateCount === 1 ? (
+              <p><strong>One reconstruction remains.</strong> The submitted evidence and constraints currently point to one answer. That is a consistent result, not a claim that the evidence is perfect.</p>
+            ) : (
+              <p><strong>{entropy.candidateCount.toLocaleString()} reconstructions remain.</strong> The evidence supports more than one answer. The top-ranked result is the best-supported working answer; open <strong>Conflict Matrix</strong> to see exactly which fields disagree and add independent evidence to decide between them.</p>
+            )}
+          </section>
           <details className="secondary-metrics">
             <summary><TimerReset size={14} /> More metrics <span>Ambiguity change</span><ChevronDown size={14} /></summary>
             <div className="metric-grid">
@@ -1869,14 +2519,14 @@ function App() {
               <div className="panel-title">
                 <span className="panel-icon"><Database size={17} /></span>
                 <div>
-                  <h2>Evidence intake · Evidence fragments</h2>
-                  <p>Record one source observation at a time. Conflicting observations remain visible as competing hypotheses.</p>
+                  <h2>Add a source record <span className="legacy-term">(evidence intake)</span></h2>
+                      <p>Enter what one document or register says. If records disagree, both answers stay visible for review.</p>
                 </div>
               </div>
               <div className="panel-heading-meta evidence-actions">
-                <span className="live-tag"><i /> LIVE INGESTION</span>
-                <button type="button" className="secondary-button csv-action" onClick={downloadEvidenceCsvTemplate} disabled={!caseSchema || loading}><FileSpreadsheet size={14}/> CSV template</button>
-                <button type="button" className="secondary-button csv-action" onClick={() => csvInputRef.current?.click()} disabled={!caseSchema || !caseId || loading || caseStatus === 'SEALED'}><Upload size={14}/> Import CSV</button>
+                <span className="live-tag"><i /> READY</span>
+                <button type="button" className="secondary-button csv-action" onClick={downloadEvidenceCsvTemplate} disabled={!caseSchema || loading}><FileSpreadsheet size={14}/> Download CSV form</button>
+                <button type="button" className="secondary-button csv-action" onClick={() => csvInputRef.current?.click()} disabled={!caseSchema || !caseId || loading || caseStatus === 'SEALED'}><Upload size={14}/> Upload CSV</button>
                 <input ref={csvInputRef} type="file" accept=".csv,text/csv" hidden onChange={event => void handleEvidenceCsv(event)} aria-label="Import evidence CSV" />
               </div>
             </div>
@@ -1910,9 +2560,9 @@ function App() {
                 <div className="example-scenarios-panel walkthrough-strip" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                     <div className="walkthrough-copy">
-                      <span className="walkthrough-kicker"><Sparkles size={13}/> DEMO SCENARIOS</span>
-                      <strong>Pre-configured Forensic Scenarios</strong>
-                      <small>Select a standardized DBMS benchmark to test multi-row constraint resolution, branching, and candidate recovery.</small>
+                      <span className="walkthrough-kicker"><Sparkles size={13}/> READY-MADE EXAMPLES</span>
+                      <strong>Try an example case</strong>
+                      <small>Use the Kolar birth-record example to see how different government and family records are compared.</small>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <select
@@ -1923,21 +2573,24 @@ function App() {
                         className="secondary-button"
                         style={{ padding: '6px 12px', fontSize: '12px' }}
                       >
-                        <optgroup label="Incident Response Preset">
-                          <option value="ir-clean">A) Clean incident (no conflicts)</option>
-                          <option value="ir-out-of-order">B) Out-of-order evidence (parent arrives late)</option>
-                          <option value="ir-name-conflict">C) Conflicting name from a weaker source</option>
-                          <option value="ir-unique-clash">D) Duplicate id (fatal violation)</option>
-                          <option value="ir-multi-incident-cascade">H) Enterprise breach cascade (14 records, 5 relations)</option>
+                        <optgroup label="Government record recovery">
+                          <option value="gov-birth-register">A) Damaged birth register — Kolar</option>
                         </optgroup>
-                        <optgroup label="Workforce & Orders Preset">
-                          <option value="wf-clean">E) Workforce and orders (clean)</option>
-                          <option value="wf-missing-parent">F) Order points to unknown employee</option>
-                          <option value="wf-amount-conflict">G) Two amounts for one order</option>
-                          <option value="wf-multi-dept-enterprise">I) Enterprise supply chain & purchase orders (18 records, 3 relations)</option>
+                        <optgroup label="Cyber records">
+                          <option value="ir-clean">B) Clean cyber case</option>
+                          <option value="ir-out-of-order">C) Records arrive later</option>
+                          <option value="ir-name-conflict">D) Two names for one person</option>
+                          <option value="ir-unique-clash">E) Same record number used twice</option>
+                          <option value="ir-multi-incident-cascade">I) Large cyber case</option>
                         </optgroup>
-                        <optgroup label="General Walkthrough">
-                          <option value="synthetic-walkthrough">Guided Walkthrough (Dynamic Conflict)</option>
+                        <optgroup label="Work and purchase records">
+                          <option value="wf-clean">E) Clean staff and purchase case</option>
+                          <option value="wf-missing-parent">F) Employee record is missing</option>
+                          <option value="wf-amount-conflict">G) Two amounts for one purchase</option>
+                          <option value="wf-multi-dept-enterprise">I) Large purchase case</option>
+                        </optgroup>
+                        <optgroup label="Other example">
+                          <option value="synthetic-walkthrough">Guided example (made-up conflict)</option>
                         </optgroup>
                       </select>
                       <button
@@ -1946,9 +2599,9 @@ function App() {
                         className="primary-button"
                         style={{ height: '32px', fontSize: '11px', gap: '6px', whiteSpace: 'nowrap' }}
                         onClick={() => void divyank24BCE0793_simpleAutoLoad(divyank24BCE0793_selectedScenarioId)}
-                        title="Instantly auto-loads this entire scenario in 1 click (creates matching case if needed)"
+                        title="Creates a separate matching case and loads only this demo scenario"
                       >
-                        <Sparkles size={14} /> ⚡ 1-Click Auto-Load
+                        <Sparkles size={14} /> Start this example
                       </button>
                       <button
                         type="button"
@@ -1974,8 +2627,11 @@ function App() {
                         <span><strong>Goal:</strong> {divyank24BCE0793_currentScenario.learningGoal}</span>
                         <span className="role-tag" style={{ textTransform: 'uppercase' }}>Preset: {divyank24BCE0793_currentScenario.preset}</span>
                       </div>
+                      <div className="scenario-context-note">
+                        <strong>Use case:</strong> {divyank24BCE0793_currentScenario.description}
+                      </div>
                       <div className="scenario-expected-note" style={{ fontSize: '11px', color: 'var(--violet)' }}>
-                        <strong>Expected:</strong> {divyank24BCE0793_currentScenario.expected.note}
+                        <strong>Conclusion from this example:</strong> {divyank24BCE0793_currentScenario.expected.note}
                       </div>
                       {!caseId ? (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.2)', marginTop: '2px', flexWrap: 'wrap', gap: '8px' }}>
@@ -2006,7 +2662,7 @@ function App() {
                                 style={{ height: '26px', fontSize: '10px', whiteSpace: 'nowrap', padding: '0 8px' }}
                                 onClick={() => void commitEvidenceBatch(divyank24BCE0793_currentScenario.evidence, `Appended scenario ${divyank24BCE0793_currentScenario.title}`, false, `Appended ${divyank24BCE0793_currentScenario.evidence.length} fragments for ${divyank24BCE0793_currentScenario.title}`)}
                               >
-                                <Plus size={11} /> Append to Case
+                                <Plus size={11} /> Add to current case
                               </button>
                             )}
                             <button
@@ -2038,7 +2694,7 @@ function App() {
             {caseStatus === 'SEALED' && <div className="sealed-alert" role="status"><Lock size={14} /> Case is sealed in the application. Evidence intake through this interface is closed; direct database access is outside this control.</div>}
             
             <form onSubmit={event => void submitEvidence(event)} className="evidence-form">
-              <div className="form-control"><label htmlFor="evTable">Relation</label><select id="evTable" value={table} onChange={event => { const nextTable = event.target.value; setTable(nextTable); setField(caseSchema?.tableDefinitions?.find(definition => definition.name === nextTable)?.columns?.[0]?.name ?? 'name'); setFormErrors(current => ({ ...current, field: undefined })); }}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>
+              <div className="form-control"><label htmlFor="evTable">Record type</label><select id="evTable" aria-label="Relation" value={table} onChange={event => { const nextTable = event.target.value; setTable(nextTable); setField(caseSchema?.tableDefinitions?.find(definition => definition.name === nextTable)?.columns?.[0]?.name ?? 'name'); setFormErrors(current => ({ ...current, field: undefined })); }}>{TABLES.map(name => <option key={name}>{name}</option>)}</select></div>
               <div className="form-control record-control"><label htmlFor="evRecord">Record locator</label><input id="evRecord" type="number" min="0" step="1" value={recordId} aria-invalid={!!displayedRecordIdError} aria-describedby={displayedRecordIdError ? 'evRecord-error' : undefined} onChange={event => { setRecordId(event.target.value); setFormErrors(current => ({ ...current, recordId: undefined })); }} required />{displayedRecordIdError && <span id="evRecord-error" className="field-error">{displayedRecordIdError}</span>}</div>
               <div className="form-control"><label htmlFor="evField">Attribute</label>{selectedTableDefinition && selectedTableDefinition.columns.length > 0 ? <select id="evField" value={field} onChange={event => { setField(event.target.value); setFormErrors(current => ({ ...current, field: undefined })); }} aria-invalid={!!displayedFieldError} required><option value="_recordId" hidden>Internal record identity</option>{selectedTableDefinition.columns.map(column => <option key={column.name} value={column.name}>{column.name} · {column.type}{column.required ? ' · required' : ''}{column.unique ? ' · unique' : ''}</option>)}</select> : <input id="evField" value={field} onChange={event => { setField(event.target.value); setFormErrors(current => ({ ...current, field: undefined })); }} placeholder="e.g. name" maxLength={256} aria-invalid={!!displayedFieldError} aria-describedby={displayedFieldError ? 'evField-error' : undefined} required />}{displayedFieldError && <span id="evField-error" className="field-error">{displayedFieldError}</span>}</div>
               <div className="form-control"><label htmlFor="evValueFormat">Value format</label><select id="evValueFormat" value={valueFormat} onChange={event => { setValueFormat(event.target.value as 'text' | 'json'); setFormErrors(current => ({ ...current, value: undefined })); }}><option value="text">Text</option><option value="json">JSON scalar</option></select></div>
@@ -2070,18 +2726,60 @@ function App() {
                 )}
               </div>
             </form>
-            <div className="evidence-footnote"><ShieldCheck size={13} /> Each accepted fragment is written with its provenance event in one database transaction.</div>
+            <div className="evidence-footnote"><ShieldCheck size={13} /> Each source record is saved with its source name and confidence.</div>
           </section>
 
-          <details className="collapsible-panel">
-            <summary><GitBranch size={15} /> Schema and relationship graph <span>Optional visual analysis</span><ChevronDown size={15} /></summary>
+          <section className="panel raw-records-panel" aria-label="All source records">
+            <div className="panel-heading">
+              <div className="panel-title">
+                <span className="panel-icon teal-icon"><FileSpreadsheet size={17} /></span>
+                <div>
+                  <h2>All source records</h2>
+                  <p>This is the raw information entered into this case, before the app compares possible answers.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => document.getElementById('evTable')?.focus()}
+                disabled={!caseId || caseStatus === 'SEALED'}
+              >
+                <Plus size={14} /> Add another source record
+              </button>
+            </div>
+            <div className="raw-records-table-wrap">
+              <table className="raw-records-table">
+                <thead>
+                  <tr><th>#</th><th>Record type</th><th>Record no.</th><th>Detail</th><th>Value entered</th><th>Source</th><th>Confidence</th><th>Added</th></tr>
+                </thead>
+                <tbody>
+                  {timeline.map((item, index) => (
+                    <tr key={`raw-${item.id}-${index}`}>
+                      <td>{timeline.length - index}</td>
+                      <td><strong>{item.table}</strong></td>
+                      <td>{item.recordId}</td>
+                      <td>{item.field}</td>
+                      <td className="raw-value">{String(item.value ?? '—')}</td>
+                      <td>{item.sourceRef || 'Not named'}</td>
+                      <td>{item.confidence === undefined ? '—' : `${Math.round(item.confidence * 100)}%`}</td>
+                      <td>{new Date(item.at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {timeline.length === 0 && <tr><td colSpan={8} className="raw-records-empty">No source records yet. Add the first record above.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <details className="collapsible-panel graph-collapsible" open>
+            <summary><GitBranch size={15} /> Evidence relationship graph <span>See records, links, and unresolved relationships</span><ChevronDown size={15} /></summary>
           <section className="panel graph-panel">
             <div className="panel-heading">
               <div className="panel-title">
                 <span className="panel-icon violet-icon"><GitBranch size={17} /></span>
                 <div>
-                  <h2>{graphViewMode === 'schema' ? 'Declared schema & constraints' : 'Candidate relational hypothesis graph'}</h2>
-                  <p>{graphViewMode === 'schema' ? 'The exact case schema used by the solver; fields and links are not hard-coded to a demo domain.' : 'Edges are drawn only when an observed source value matches a target value under a declared foreign key.'}</p>
+                  <h2>{graphViewMode === 'schema' ? 'Declared schema & constraints' : 'Observed record relationship map - relational hypothesis graph'}</h2>
+                  <p>{graphViewMode === 'schema' ? 'The exact case schema used by the solver; fields and links are not hard-coded to a demo domain.' : 'Lines appear only when an observed value matches a declared relationship. Missing lines are not treated as proof that a record is unrelated.'}</p>
                 </div>
               </div>
               <div className="graph-heading-controls">
@@ -2276,6 +2974,13 @@ function App() {
               )
             ) : <div className="empty-case-state"><Sparkles size={19} />Start with a new case or select an existing case file.</div>}
           </section>
+          {caseId && <div className="final-report-footer">
+            <p>Finished reviewing the reconstruction?</p>
+            <a className="secondary-button" href={`/what-if-lab?case=${encodeURIComponent(caseId)}`}><Zap size={14} /> Open Reconstruction What-if Lab</a>
+            <a className="secondary-button" href={`/department-verification?case=${encodeURIComponent(caseId)}`}><ShieldCheck size={14} /> Check a conflict with another department</a>
+            <a className="secondary-button" href={`/evidence-lifecycle?case=${encodeURIComponent(caseId)}`}><TimerReset size={14} /> Open The Record That Forgot</a>
+            <a className="primary-button final-report-link" href={`/final-data-summary?case=${encodeURIComponent(caseId)}`}><BadgeCheck size={14} /> View what we had and what we found</a>
+          </div>}
         </section>
         </CaseViewErrorBoundary>
 
@@ -2390,6 +3095,8 @@ function App() {
 
           <details className="collapsible-panel timeline-details">
             <summary><TimerReset size={15} /> Recent fragments <span>{timeline.length} from this session</span><ChevronDown size={15} /></summary>
+            {caseId && <a className="time-machine-link" href={`/case-time-machine?case=${encodeURIComponent(caseId)}`}><TimerReset size={14} /> Open Case Time Machine</a>}
+            {caseId && <a className="time-machine-link lifecycle-shortcut" href={`/evidence-lifecycle?case=${encodeURIComponent(caseId)}`}><TimerReset size={14} /> Open The Record That Forgot</a>}
             <section className="panel timeline-panel"><div className="panel-heading compact-heading"><div className="panel-title"><span className="panel-icon teal-icon"><TimerReset size={16} /></span><div><h2>Recent fragments</h2><p>This session · latest 50</p></div></div><span className="timeline-count">{timeline.length}</span></div><div className="timeline-list custom-scrollbar">{timeline.map(item => <motion.div key={item.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} className="timeline-item"><span className="timeline-dot" /><div><div className="timeline-value"><b>{item.table}[{item.recordId}].{item.field}</b><span>{String(item.value)}</span></div><small>{new Date(item.at).toLocaleTimeString()}{item.sourceRef ? ` · Source: ${item.sourceRef}` : ''}{item.sourceSha256 ? ` · SHA-256: ${item.sourceSha256.slice(0, 12)}…` : ''}</small></div></motion.div>)}{timeline.length === 0 && <div className="timeline-empty">Accepted fragments from this session appear here.</div>}</div></section>
           </details>
 
@@ -2418,6 +3125,149 @@ function App() {
       />
     </div>
   );
+}
+
+function WhatIfLabPage() {
+  const caseId = new URLSearchParams(window.location.search).get('case');
+  const workspaceHref = caseId ? `/?case=${encodeURIComponent(caseId)}` : '/';
+  const token = sessionStorage.getItem('lazarus-x-token');
+  const [payload, setPayload] = useState<{ name: string; schemaDefinition: CaseSchema; bestState: CandidateState; ambiguity?: { entropyBits?: number; candidateCount?: number } } | null>(null);
+  const [table, setTable] = useState('');
+  const [recordId, setRecordId] = useState('1');
+  const [field, setField] = useState('');
+  const [value, setValue] = useState('');
+  const [confidence, setConfidence] = useState(1);
+  const [baselineConfidence, setBaselineConfidence] = useState(0.9);
+  const [alternativeConfidence, setAlternativeConfidence] = useState(0.9);
+  const [result, setResult] = useState<WhatIfResult | null>(null);
+  const [resultKind, setResultKind] = useState<'complete' | 'custom' | null>(null);
+  const [selectedExperimentId, setSelectedExperimentId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(() => (!caseId || !token ? 'Open this page from an authenticated case workspace.' : ''));
+  const definition = payload?.schemaDefinition.tableDefinitions.find(item => item.name === table);
+  const column = definition?.columns.find(item => item.name === field);
+
+  useEffect(() => {
+    if (!caseId || !token) return;
+    let active = true;
+    request<{ name?: string; schemaDefinition: CaseSchema; bestState: CandidateState; ambiguity?: { entropyBits?: number; candidateCount?: number } }>(`/cases/${encodeURIComponent(caseId)}`, token)
+      .then(data => {
+        if (!active) return;
+        setPayload({ ...data, name: data.name || 'Selected case' });
+        const firstTable = data.schemaDefinition.tables[0] ?? '';
+        setTable(firstTable);
+        setField(data.schemaDefinition.tableDefinitions.find(item => item.name === firstTable)?.columns[0]?.name ?? '');
+        const firstExperiment = completeCaseExperiments.find(item => item.preset === data.schemaDefinition.preset) ?? completeCaseExperiments[0];
+        setSelectedExperimentId(firstExperiment?.id ?? '');
+        setBaselineConfidence(firstExperiment?.baselineConfidence ?? 0.9);
+        setAlternativeConfidence(firstExperiment?.alternativeConfidence ?? 0.9);
+      })
+      .catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load this case.'); });
+    return () => { active = false; };
+  }, [caseId, token]);
+
+  const runSimulation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!caseId || !token || !payload) return;
+    setBusy(true);
+    setError('');
+    try {
+      let typedValue: unknown = value;
+      if (column?.type === 'NUMBER') {
+        typedValue = Number(value);
+        if (!Number.isFinite(typedValue)) throw new Error('Enter a valid number for this field.');
+      } else if (column?.type === 'BOOLEAN') {
+        if (!['true', 'false'].includes(value.toLowerCase())) throw new Error('Enter true or false for this field.');
+        typedValue = value.toLowerCase() === 'true';
+      }
+      const response = await request<WhatIfResult>(`/cases/${encodeURIComponent(caseId)}/simulate`, token, {
+        method: 'POST',
+        body: JSON.stringify({ evidence: { table, recordId: Number(recordId), field, value: typedValue, confidence } }),
+      });
+      setResult(response);
+      setResultKind('custom');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not simulate this observation.');
+    } finally { setBusy(false); }
+  };
+
+  const selectedExperiment: CompleteCaseExperiment | undefined = completeCaseExperiments.find(item => item.id === selectedExperimentId);
+  const runCompleteComparison = async () => {
+    if (!caseId || !token || !selectedExperiment || !payload) return;
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      const comparison = await request<{ baseline: WhatIfResult['before']; alternative: WhatIfResult['after']; committed: false }>(`/cases/${encodeURIComponent(caseId)}/simulate-comparison`, token, {
+        method: 'POST',
+        body: JSON.stringify({
+          schemaDefinition: createPresetSchema(selectedExperiment.preset),
+          baseline: selectedExperiment.baselineEvidence.map(item => item.sourceRef === selectedExperiment.confidenceSourceRef ? { ...item, confidence: baselineConfidence } : item),
+          alternative: selectedExperiment.alternativeEvidence.map(item => item.sourceRef === selectedExperiment.confidenceSourceRef ? { ...item, confidence: alternativeConfidence } : item),
+        }),
+      });
+      setResult({ before: comparison.baseline, after: comparison.alternative, committed: false, hypothetical: { table: selectedExperiment.title, recordId: 0, field: 'changed fact', value: selectedExperiment.changedFact } });
+      setResultKind('complete');
+    } catch (cause) {
+      const failure = cause as AppError;
+      setError(failure.status === 404
+        ? 'This LAZARUS-X server is out of date for complete-case comparisons. Restart the backend from this project and reload the lab.'
+        : failure.status === 401
+          ? 'Your sign-in expired. Return to the case workspace, sign in again, and reopen the lab.'
+          : failure.message || 'Could not compare these complete cases.');
+    } finally { setBusy(false); }
+  };
+
+  return <div className="whatif-page">
+    <header className="whatif-header"><a className="secondary-button" href={workspaceHref}>← Back to case workspace</a><div><span className="eyebrow">LAZARUS-X / EXPERIMENT LAB</span><h1>Reconstruction What-if Lab</h1><p>Test a possible reading and inspect its effect before deciding whether to add it as evidence.</p></div><span className="live-tag"><i/> PRIVATE PREVIEW</span></header>
+    {!caseId || !token ? <main className="whatif-page-main"><section className="panel time-machine-empty"><CircleAlert size={20}/><strong>{error}</strong><a href="/">Return to the workspace</a></section></main> : error && !payload ? <main className="whatif-page-main"><section className="panel time-machine-empty"><CircleAlert size={20}/><strong>{error}</strong><a href="/">Return to the workspace</a></section></main> : payload ? <main className="whatif-page-main">
+      <section className="panel whatif-case-context"><span className="eyebrow">ACTIVE CASE</span><h2>{payload.name}</h2><p>Schema: {payload.schemaDefinition.name} · Current result: {payload.ambiguity?.candidateCount ?? '—'} surviving interpretation(s) · {(payload.ambiguity?.entropyBits ?? 0).toFixed(3)} heuristic entropy bits</p><a href={`/final-data-summary?case=${encodeURIComponent(caseId!)}`}>Open “What we had and what we found” →</a><a className="department-inline-link" href={`/department-verification?case=${encodeURIComponent(caseId!)}`}><ShieldCheck size={13}/> Check a source clash with another department</a></section>
+      <section className="panel complete-case-lab"><div className="panel-heading"><div className="panel-title"><span className="panel-icon violet-icon"><GitBranch size={17}/></span><div><h2>Choose a reconstruction test case</h2><p>Every test runs two complete evidence datasets in an isolated schema. Nothing is saved to the active case.</p></div></div><span className="role-tag">3 TEST CASES</span></div>
+        <div className="complete-case-cards">{completeCaseExperiments.map((item, index) => <button key={item.id} type="button" className={`complete-case-card ${selectedExperimentId === item.id ? 'selected' : ''}`} onClick={() => { setSelectedExperimentId(item.id); setBaselineConfidence(item.baselineConfidence); setAlternativeConfidence(item.alternativeConfidence); setResult(null); setResultKind(null); }} aria-pressed={selectedExperimentId === item.id}>
+          <span className="eyebrow">TEST CASE {String(index + 1).padStart(2, '0')} · {item.preset}</span><strong>{item.title}</strong><small>{item.description}</small><span className="complete-case-difference"><b>WHAT CHANGES</b>{item.changedFact}</span><span className="complete-case-count">Dataset A {item.baselineEvidence.length} rows <i>↔</i> Dataset B {item.alternativeEvidence.length} rows</span>
+        </button>)}</div>
+        {selectedExperiment && <>
+          <div className="confidence-lab-controls" aria-label="Confidence test controls">
+            <div className="confidence-lab-heading"><div><span className="eyebrow">CONFIDENCE EXPERIMENT</span><strong>Change how strongly the primary source is weighted</strong><small>The rival source stays at 55%. Try values below and above 55% to see the leading reconstruction change.</small></div>
+              <div className="confidence-profile-buttons">{[
+                { label: 'Equal · 90 / 90', a: 0.9, b: 0.9 },
+                { label: 'A stronger · 90 / 40', a: 0.9, b: 0.4 },
+                { label: 'B stronger · 40 / 90', a: 0.4, b: 0.9 },
+              ].map(profile => <button key={profile.label} type="button" className="secondary-button" onClick={() => { setBaselineConfidence(profile.a); setAlternativeConfidence(profile.b); setResult(null); setResultKind(null); }}>{profile.label}</button>)}</div>
+            </div>
+            <div className="confidence-slider-grid">
+              <label><span><b>Dataset A source confidence</b><strong>{Math.round(baselineConfidence * 100)}%</strong></span><input aria-label="Dataset A source confidence" type="range" min="0.1" max="1" step="0.05" value={baselineConfidence} onChange={event => { setBaselineConfidence(Number(event.target.value)); setResult(null); setResultKind(null); }}/></label>
+              <label><span><b>Dataset B source confidence</b><strong>{Math.round(alternativeConfidence * 100)}%</strong></span><input aria-label="Dataset B source confidence" type="range" min="0.1" max="1" step="0.05" value={alternativeConfidence} onChange={event => { setAlternativeConfidence(Number(event.target.value)); setResult(null); setResultKind(null); }}/></label>
+            </div>
+          </div>
+          <CompleteCaseRawComparison experiment={selectedExperiment} baselineConfidence={baselineConfidence} alternativeConfidence={alternativeConfidence}/>
+          <div className="complete-case-run-row"><div><strong>{selectedExperiment.baselineLabel} · {Math.round(baselineConfidence * 100)}%</strong><span>versus</span><strong>{selectedExperiment.alternativeLabel} · {Math.round(alternativeConfidence * 100)}%</strong></div><button type="button" className="primary-button" onClick={() => void runCompleteComparison()} disabled={busy}><Zap size={15}/>{busy ? 'Reconstructing both datasets…' : 'Reconstruct and compare both tables'}</button></div>
+        </>}
+      </section>
+      <section className="panel whatif-lab" aria-label="Custom hypothetical evidence input"><details><summary className="custom-experiment-summary"><Zap size={16}/> Build a custom one-field experiment <ChevronDown size={15}/></summary><div className="panel-heading"><div className="panel-title"><span className="panel-icon amber-icon"><Zap size={17}/></span><div><h2>Custom what-if</h2><p>Try your own hypothetical observation on the selected saved case.</p></div></div></div>
+        <form className="whatif-form" onSubmit={event => void runSimulation(event)}>
+          <label>Record type<select value={table} onChange={event => { const next = event.target.value; setTable(next); setField(payload.schemaDefinition.tableDefinitions.find(item => item.name === next)?.columns[0]?.name ?? ''); setResult(null); }}>{payload.schemaDefinition.tables.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+          <label>Record number<input type="number" min="0" step="1" value={recordId} onChange={event => setRecordId(event.target.value)} required/></label>
+          <label>Field<select value={field} onChange={event => { setField(event.target.value); setResult(null); }}>{definition?.columns.map(item => <option key={item.name} value={item.name}>{item.name} · {item.type}</option>)}</select></label>
+          <label className="whatif-value-input">Hypothetical value<input value={value} onChange={event => setValue(event.target.value)} placeholder={column?.type === 'NUMBER' ? 'e.g. 14' : 'Enter the possible reading'} required/></label>
+          <label>Source confidence <span className="whatif-confidence-value">{Math.round(confidence * 100)}%</span><input type="range" min="0.1" max="1" step="0.05" value={confidence} onChange={event => setConfidence(Number(event.target.value))}/></label>
+          <button type="submit" className="primary-button whatif-run-button" disabled={busy || !value.trim() || !field}><Zap size={15}/>{busy ? 'Running temporary reconstruction…' : 'Run what-if experiment'}</button>
+        </form>
+        <div className="whatif-safety-note"><Lock size={14}/> The server replays verified evidence in an isolated engine fork. This preview creates no database rows, provenance events, or ledger changes.</div></details></section>
+      {error && payload && <div className="whatif-page-error" role="alert"><CircleAlert size={15}/>{error}</div>}
+      {result ? <>{resultKind === 'complete' && selectedExperiment && <section className="panel complete-case-difference-report"><span className="eyebrow">THE PARTICULAR DIFFERENCE</span><strong>{selectedExperiment.changedFact}</strong><p>All other supplied observations are held constant in this complete-case comparison.</p></section>}<WhatIfComparison result={result} onClear={() => { setResult(null); setResultKind(null); }} subtitle={resultKind === 'complete' && selectedExperiment ? `${selectedExperiment.baselineLabel} → ${selectedExperiment.alternativeLabel}` : undefined}/></> : <section className="panel whatif-welcome"><GitBranch size={24}/><strong>Choose a ready-made pair to see a complete comparison</strong><span>The lab runs both complete evidence sets through the same case schema, then shows the exact field that differs and what changed in each reconstruction.</span></section>}
+    </main> : <main className="whatif-page-main"><section className="panel time-machine-empty"><Loader2 className="spin" size={20}/><strong>Loading case…</strong></section></main>}
+  </div>;
+}
+
+function App() {
+  if (window.location.pathname === '/document-locator') return <DocumentLocatorPage />;
+  if (window.location.pathname === '/evidence-lifecycle') return <EvidenceExpiryLabPage />;
+  if (window.location.pathname === '/case-time-machine') return <CaseTimeMachinePage />;
+  if (window.location.pathname === '/final-data-summary') return <FinalDataSummaryPage />;
+  if (window.location.pathname === '/what-if-lab') return <WhatIfLabPage />;
+  if (window.location.pathname === '/department-verification') return <DepartmentVerificationPage />;
+  return <AppShell />;
 }
 
 export default App;

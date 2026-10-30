@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowRight, Check, Plus, Table2, Trash2, X, Sparkles } from 'lucide-react';
-import { createPresetSchema, schemaWithConstraints, validateCaseSchema, type CaseSchema, type ColumnType, type ForeignKeyDefinition, type TableDefinition } from './schemaTypes';
+import { createPresetSchema, schemaWithConstraints, validateCaseSchema, type CaseSchema, type ColumnType, type ForeignKeyDefinition, type PresetId, type TableDefinition } from './schemaTypes';
 import { divyank24BCE0793_EXAMPLE_SCENARIOS } from './exampleScenarios';
 
 interface SchemaStudioProps {
@@ -11,7 +11,7 @@ interface SchemaStudioProps {
 }
 
 export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaStudioProps) {
-  const [preset, setPreset] = useState<'incident-response' | 'workforce-orders' | 'blank' | 'custom'>('incident-response');
+  const [preset, setPreset] = useState<PresetId | 'custom'>('incident-response');
   const [caseName, setCaseName] = useState('Incident reconstruction 01');
   const [schemaName, setSchemaName] = useState('Incident response records');
   const [autoScenarioId, setAutoScenarioId] = useState<string>('none');
@@ -23,7 +23,7 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
 
   if (!open) return null;
 
-  const switchPreset = (next: 'incident-response' | 'workforce-orders' | 'blank') => {
+  const switchPreset = (next: PresetId) => {
     const nextSchema = createPresetSchema(next);
     setPreset(next);
     setSchemaName(nextSchema.name);
@@ -85,14 +85,14 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
           <button type="button" className="icon-button" aria-label="Close schema studio" onClick={onClose} disabled={busy}><X size={18} /></button>
         </header>
         <div className="schema-studio-body custom-scrollbar">
-          <div className="schema-studio-intro"><strong>Workflow</strong><span>1. Define the schema</span><ArrowRight size={13}/><span>2. Add evidence fragments</span><ArrowRight size={13}/><span>3. Compare surviving hypotheses</span><ArrowRight size={13}/><span>4. Verify provenance</span></div>
-          <p className="schema-studio-boundary-note">This is the target schema used by the reconstruction engine. It is validated and stored with the case; creating a case does not create physical SQLite tables with these names.</p>
+          <div className="schema-studio-intro"><strong>Steps</strong><span>1. Choose record types</span><ArrowRight size={13}/><span>2. Add source records</span><ArrowRight size={13}/><span>3. Review possible answers</span><ArrowRight size={13}/><span>4. Check case history</span></div>
+          <p className="schema-studio-boundary-note">Choose the kinds of records you want to compare. For a government case, use the ready-made government record recovery option; you do not need to design anything yourself.</p>
           <div className="schema-studio-fields">
-            <label>Case name<input value={caseName} maxLength={100} onChange={event => setCaseName(event.target.value)} placeholder="e.g. Incident response reconstruction" /></label>
-            <label>Schema label<input value={schemaName} maxLength={100} onChange={event => setSchemaName(event.target.value)} placeholder="Describe the source system" /></label>
+            <label>Case name<input value={caseName} maxLength={100} onChange={event => setCaseName(event.target.value)} placeholder="e.g. Kolar birth record" /></label>
+            <label>Record set name<input value={schemaName} maxLength={100} onChange={event => setSchemaName(event.target.value)} placeholder="e.g. Government birth records" /></label>
             <label>
               <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Sparkles size={13} style={{ color: '#3b82f6' }} /> Auto-populate with sample evidence
+                <Sparkles size={13} style={{ color: '#3b82f6' }} /> Fill with a ready-made example
               </span>
               <select
                 aria-label="Auto-populate with sample evidence"
@@ -109,29 +109,33 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
                   }
                 }}
               >
-                <option value="none">None (Start with empty case)</option>
+                <option value="none">No example (start empty)</option>
+                <optgroup label="Government Record Recovery">
+                  <option value="gov-birth-register">A) Damaged birth register — Kolar</option>
+                </optgroup>
                 <optgroup label="Incident Response Scenarios">
-                  <option value="ir-clean">A) Clean incident (no conflicts)</option>
-                  <option value="ir-out-of-order">B) Out-of-order evidence (parent arrives late)</option>
-                  <option value="ir-name-conflict">C) Conflicting name from weaker source</option>
-                  <option value="ir-unique-clash">D) Duplicate id (fatal clash)</option>
-                  <option value="ir-multi-incident-cascade">H) Enterprise breach cascade (14 records, 5 relations)</option>
+                  <option value="ir-clean">B) Clean cyber case</option>
+                  <option value="ir-out-of-order">C) Records arrive later</option>
+                  <option value="ir-name-conflict">D) Two names for one person</option>
+                  <option value="ir-unique-clash">E) Same record number used twice</option>
+                  <option value="ir-multi-incident-cascade">H) Large cyber case</option>
                 </optgroup>
                 <optgroup label="Workforce & Orders Scenarios">
-                  <option value="wf-clean">E) Workforce and orders (clean)</option>
-                  <option value="wf-missing-parent">F) Order points to unknown employee</option>
-                  <option value="wf-amount-conflict">G) Two amounts for one order</option>
-                  <option value="wf-multi-dept-enterprise">I) Enterprise supply chain & purchase orders (18 records, 3 relations)</option>
+                  <option value="wf-clean">E) Clean staff and purchase case</option>
+                  <option value="wf-missing-parent">F) Employee record is missing</option>
+                  <option value="wf-amount-conflict">G) Two amounts for one purchase</option>
+                  <option value="wf-multi-dept-enterprise">I) Large purchase case</option>
                 </optgroup>
               </select>
             </label>
           </div>
           <fieldset className="schema-template-picker"><legend>Start from a template</legend>
-            <label><input type="radio" name="schema-preset" checked={preset === 'incident-response'} onChange={() => switchPreset('incident-response')}/><span><strong>Incident response</strong><small>Person, Device, Incident, Artifact, Observation. Recommended project walkthrough.</small></span></label>
-            <label><input type="radio" name="schema-preset" checked={preset === 'workforce-orders'} onChange={() => switchPreset('workforce-orders')}/><span><strong>Workforce &amp; orders</strong><small>Small schema for understanding primary/foreign key propagation.</small></span></label>
-            <label><input type="radio" name="schema-preset" checked={preset === 'blank' || preset === 'custom'} onChange={() => switchPreset('blank')}/><span><strong>Custom schema</strong><small>Start with a minimal relation and customize it below.</small></span></label>
+            <label><input type="radio" name="schema-preset" checked={preset === 'government-record-recovery'} onChange={() => switchPreset('government-record-recovery')}/><span><strong>Government record recovery</strong><small>Best choice for damaged birth, identity, and office records.</small></span></label>
+            <label><input type="radio" name="schema-preset" checked={preset === 'incident-response'} onChange={() => switchPreset('incident-response')}/><span><strong>Cyber records</strong><small>Incident response records for devices, incidents, files, and technical reports.</small></span></label>
+            <label><input type="radio" name="schema-preset" checked={preset === 'workforce-orders'} onChange={() => switchPreset('workforce-orders')}/><span><strong>Work and purchase records</strong><small>For staff, departments, orders, and amounts.</small></span></label>
+            <label><input type="radio" name="schema-preset" checked={preset === 'blank' || preset === 'custom'} onChange={() => switchPreset('blank')}/><span><strong>Make my own</strong><small>Start with one simple record type.</small></span></label>
           </fieldset>
-          <div className="schema-studio-section-heading"><div><h3>Relations and fields</h3><p>Field types are enforced when evidence is submitted. “Required” checks observed NULL values; it does not invent missing evidence.</p></div><button type="button" className="secondary-button" onClick={addTable} disabled={tables.length >= 20}><Plus size={14}/> Add relation</button></div>
+          <div className="schema-studio-section-heading"><div><h3>Record types and fields</h3><p>These are the names and details that can be entered from source records.</p></div><button type="button" className="secondary-button" onClick={addTable} disabled={tables.length >= 20}><Plus size={14}/> Add record type</button></div>
           <div className="schema-definition-grid">
             {tables.map((table, tableIndex) => <article className="schema-definition-card" key={`${tableIndex}-${table.name}`}>
               <div className="schema-definition-card-head"><span className="schema-definition-index">{String(tableIndex + 1).padStart(2, '0')}</span><input aria-label={`Relation ${tableIndex + 1} name`} value={table.name} maxLength={63} onChange={event => { const previous = table.name; patchTable(tableIndex, { name: event.target.value }); if (previous !== event.target.value) setForeignKeys(current => current.map(fk => ({ ...fk, ...(fk.table === previous ? { table: event.target.value } : {}), ...(fk.targetTable === previous ? { targetTable: event.target.value } : {}) }))); setPreset('custom'); }} /><button type="button" className="icon-button schema-remove" title={`Remove ${table.name}`} aria-label={`Remove ${table.name}`} onClick={() => removeTable(tableIndex)} disabled={tables.length <= 1}><Trash2 size={14}/></button></div>
@@ -145,7 +149,7 @@ export function SchemaStudio({ open, busy = false, onClose, onCreate }: SchemaSt
               <button type="button" className="schema-add-field" onClick={() => addColumn(tableIndex)} disabled={table.columns.length >= 80}><Plus size={12}/> Add field</button>
             </article>)}
           </div>
-          <div className="schema-studio-section-heading"><div><h3>Foreign-key relationships</h3><p>These links connect evidence across relations; unresolved references remain hypotheses, not automatic proof of corruption.</p></div><button type="button" className="secondary-button" onClick={addForeignKey} disabled={tables.length < 2}><Plus size={14}/> Add relationship</button></div>
+          <div className="schema-studio-section-heading"><div><h3>Links between records <span className="legacy-term">(foreign-key relationships)</span></h3><p>These links help the app connect a person to a birth record, office, or source document.</p></div><button type="button" className="secondary-button" onClick={addForeignKey} disabled={tables.length < 2}><Plus size={14}/> Add link</button></div>
           <div className="foreign-key-list">
             {foreignKeys.map((fk, index) => <div className="foreign-key-row" key={`${index}-${fk.table}.${fk.field}`}>
               <select aria-label={`Relationship ${index + 1} source relation`} value={fk.table} onChange={event => { const targetTable = event.target.value; const field = optionsForField(targetTable)[0]?.name ?? ''; patchForeignKey(index, { table: targetTable, field }); setPreset('custom'); }}>

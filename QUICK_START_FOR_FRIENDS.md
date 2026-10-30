@@ -2,11 +2,13 @@
 
 ## Local run
 
-1. Install Node.js 20+ and npm.
-2. Copy `backend/.env.example` to `backend/.env`.
-3. Generate a fresh key with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and set `PROVENANCE_ENCRYPTION_KEY` in that file.
-4. From the repository root run `npm run install:all`, then `npm start`.
-5. Open `http://localhost:3000` and register an investigator account.
+1. Install Node.js 22.12+ (or Node.js 24+) and npm.
+2. On Windows, double-click `start.bat` in the project root. It installs any missing dependencies, prepares a local environment file and random provenance key if needed, builds the frontend, syncs the local database, waits for API/database readiness, and opens the app. Keep the minimized API window open.
+3. Alternatively, use the manual setup below:
+   1. Copy `backend/.env.example` to `backend/.env`.
+   2. Generate a fresh key with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and set `PROVENANCE_ENCRYPTION_KEY` in that file.
+   3. From the repository root run `npm run install:all`, then `npm start`.
+   4. Open `http://localhost:3000` and register an investigator account.
 
 ## Administrator account
 

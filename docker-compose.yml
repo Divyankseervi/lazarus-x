@@ -3,11 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        DATABASE_PROVIDER: sqlite
     ports:
       - "${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
+      DATABASE_PROVIDER: sqlite
       DATABASE_URL: "file:./data/dev.db"
       PROVENANCE_ENCRYPTION_KEY: "${PROVENANCE_ENCRYPTION_KEY:?Set PROVENANCE_ENCRYPTION_KEY in your .env file}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000}"

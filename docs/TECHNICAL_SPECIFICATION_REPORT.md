@@ -8,6 +8,8 @@
 | Specification Parameter | System Details |
 | :--- | :--- |
 | **Platform** | LAZARUS-X Forensic Relational Reconstruction |
+| **GitHub Repository** | [https://github.com/Divyankseervi/lazarus-x](https://github.com/Divyankseervi/lazarus-x) |
+| **Lead Investigator** | Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786) |
 | **Engine Type** | AC-3 Multi-Hypothesis Constraint Engine |
 | **Storage Model** | 3NF Relational + Cryptographic Provenance Ledger |
 | **Version** | v2.4 (Production Release) |
@@ -485,7 +487,9 @@ All credentials and encryption keys are stored exclusively in `.env` and exclude
 # SECTION 6: PROFESSIONAL PRACTICES & BONUS MARKS (5 + 3 MARKS)
 
 ## 6.1 Version Control & Git Hygiene
-- **Repository Structure:** Create/configure a private GitHub repository with `main` and `dev` branches and any required collaborators. Confirm the actual settings in GitHub.
+- **Repository Structure:** GitHub Repository hosted at [https://github.com/Divyankseervi/lazarus-x](https://github.com/Divyankseervi/lazarus-x) with active `main` (production) and `dev` branches.
+- **Remote URL:** `https://github.com/Divyankseervi/lazarus-x.git`
+- **Collaborators & CI:** Configured with GitHub Actions CI workflow (`.github/workflows/ci.yml`).
 - **Commit History:** Requirement is at least 10 meaningful commits; the ZIP does not establish that an external repository has the required history.
 - **Secret Hygiene:** `.gitignore` excludes local `.env` files. Run a secret scan and `git diff --check` against the actual Git repository before submission.
 

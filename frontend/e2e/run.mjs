@@ -105,7 +105,7 @@ try {
   const prismaCli = path.join(backendDir, 'node_modules', 'prisma', 'build', 'index.js');
   await runCommand(process.execPath, [prismaCli, 'db', 'push', '--schema', path.join(backendDir, 'prisma', 'schema.prisma'), '--skip-generate'], {
     cwd: backendDir,
-    env: { ...process.env, DATABASE_URL: databaseUrl, RUST_LOG: 'info' },
+    env: { ...process.env, DATABASE_PROVIDER: 'sqlite', DATABASE_URL: databaseUrl, RUST_LOG: 'info' },
     stdio: 'inherit',
   });
 
@@ -121,6 +121,8 @@ try {
     env: {
       ...process.env,
       CORS_ORIGINS: frontendUrl,
+      DATABASE_PROVIDER: 'sqlite',
+      DATABASE_URL: databaseUrl,
       LAZARUS_E2E_DATABASE_URL: databaseUrl,
       PORT: String(apiPort),
     },
