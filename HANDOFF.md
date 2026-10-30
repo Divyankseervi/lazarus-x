@@ -2,6 +2,8 @@
 
 ## GitHub link in Forensic Report, Vercel & Render Deployment, and Repository Sync — 2026-10-30
 
+- Fixed Render production build issue ("This is not the tsc command you are looking for"): moved `typescript` and `ts-node` from `devDependencies` to `dependencies` in `backend/package.json` and synchronized `backend/package-lock.json`. In production environments where `NODE_ENV=production` defaults `npm ci` to omit dev dependencies, the TypeScript compiler is now guaranteed to install locally.
+- Added `npm run build` (`prisma generate --schema prisma/supabase/schema.prisma && tsc`) and `npm run start:prod` (`node scripts/db_setup.js && node dist/index.js`) to `backend/package.json` for streamlined deployment on Render.
 - Embedded the direct GitHub repository link (`https://github.com/Divyankseervi/lazarus-x`) into the application's Forensic Investigation Report (`frontend/src/ForensicReportModal.tsx`):
   - In the downloadable Markdown investigation report dossier metadata.
   - In the top certified investigators banner in the printable dossier UI.

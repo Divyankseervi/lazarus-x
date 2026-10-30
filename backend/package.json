@@ -15,7 +15,9 @@
     "load:api": "ts-node --files src/engine/api_load_test.ts",
     "security:rotate-provenance-key": "ts-node --files src/security/rotate_provenance_keys.ts",
     "dbms:demo": "ts-node --files src/database/dbms_features_demonstration.ts",
-    "admin:provision": "ts-node --files src/provision_admin.ts"
+    "admin:provision": "ts-node --files src/provision_admin.ts",
+    "build": "prisma generate --schema prisma/supabase/schema.prisma && tsc",
+    "start:prod": "node scripts/db_setup.js && node dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -28,15 +30,15 @@
     "dotenv": "^18.0.7",
     "express": "^5.3.0",
     "pg": "^8.23.1",
-    "prisma": "5.11.0"
+    "prisma": "5.11.0",
+    "typescript": "^6.0.3",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.5",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "@types/node": "^26.6.5"
   },
   "engines": {
     "node": "^22.12.0 || >=24.0.0"
