@@ -29,6 +29,13 @@ if (provider === 'sqlite') {
     generateClient(schema);
     runPrisma(['db', 'push', '--schema', schema]);
 } else if (provider === 'postgresql') {
+    // If DIRECT_URL is set to an IPv6-only direct Supabase host (db.*.supabase.co)
+    // but DATABASE_URL uses the IPv4 pooler, fall back DIRECT_URL to DATABASE_URL
+    // so Prisma migrations succeed on IPv4-only cloud platforms (like Render).
+    if (process.env.DIRECT_URL && /db\.[a-z0-9]+\.supabase\.co/i.test(process.env.DIRECT_URL) && process.env.DATABASE_URL && /pooler\.supabase\.com/i.test(process.env.DATABASE_URL)) {
+        console.log('Notice: overriding IPv6-only DIRECT_URL with IPv4 DATABASE_URL pooler for cloud host compatibility.');
+        process.env.DIRECT_URL = process.env.DATABASE_URL;
+    }
     const schema = 'prisma/supabase/schema.prisma';
     runPrisma(['validate', '--schema', schema]);
     generateClient(schema);
