@@ -1,5 +1,18 @@
 # LAZARUS-X Developer Handoff
 
+## Vercel Live Production Web App Link Integration — 2026-10-31
+
+- **Live Production URL Embedded**:
+  - Embedded `https://lazarus-x-gbp1.vercel.app/` across all primary documentation, application interfaces, and report artifacts:
+    - Page 1 Direct Header of the official submission DOCX and PDF (`Live Production Web App (Vercel): https://lazarus-x-gbp1.vercel.app/`).
+    - Section 1.7 Major Deliverables, Section 8.1 Version Control & Live Deployment, and Section 10 Project Output Screenshots (caption footers).
+    - `README.md` primary header links and deployment blueprint.
+    - `frontend/src/ForensicReportModal.tsx` in both the certified investigators header card and the downloadable investigation Markdown report.
+- **Deliverables Regenerated & Synced**:
+  - `submission/24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.docx` & `.pdf` (27 pages, 1.96 MB).
+  - Project root copies synchronized.
+  - Pushed to `main` and `dev` on GitHub (`https://github.com/Divyankseervi/lazarus-x`).
+
 ## Direct Header Formatting (QP Instruction 1 Alignment) & Authentic Docker / Supabase Screenshots Integration — 2026-10-31
 
 - **Cover Page Direct Header Refactoring (Zero Tables)**:

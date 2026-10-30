@@ -41,6 +41,7 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
         md += `**Investigating Team:** Divyank Seervi (24BCE0793) & Vidushi Negi (24BCE0786)\n`;
         md += `**Course & Slot:** BCSE302P Database Management Systems Laboratory (Slot L25+L26)\n`;
         md += `**GitHub Repository:** https://github.com/Divyankseervi/lazarus-x\n`;
+        md += `**Live Production URL:** https://lazarus-x-gbp1.vercel.app/\n`;
         md += `**Case ID:** ${caseId}\n`;
         md += `**Status:** ${caseStatus} (application-level status)\n`;
         md += `**Generated:** ${new Date().toISOString()}\n`;
@@ -151,6 +152,8 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                             <div style={{ color: 'var(--muted)', fontSize: '11px' }}>Course: BCSE302P Database Management Systems Laboratory · Slot: L25+L26</div>
                             <div style={{ marginTop: '4px', fontSize: '11px' }}>
                                 <strong>Repository:</strong> <a href="https://github.com/Divyankseervi/lazarus-x" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://github.com/Divyankseervi/lazarus-x</a>
+                                <span style={{ margin: '0 8px', color: 'var(--muted)' }}>·</span>
+                                <strong>Live Web App:</strong> <a href="https://lazarus-x-gbp1.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://lazarus-x-gbp1.vercel.app/</a>
                             </div>
                         </div>
                     </div>
@@ -192,7 +195,8 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                         <p className="dossier-para">
                             Every forensic observation committed to this case is anchored into an append-only SHA-256 hash chain with
                             event-scoped HMAC masking. The recent chain anchors below demonstrate verifiable chronological ordering and integrity.
-                        </p>                        {auditEntries && auditEntries.length > 0 && (
+                        </p>
+                        {auditEntries && auditEntries.length > 0 && (
                             <div className="dossier-table-container" style={{ marginTop: '12px', marginBottom: '20px' }}>
                                 <div className="dossier-table-topbar">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -422,6 +426,8 @@ export const ForensicReportModal: React.FC<ForensicReportModalProps> = ({
                             </p>
                             <p style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)' }}>
                                 <strong>GitHub Repository & Audit Pipeline:</strong> <a href="https://github.com/Divyankseervi/lazarus-x" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://github.com/Divyankseervi/lazarus-x</a>
+                                <span style={{ margin: '0 8px' }}>·</span>
+                                <strong>Live Production Web App:</strong> <a href="https://lazarus-x-gbp1.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', textDecoration: 'underline' }}>https://lazarus-x-gbp1.vercel.app/</a>
                             </p>
                             <div className="signatures-row">
                                 <div className="sig-block">

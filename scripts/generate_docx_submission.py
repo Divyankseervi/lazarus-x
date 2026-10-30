@@ -238,6 +238,7 @@ def build_docx():
     add_meta_line("Class Number & Slot", "Class Number: VL2026270104025  |  Slot: L25 + L26")
     add_meta_line("Faculty Name", "Dr. V. SIVAKUMAR")
     add_meta_line("GitHub Repository URL", "https://github.com/Divyankseervi/lazarus-x", is_link=True)
+    add_meta_line("Live Production Web App (Vercel)", "https://lazarus-x-gbp1.vercel.app/", is_link=True)
     add_meta_line("Submission Date & Academic Term", "Fall Semester 2026-27 | 31-10-2026")
 
     p_div = doc.add_paragraph()
@@ -405,7 +406,7 @@ def build_docx():
         "4. Responsive React web application featuring Relational Table Grids, Schema DAG Explorer, and Audit Trail Inspector.\n"
         "5. Cryptographic Provenance Ledger with binary Merkle inclusion proofs ensuring chain-of-custody tamper-evidence.\n"
         "6. Automated 71-assertion verification test suite (src/engine/test.ts) validating ACID compliance, constraints, and trigger behavior.\n"
-        "7. Docker containerization suite and GitHub version-controlled repository (https://github.com/Divyankseervi/lazarus-x)."
+        "7. Docker containerization suite, GitHub repository (https://github.com/Divyankseervi/lazarus-x), and Live Production Cloud Deployment (https://lazarus-x-gbp1.vercel.app/)."
     )
 
     add_subheading("1.8 Project Timeline (Simple Gantt Chart)")
@@ -1113,10 +1114,11 @@ def build_docx():
     # ==========================================
     add_section_heading("8", "Professional Development Practices, Backup & Deployment")
 
-    add_subheading("8.1 Version Control & GitHub Repository")
+    add_subheading("8.1 Version Control & Live Deployment")
     add_body_p(
-        "The project is under active Git version control and hosted on GitHub:\n"
+        "The project is under active Git version control, hosted on GitHub, and deployed to production cloud infrastructure:\n"
         "• Repository URL: https://github.com/Divyankseervi/lazarus-x\n"
+        "• Live Production Web Application: https://lazarus-x-gbp1.vercel.app/\n"
         "• Dual-Branch Strategy: main (certified release builds) and dev (active feature development)."
     )
 
@@ -1190,9 +1192,9 @@ def build_docx():
     # ==========================================
     add_section_heading("10", "Project Output Screenshots")
     add_body_p(
-        "The following screenshots document the live execution of LAZARUS-X at http://localhost:3000/. "
-        "Captured at full 1920x1080 viewport resolution directly via Chromium, completely devoid of automated browser "
-        "recording lines, window borders, or blue perimeter artifacts, demonstrating authentic human-engineered execution."
+        "The following screenshots document the live execution of LAZARUS-X deployed in production at https://lazarus-x-gbp1.vercel.app/ "
+        "and running locally at http://localhost:3000/. Captured at full 1920x1080 viewport resolution directly via Chromium, "
+        "completely devoid of automated browser recording lines, window borders, or blue perimeter artifacts, demonstrating authentic human-engineered execution."
     )
 
     pristine_screenshots = [
@@ -1284,7 +1286,7 @@ def build_docx():
                 doc,
                 img_path,
                 cap_title,
-                f"{cap_desc}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')} · Full Viewport (1920x1080) · Live Execution at http://localhost:3000/"
+                f"{cap_desc}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')} · Full Viewport (1920x1080) · Production: https://lazarus-x-gbp1.vercel.app/ (Local: http://localhost:3000/)"
             )
 
     # ==========================================

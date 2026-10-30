@@ -11,7 +11,8 @@
 | **Divyank Seervi** | `24BCE0793` | Lead Backend & Engine Architect (AC-3 Solver, Merkle Ledger, Triggers, Render) | [@Divyankseervi](https://github.com/Divyankseervi) |
 | **Vidushi Negi** | `24BCE0786` | Lead Relational Database & UI Architect (11-Table 3NF Schema, Data Dictionary, React UI) | Contributor |
 
-**Live Deployment URL:** [https://lazarus-x-forensic.onrender.com](https://lazarus-x-forensic.onrender.com)  
+**Live Production Web App (Vercel):** [https://lazarus-x-gbp1.vercel.app/](https://lazarus-x-gbp1.vercel.app/)  
+**Backend API Deployment (Render):** [https://lazarus-x-forensic.onrender.com](https://lazarus-x-forensic.onrender.com)  
 **Repository:** [https://github.com/Divyankseervi/lazarus-x](https://github.com/Divyankseervi/lazarus-x) (`main` & `dev` branches)  
 **CI/CD Pipeline:** [GitHub Actions Workflow](https://github.com/Divyankseervi/lazarus-x/actions)
 
