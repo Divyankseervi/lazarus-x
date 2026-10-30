@@ -1,5 +1,28 @@
 # LAZARUS-X Developer Handoff
 
+## Prioritization of Screenshots & Website Features over Text & SQL Codes — 2026-10-31
+
+- **Structural Reordering (Screenshots & Features Front & Center)**:
+  - Repositioned all 16 website features and their high-definition screenshots into **Section 2: Application Features, Operational Steps & System Screenshots**, immediately following the Problem Statement.
+  - Relocated technical database foundations (ER diagrams, DDL, SQL queries, normalization, transactions, security, and deployment) to Sections 3 through 8.
+- **Elimination of Robotic Boilerplate**:
+  - Completely stripped all timestamps (`Timestamp: ...`), resolution numbers (`Full Viewport (1920x1080)`), and `Live Execution at...` boilerplate across all figures.
+  - Introduced clean, human-engineered **Operational Steps (Step 1 to Step 4)** for every feature, walking the reviewer through real user interactions.
+- **Clean 9-Section Document Hierarchy**:
+  - Section 1: Problem Statement & Project Planning
+  - Section 2: Application Features, Operational Steps & System Screenshots (Features 1–16)
+  - Section 3: Database Design Requirements (ER Diagram & Data Dictionary)
+  - Section 4: Database Implementation & Creation (Prisma DDL & Schema)
+  - Section 5: Database Operations, Queries & Outputs (CRUD, Joins, Aggregates, Views, Transactions)
+  - Section 6: Advanced Database Features & Cryptographic Ledger (Triggers & Merkle Ledger)
+  - Section 7: Application Development, Authentication, RBAC & Database Security
+  - Section 8: Professional Development Practices, Backup, Docker & Cloud Deployment
+  - Section 9: Conclusion & References
+- **Definitive Submission Artifacts Generated**:
+  - `submission/24BCE0793_24BCE0786_L25+L26_IA9&10_Proj_DIVYANK_VIDUSHI.docx` & `.pdf` (29 pages, 2.10 MB).
+  - Root copies synchronized.
+  - Pushed to `main` and `dev` on GitHub (`https://github.com/Divyankseervi/lazarus-x`).
+
 ## Vercel Live Production Web App Link Integration — 2026-10-31
 
 - **Live Production URL Embedded**:

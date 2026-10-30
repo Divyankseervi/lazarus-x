@@ -429,11 +429,282 @@ def build_docx():
     doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
     # ==========================================
-    # 2. DATABASE DESIGN REQUIREMENTS
+    # 2. APPLICATION WALKTHROUGH, CORE FEATURES & OUTPUT SCREENSHOTS (PRIORITIZED)
     # ==========================================
-    add_section_heading("2", "Database Design Requirements")
+    add_section_heading("2", "Application Features, Operational Steps & System Screenshots")
+    add_body_p(
+        "This section showcases the sixteen primary operational features and user interfaces of LAZARUS-X, "
+        "deployed in production at https://lazarus-x-gbp1.vercel.app/ and containerized via Docker. "
+        "Each feature is presented with its verified graphical interface, architectural role, and step-by-step operational walkthrough."
+    )
 
-    add_subheading("2.1 Entity-Relationship (ER) Architecture")
+    feature_items = [
+        (
+            1,
+            "01_user_authentication_login.png",
+            "User Authentication & Single-Table RBAC Access Portal (/login)",
+            "Enforces secure Single-Table Role-Based Access Control (RBAC) across INVESTIGATOR and ADMIN roles, Scrypt/BCrypt password hashing, tokenized session access, and strict error boundaries.",
+            [
+                "Navigate to the application authentication portal at /login.",
+                "Select designated investigator or administrator credentials to initiate secure sign-in.",
+                "The backend queries the unified User table and verifies hashed credentials using memory-hard Scrypt algorithms.",
+                "Upon validation, an encrypted Bearer session token is issued, redirecting the authenticated operator to the forensic workspace."
+            ]
+        ),
+        (
+            2,
+            "02_dashboard_and_evidence_intake.png",
+            "Investigator Workspace, Case Telemetry & Evidence Intake Console",
+            "Main forensic workspace displaying active case banner, student accreditation (Divyank Seervi 24BCE0793 & Vidushi Negi 24BCE0786), real-time telemetry scorecards, 1-click scenario presets, and evidence intake controls.",
+            [
+                "Monitor real-time case metrics including total ingested fragments, sequence counter, and remaining Shannon entropy bits.",
+                "Select a pre-configured multi-table forensic scenario or initialize an empty unallocated investigation workspace.",
+                "Input unallocated evidence fragments via the intake form, selecting the target entity, record locator, attribute field, raw observed value, and confidence rating.",
+                "Submit evidence to trigger real-time Arc-Consistency (AC-3) constraint propagation across the relational schema."
+            ]
+        ),
+        (
+            3,
+            "03_materialized_relational_tables.png",
+            "Materialized Relational SQL Tables View (Department & Employee Records)",
+            "Enterprise SQL data grids showing materialized relational tables with primary key indicators, high-contrast typography, and live reconstructed record attributes.",
+            [
+                "Navigate to the Materialized Tables tab to inspect reconstructed entity records.",
+                "Examine primary key identifiers (_recordId), attribute values, and foreign-key references.",
+                "Review record status indicators distinguishing fully verified consistent rows from competing hypothesis branches.",
+                "Select individual records to view their underlying evidence provenance and contributing source documents."
+            ]
+        ),
+        (
+            4,
+            "04_schema_dag_foreign_keys.png",
+            "Relational Schema Directed Acyclic Graph (DAG) & Foreign Key Topology",
+            "Interactive Directed Acyclic Graph (DAG) illustrating inferred table schemas, candidate foreign-key relationships, and topological sorting order (Department -> Employee -> Order).",
+            [
+                "Switch to the Schema DAG Explorer view to visualize inter-table relationships.",
+                "Inspect directed foreign-key edges connecting child entities (Employee) to their parent entities (Department).",
+                "Review the computed topological resolution order (Department -> Employee -> Order) ensuring zero unresolved foreign-key pointers.",
+                "Click table nodes to isolate and inspect relational dependency chains."
+            ]
+        ),
+        (
+            5,
+            "05_candidate_diff_matrix.png",
+            "Candidate Diff Matrix & Branching Hypotheses Disambiguation",
+            "Exhaustive Cartesian reconstruction matrix displaying competing hypotheses, per-attribute value probability distributions, Shannon entropy ratings, and expected information gain probe recommendations.",
+            [
+                "Open the Candidate Matrix to evaluate competing interpretations generated from contradictory evidence fragments.",
+                "Compare conflicting attribute values side-by-side with calculated relative heuristic weights.",
+                "Analyze remaining Shannon entropy (H(C) in bits) quantifying diagnostic ambiguity across candidate states.",
+                "Utilize Expected Information Gain (EIG) recommendations to identify the precise external probe required to eliminate ambiguity."
+            ]
+        ),
+        (
+            6,
+            "06_cryptographic_provenance_ledger.png",
+            "Cryptographic Provenance Ledger & RFC 6962 Binary Merkle Root Inspector",
+            "Chronological chain-of-custody provenance stream with SHA-256 block hashes, RFC 6962 binary Merkle roots, and cryptographic leaf inclusion proofs.",
+            [
+                "Access the Provenance Ledger to inspect the immutable chain-of-custody event log.",
+                "Review block sequence numbers, event action tags, previous envelope hashes, and current block hashes.",
+                "Inspect the root cryptographic digest computed over the binary Merkle tree of accepted evidence.",
+                "Validate mathematical inclusion proofs proving individual evidence tamper-resistance without revealing private record contents."
+            ]
+        ),
+        (
+            7,
+            "07_admin_audit_trail_modal.png",
+            "Administrative System Audit Trail Modal (/audit-logs)",
+            "Centered audit log dialog displaying chronological system mutations generated by database triggers, searchable by resource type and filtered by action pills.",
+            [
+                "Open the Administrative Audit Trail dialog from the top navigation bar.",
+                "Filter logged audit events using action pills (INSERT, UPDATE, SEAL_CASE, AUTH_LOGIN).",
+                "Search audit events by specific user identifiers, resource targets, or temporal intervals.",
+                "Verify that underlying database triggers autonomously recorded all data mutations independently of application code."
+            ]
+        ),
+        (
+            8,
+            "08_forensic_case_dossier_modal.png",
+            "Certified Forensic Case Dossier & Chain-of-Custody Modal",
+            "Complete forensic case dossier displaying case sealing parameters, verified sequence counts, public Merkle envelope head, and student accreditation.",
+            [
+                "Initiate case closure by invoking the Seal Case operation once all relational constraints resolve.",
+                "Confirm case sealing to activate database-level trigger locks that prevent any subsequent record insertion or modification.",
+                "Review the formal forensic dossier displaying sequence counters, public Merkle envelope head, and investigator accreditations.",
+                "Export the certified dossier as a printable court-admissible PDF document or downloadable Markdown report."
+            ]
+        ),
+        (
+            9,
+            "09_schema_studio_modal.png",
+            "Interactive Schema Studio - Visual Relational Schema Designer",
+            "Visual relational schema designer allowing dynamic entity creation, column type assignment (TEXT, NUMBER, BOOLEAN, DATE), primary/unique key constraints, and foreign key dependency mapping across custom domains.",
+            [
+                "Open Schema Studio to design or modify relational schema definitions.",
+                "Add new entity relations and define typed column fields (TEXT, NUMBER, BOOLEAN, DATE).",
+                "Declare primary keys, unique constraints, non-null requirements, and foreign-key target mappings.",
+                "Compile and register the schema to immediately enforce relational validation rules across incoming evidence streams."
+            ]
+        ),
+        (
+            10,
+            "10_department_verification_page.png",
+            "Department Record Verification Console (/department-verification)",
+            "Purpose-limited cryptographic reconciliation console cross-referencing reconstructed case values against external departmental and municipal partner extracts, generating HMAC-SHA256 verification receipts.",
+            [
+                "Access the Department Verification console to initiate cross-agency data reconciliation.",
+                "Select external municipal or departmental verification datasets for comparison against active case records.",
+                "Review cryptographic match receipts generated through keyed HMAC-SHA256 comparison.",
+                "Validate attested attributes to reconcile multi-source identity and organizational records."
+            ]
+        ),
+        (
+            11,
+            "11_document_locator_page.png",
+            "Physical Source Document Locator Console (/document-locator)",
+            "Chain-of-custody tracking interface mapping digital case evidence to physical archive locations, shelf coordinates, folio reference codes, and appointed record custodians.",
+            [
+                "Open the Document Locator console to establish bidirectional linkage between digital records and physical artifacts.",
+                "Record archive storage coordinates including depository facility, room number, shelf aisle, and folio reference box.",
+                "Designate appointed archive custodians and track physical evidence transfers with chronological audit stamps.",
+                "Retrieve exact physical folio coordinates corresponding to any digital evidence fragment in the database."
+            ]
+        ),
+        (
+            12,
+            "12_evidence_expiry_lab_page.png",
+            "Evidence Expiry & Retention Lifecycle Lab (/evidence-lifecycle)",
+            "Statutory data retention compliance lab demonstrating automated time-to-live (TTL) policies, purge triggers, and cryptographic zero-knowledge tombstones.",
+            [
+                "Access the Retention Lifecycle console to configure statutory Time-To-Live (TTL) retention schedules.",
+                "Execute automated expiry simulations to test purge criteria across active and closed case lifecycle states.",
+                "Confirm that expired evidence payloads are securely purged from operational tables while maintaining cryptographic tombstone anchors in the audit ledger.",
+                "Generate regulatory compliance certificates documenting verifiable adherence to data privacy mandates."
+            ]
+        ),
+        (
+            13,
+            "13_docker_containerization_deployment.png",
+            "Docker Desktop Containerization & Service Deployment (lazarus-x)",
+            "Live Docker Desktop GUI verifying the enterprise containerized deployment of lazarus-x, showcasing non-root isolation, security hardening (cap_drop: ALL, read-only rootfs), port mapping, and production compose service orchestration.",
+            [
+                "Execute 'docker compose up -d' to spin up the containerized full-stack application and database service.",
+                "Inspect running container telemetry within the Docker Desktop GUI, verifying the lazarus-x container instance.",
+                "Confirm container security parameters: non-root user execution (USER appuser), dropped capabilities (cap_drop: ALL), and read-only root filesystem.",
+                "Verify network port bindings on 3000:3000 and automated health-check probe readiness."
+            ]
+        ),
+        (
+            14,
+            "14_supabase_managed_cloud_database.png",
+            "Supabase Managed PostgreSQL Cloud Database Console & Table Catalog",
+            "Live Supabase cloud dashboard (AWS Tokyo - ap-northeast-1) displaying all 15 public relational database tables and analytical views, live row telemetry, byte sizing, and schema structures.",
+            [
+                "Authenticate to the Supabase Cloud Management Console hosting the production PostgreSQL instance.",
+                "Access the Table Editor to inspect all 15 public tables (AuditLog, ReconstructionCase, EvidenceFragment, Department, Employee, Order, User, etc.).",
+                "Examine table schema definitions, column counts, live row quantities, and estimated byte storage allocations.",
+                "Confirm active Row Level Security (RLS) policies protecting table entities against unauthorized direct public access."
+            ]
+        ),
+        (
+            15,
+            "15_supabase_database_triggers.png",
+            "Supabase Managed Database Functions & PL/pgSQL Triggers Console",
+            "Supabase database functions console showing verified active PL/pgSQL triggers (lazarus_audit_evidence_insert, lazarus_reject_evidence_for_sealed_case) enforcing autonomous audit trail mutation logging and case sealing integrity.",
+            [
+                "Open the Database Functions console in the Supabase management interface.",
+                "Inspect the lazarus_audit_evidence_insert trigger function configured to automatically log row insertions to AuditLog.",
+                "Inspect the lazarus_reject_evidence_for_sealed_case trigger function enforcing immutability on sealed cases at the SQL engine level.",
+                "Verify trigger execution security mode (SECURITY INVOKER) ensuring fail-closed transactional integrity."
+            ]
+        ),
+        (
+            16,
+            "16_supabase_schema_visualizer.png",
+            "Supabase Interactive Relational Schema Graph & Foreign Key Architecture",
+            "Supabase visual schema graph delineating physical foreign key relationships, referential constraints, and relational mappings across all core forensic entities in the live cloud database.",
+            [
+                "Open the Schema Visualizer tool within Supabase to inspect the deployed database architecture.",
+                "Trace physical foreign-key relationship lines connecting primary keys to dependent foreign tables.",
+                "Validate referential integrity mapping from User to Session, AuditLog, and ReconstructionCase.",
+                "Confirm that the deployed cloud relational schema matches the design requirements specified in the project ER diagram."
+            ]
+        )
+    ]
+
+    for f_num, fname, f_title, f_overview, f_steps in feature_items:
+        h = doc.add_paragraph()
+        h.paragraph_format.space_before = Pt(14)
+        h.paragraph_format.space_after = Pt(2)
+        h.paragraph_format.keep_with_next = True
+        run_h = h.add_run(f"2.{f_num} Feature {f_num}: {f_title}")
+        run_h.font.name = "Arial"
+        run_h.font.size = Pt(10)
+        run_h.font.bold = True
+        run_h.font.color.rgb = RGBColor(17, 24, 39)
+
+        p_desc = doc.add_paragraph()
+        p_desc.paragraph_format.space_before = Pt(1)
+        p_desc.paragraph_format.space_after = Pt(4)
+        p_desc.paragraph_format.line_spacing = 1.15
+        r_desc = p_desc.add_run(f"Overview: {f_overview}")
+        r_desc.font.name = "Arial"
+        r_desc.font.size = Pt(8.5)
+        r_desc.font.color.rgb = RGBColor(55, 65, 81)
+
+        img_path = os.path.join(pristine_screenshots_dir, fname)
+        if os.path.exists(img_path):
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_img.paragraph_format.space_before = Pt(4)
+            p_img.paragraph_format.space_after = Pt(2)
+            p_img.paragraph_format.keep_with_next = True
+            run_img = p_img.add_run()
+            run_img.add_picture(img_path, width=Inches(6.5))
+
+            p_cap = doc.add_paragraph()
+            p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_cap.paragraph_format.space_before = Pt(2)
+            p_cap.paragraph_format.space_after = Pt(4)
+            r_cap = p_cap.add_run(f"Figure 2.{f_num}: {f_title}")
+            r_cap.font.name = "Arial"
+            r_cap.font.size = Pt(8)
+            r_cap.font.italic = True
+            r_cap.font.bold = True
+            r_cap.font.color.rgb = RGBColor(31, 41, 55)
+
+        p_step_hdr = doc.add_paragraph()
+        p_step_hdr.paragraph_format.space_before = Pt(3)
+        p_step_hdr.paragraph_format.space_after = Pt(1)
+        p_step_hdr.paragraph_format.keep_with_next = True
+        r_sh = p_step_hdr.add_run("Operational Steps:")
+        r_sh.font.name = "Arial"
+        r_sh.font.size = Pt(8.5)
+        r_sh.font.bold = True
+        r_sh.font.color.rgb = RGBColor(17, 24, 39)
+
+        for s_idx, step_text in enumerate(f_steps, 1):
+            p_step = doc.add_paragraph()
+            p_step.paragraph_format.space_before = Pt(0)
+            p_step.paragraph_format.space_after = Pt(1.5)
+            p_step.paragraph_format.left_indent = Inches(0.2)
+            r_st_num = p_step.add_run(f"• Step {s_idx}: ")
+            r_st_num.font.name = "Arial"
+            r_st_num.font.size = Pt(8)
+            r_st_num.font.bold = True
+            r_st_num.font.color.rgb = RGBColor(17, 24, 39)
+            r_st_txt = p_step.add_run(step_text)
+            r_st_txt.font.name = "Arial"
+            r_st_txt.font.size = Pt(8)
+            r_st_txt.font.color.rgb = RGBColor(55, 65, 81)
+
+    # ==========================================
+    # 3. DATABASE DESIGN REQUIREMENTS
+    # ==========================================
+    add_section_heading("3", "Database Design Requirements")
+
+    add_subheading("3.1 Entity-Relationship (ER) Architecture")
     add_body_p(
         "The relational schema of LAZARUS-X is built upon six foundational entities:\n"
         "1. User: Represents system operators with single-table RBAC role discriminator (ADMIN, INVESTIGATOR, AUDITOR).\n"
@@ -448,11 +719,11 @@ def build_docx():
     add_figure(
         doc,
         os.path.join(charts_dir, "figure_1_er_diagram.png"),
-        "Figure 2.1: Complete Entity-Relationship (ER) Diagram of LAZARUS-X (Crow's Foot Notation)",
+        "Figure 3.1: Complete Entity-Relationship (ER) Diagram of LAZARUS-X (Crow's Foot Notation)",
         "Formal ER diagram depicting all 6 normalized entities, primary keys [PK], foreign keys [FK], unique constraints [UQ], and Crow's Foot cardinalities."
     )
 
-    add_subheading("2.2 Relational Schema Derived from ER Diagram")
+    add_subheading("3.2 Relational Schema Derived from ER Diagram")
     add_body_p(
         "The relational schema derived from the ER model is formally specified below (Primary Keys underlined/bolded, Foreign Keys indicated):\n"
         "• User (user_id, username, reg_no, email, password_hash, role, status, created_at)\n"
@@ -464,7 +735,7 @@ def build_docx():
         "• AuditLog (log_id, user_id, action, resource_type, resource_id, details, timestamp)"
     )
 
-    add_subheading("2.3 Comprehensive Data Dictionary")
+    add_subheading("3.3 Comprehensive Data Dictionary")
     tbl_dict = doc.add_table(rows=1, cols=6)
     format_styled_table(
         tbl_dict,
@@ -538,7 +809,7 @@ def build_docx():
     # ==========================================
     # 3. DATABASE IMPLEMENTATION & CREATION
     # ==========================================
-    add_section_heading("3", "Database Implementation & Creation")
+    add_section_heading("4", "Database Implementation & Creation")
 
     add_subheading("3.1 Database Initialization & Schema Scripts")
     add_body_p("Command-line initialization and migration execution using Prisma ORM CLI:")
@@ -661,7 +932,7 @@ def build_docx():
     # ==========================================
     # 4. DATABASE OPERATIONS, QUERIES & OUTPUTS
     # ==========================================
-    add_section_heading("4", "Database Operations, Queries & Outputs")
+    add_section_heading("5", "Database Operations, Queries & Outputs")
     add_body_p(
         "In accordance with Dr. V. SIVAKUMAR's assessment guidelines, all required database operations "
         "(SELECT, INSERT, UPDATE, DELETE, Multi-Table JOIN, Aggregates, Subqueries, Constraints, "
@@ -883,7 +1154,7 @@ def build_docx():
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
     # 4.9 Database Transactions with COMMIT and ROLLBACK
-    add_section_heading("4.9", "Database Transactions with COMMIT and ROLLBACK (Assessment Mandatory)")
+    add_subheading("5.9 Database Transactions with COMMIT and ROLLBACK (Assessment Mandatory)")
     add_body_p("Demonstrates ACID transaction management during multi-statement operations:")
 
     # Pictorial Transaction Flowchart (Figure 4)
@@ -972,7 +1243,7 @@ def build_docx():
     # ==========================================
     # 5. ADVANCED DATABASE FEATURES
     # ==========================================
-    add_section_heading("5", "Advanced Database Features")
+    add_section_heading("6", "Advanced Database Features & Cryptographic Ledger")
 
     add_subheading("5.1 Analytical Views")
     add_body_p("Three analytical database views precompute telemetry, rank candidates, and model Bayesian priors:")
@@ -1080,14 +1351,14 @@ def build_docx():
     add_figure(
         doc,
         os.path.join(charts_dir, "figure_3_merkle_provenance_tree.png"),
-        "Figure 5.1: RFC 6962 Binary Merkle Tree & Cryptographic Provenance Chain",
+        "Figure 6.1: RFC 6962 Binary Merkle Tree & Cryptographic Provenance Chain",
         "Deterministic binary Merkle tree with logarithmic O(log N) verification complexity and sequential SHA-256 block hash chaining."
     )
 
     # ==========================================
     # 6. APPLICATION DEVELOPMENT REQUIREMENTS
     # ==========================================
-    add_section_heading("6", "Application Development Requirements")
+    add_subheading("7.1 Framework Architecture & Modern UI Stack")
     add_body_p(
         "• Framework Architecture & Modern Stack: Full-stack application utilizing Node.js 24 LTS, Express, TypeScript, and React 18 with Vite. Structured as an n-tier architecture (Presentation -> REST API -> Service -> ORM Repository -> Database).\n"
         "• Responsive User Interface: Custom CSS layout system built for full 1920x1080 desktop monitors with adaptive flex layouts, high-contrast dark theme, and zero external runtime UI dependencies.\n"
@@ -1100,7 +1371,7 @@ def build_docx():
     # ==========================================
     # 7. AUTHENTICATION, RBAC & DATABASE SECURITY
     # ==========================================
-    add_section_heading("7", "Authentication, RBAC & Database Security")
+    add_section_heading("7", "Application Development, Authentication, RBAC & Database Security")
     add_body_p(
         "• Secure Authentication Mechanism: Passwords hashed using Node.js Scrypt with 16-byte cryptographically secure random salts. Plaintext passwords never reach storage.\n"
         "• Single Users Table with Role Column: In strict compliance with course guidelines, all users reside in a single relation with a role discriminator column (role IN ('ADMIN', 'INVESTIGATOR', 'AUDITOR')).\n"
@@ -1112,7 +1383,7 @@ def build_docx():
     # ==========================================
     # 8. PROFESSIONAL DEVELOPMENT PRACTICES, BACKUP & DEPLOYMENT
     # ==========================================
-    add_section_heading("8", "Professional Development Practices, Backup & Deployment")
+    add_section_heading("8", "Professional Development Practices, Backup, Docker & Cloud Deployment")
 
     add_subheading("8.1 Version Control & Live Deployment")
     add_body_p(
@@ -1167,7 +1438,7 @@ def build_docx():
     # ==========================================
     # 9. INDUSTRY BEST PRACTICES & BONUS CRITERIA (+3 MARKS)
     # ==========================================
-    add_section_heading("9", "Industry Best Practices & Bonus Criteria (+3 Marks)")
+    add_subheading("8.5 Industry Best Practices & Bonus Criteria (+3 Marks)")
     add_body_p(
         "9.1 Continuous Integration & Automated Testing (+1 Mark)\n"
         "The repository features an automated GitHub Actions CI pipeline (.github/workflows/ci.yml) validating Prisma schema consistency, TypeScript type checking, and executing an automated 71-assertion verification test suite on every commit.\n\n"
@@ -1188,113 +1459,11 @@ def build_docx():
     )
 
     # ==========================================
-    # 10. PROJECT OUTPUT SCREENSHOTS (PRISTINE VIEWPORT - ZERO BLUE BORDERS)
+    # 9. CONCLUSION & REFERENCES
     # ==========================================
-    add_section_heading("10", "Project Output Screenshots")
-    add_body_p(
-        "The following screenshots document the live execution of LAZARUS-X deployed in production at https://lazarus-x-gbp1.vercel.app/ "
-        "and running locally at http://localhost:3000/. Captured at full 1920x1080 viewport resolution directly via Chromium, "
-        "completely devoid of automated browser recording lines, window borders, or blue perimeter artifacts, demonstrating authentic human-engineered execution."
-    )
+    add_section_heading("9", "Conclusion & References")
 
-    pristine_screenshots = [
-        (
-            "01_user_authentication_login.png",
-            "Figure 10.1: User Authentication & Single-Table RBAC Access Portal (/login)",
-            "Authentication interface enforcing Single-Table RBAC role claims (INVESTIGATOR and ADMIN), scrypt and bcrypt password hashing, tokenized session access, and secure error boundaries."
-        ),
-        (
-            "02_dashboard_and_evidence_intake.png",
-            "Figure 10.2: Investigator Workspace, Active Case Telemetry & Evidence Intake Console",
-            "Main forensic workspace displaying active case banner, student accreditation badge (Divyank Seervi 24BCE0793 & Vidushi Negi 24BCE0786), telemetry scorecards, 1-click auto-load scenarios, and evidence intake form with confidence rating."
-        ),
-        (
-            "03_materialized_relational_tables.png",
-            "Figure 10.3: Materialized Relational SQL Tables View (Department & Employee Records)",
-            "Enterprise SQL data grids showing materialized relational tables with primary key indicators, high-contrast typography, and live reconstructed record attributes."
-        ),
-        (
-            "04_schema_dag_foreign_keys.png",
-            "Figure 10.4: Relational Schema DAG & Foreign Key Dependency Topology",
-            "Visual Directed Acyclic Graph (DAG) illustrating inferred table schemas, candidate foreign-key relationships, and topological sorting order (Department -> Employee -> Order)."
-        ),
-        (
-            "05_candidate_diff_matrix.png",
-            "Figure 10.5: Candidate Diff Matrix & Branching Hypotheses Disambiguation",
-            "Exhaustive Cartesian reconstruction matrix displaying competing hypotheses, per-attribute value probability distributions, Shannon entropy ratings, and expected information gain probe recommendations."
-        ),
-        (
-            "06_cryptographic_provenance_ledger.png",
-            "Figure 10.6: Cryptographic Provenance Ledger & RFC 6962 Binary Merkle Root Inspector",
-            "Chronological chain-of-custody provenance stream with SHA-256 block hashes, RFC 6962 binary Merkle roots, and cryptographic leaf inclusion proofs."
-        ),
-        (
-            "07_admin_audit_trail_modal.png",
-            "Figure 10.7: Administrative System Audit Trail Modal (/audit-logs)",
-            "Centered audit log dialog displaying chronological system mutations generated by database triggers, searchable by resource type and filtered by action pills."
-        ),
-        (
-            "08_forensic_case_dossier_modal.png",
-            "Figure 10.8: Certified Forensic Case Dossier & Chain-of-Custody Modal",
-            "Complete forensic case dossier displaying case sealing parameters, verified sequence counts, public Merkle envelope head, and student accreditation."
-        ),
-        (
-            "09_schema_studio_modal.png",
-            "Figure 10.9: Interactive Schema Studio - Visual Relational Schema Designer",
-            "Visual relational schema designer allowing dynamic entity creation, column type assignment (TEXT, NUMBER, BOOLEAN, DATE), primary/unique key constraints, and foreign key dependency mapping across custom domains."
-        ),
-        (
-            "10_department_verification_page.png",
-            "Figure 10.10: Department Record Verification Console (/department-verification)",
-            "Purpose-limited cryptographic reconciliation console cross-referencing reconstructed case values against external departmental and municipal partner extracts, generating HMAC-SHA256 verification receipts."
-        ),
-        (
-            "11_document_locator_page.png",
-            "Figure 10.11: Physical Source Document Locator Console (/document-locator)",
-            "Chain-of-custody tracking interface mapping digital case evidence to physical archive locations, shelf coordinates, folio reference codes, and appointed record custodians."
-        ),
-        (
-            "12_evidence_expiry_lab_page.png",
-            "Figure 10.12: Evidence Expiry & Retention Lifecycle Lab (/evidence-lifecycle)",
-            "Statutory data retention compliance lab demonstrating automated time-to-live (TTL) policies, purge triggers, and cryptographic zero-knowledge tombstones."
-        ),
-        (
-            "13_docker_containerization_deployment.png",
-            "Figure 10.13: Docker Desktop Containerization & Service Deployment (lazarus-x)",
-            "Live Docker Desktop GUI verifying the enterprise containerized deployment of lazarus-x, showcasing non-root isolation, security hardening (cap_drop: ALL, read-only rootfs), port mapping, and production compose service orchestration."
-        ),
-        (
-            "14_supabase_managed_cloud_database.png",
-            "Figure 10.14: Supabase Managed PostgreSQL Cloud Database Console & Table Catalog",
-            "Live Supabase cloud dashboard (AWS Tokyo - ap-northeast-1) displaying all 15 public relational database tables and analytical views, live row telemetry, byte sizing, and schema structures."
-        ),
-        (
-            "15_supabase_database_triggers.png",
-            "Figure 10.15: Supabase Managed Database Functions & PL/pgSQL Triggers Console",
-            "Supabase database functions console showing verified active PL/pgSQL triggers (lazarus_audit_evidence_insert, lazarus_reject_evidence_for_sealed_case) enforcing autonomous audit trail mutation logging and case sealing integrity."
-        ),
-        (
-            "16_supabase_schema_visualizer.png",
-            "Figure 10.16: Supabase Interactive Relational Schema Graph & Foreign Key Architecture",
-            "Supabase visual schema graph delineating physical foreign key relationships, referential constraints, and relational mappings across all core forensic entities in the live cloud database."
-        )
-    ]
-    for fname, cap_title, cap_desc in pristine_screenshots:
-        img_path = os.path.join(pristine_screenshots_dir, fname)
-        if os.path.exists(img_path):
-            add_figure(
-                doc,
-                img_path,
-                cap_title,
-                f"{cap_desc}\nTimestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S IST')} · Full Viewport (1920x1080) · Production: https://lazarus-x-gbp1.vercel.app/ (Local: http://localhost:3000/)"
-            )
-
-    # ==========================================
-    # 11. CONCLUSION & REFERENCES
-    # ==========================================
-    add_section_heading("11", "Conclusion & References")
-
-    add_subheading("11.1 Summary of the Completed Project")
+    add_subheading("9.1 Summary of the Completed Project")
     add_body_p(
         "LAZARUS-X successfully bridges the critical gap between raw, damaged database storage fragments and fully verified "
         "relational schemas. By combining 3NF/BCNF relational modeling, automated topological foreign-key resolution, "
@@ -1302,7 +1471,7 @@ def build_docx():
         "an end-to-end, tamper-evident forensic reconstruction system fully compliant with modern database engineering standards."
     )
 
-    add_subheading("11.2 Main Features and Benefits")
+    add_subheading("9.2 Main Features and Benefits")
     add_body_p(
         "• Strict Relational Data Integrity: Enforced via 3NF normalization, foreign key cascading, and domain check constraints.\n"
         "• Zero Data Drift: Triggers autonomously maintain audit logs and update parent case metrics.\n"
@@ -1310,14 +1479,14 @@ def build_docx():
         "• Enterprise Security Suite: Single-table RBAC, Scrypt password hashing, and parameterized query protection prevent SQL injection."
     )
 
-    add_subheading("11.3 Future Scope")
+    add_subheading("9.3 Future Scope")
     add_body_p(
         "• Distributed Blockchain Notarization: Publishing Merkle root checkpoints to public decentralized ledgers (Ethereum/Polygon) for third-party judicial validation.\n"
         "• Materialized Views with Concurrent Refresh: Implementing PostgreSQL materialized views for high-volume petabyte-scale forensic datasets.\n"
         "• GPU-Accelerated Shannon Entropy Calculation: Leveraging CUDA kernels for real-time disambiguation across billions of unallocated fragments."
     )
 
-    add_subheading("11.4 References")
+    add_subheading("9.4 References")
     add_body_p(
         "1. Codd, E. F. (1970). 'A Relational Model of Data for Large Shared Data Banks.' Communications of the ACM, 13(6), 377–387.\n"
         "2. Silberschatz, A., Korth, H. F., & Sudarshan, S. (2019). Database System Concepts (7th ed.). McGraw-Hill Education.\n"
