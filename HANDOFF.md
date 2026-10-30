@@ -2,6 +2,10 @@
 
 ## GitHub link in Forensic Report, Vercel & Render Deployment, and Repository Sync — 2026-10-30
 
+- Fixed Render TypeScript compilation errors: moved all `@types/*` packages (`@types/node`, `@types/express`, `@types/cors`, `@types/bcrypt`) into `dependencies` in `backend/package.json` so that Render's production install (`NODE_ENV=production`) installs the type definitions.
+- Configured `backend/tsconfig.json` to target and lib `ES2022` ensuring built-in support for `Buffer`, `Object.fromEntries`, `flatMap`, and `Promise.finally`.
+- Resolved json response casting in `backend/src/security.test.ts`.
+- `npm run typecheck:backend` and `npm run build:frontend` both passed with 0 errors.
 - Fixed Render production build issue ("This is not the tsc command you are looking for"): moved `typescript` and `ts-node` from `devDependencies` to `dependencies` in `backend/package.json` and synchronized `backend/package-lock.json`. In production environments where `NODE_ENV=production` defaults `npm ci` to omit dev dependencies, the TypeScript compiler is now guaranteed to install locally.
 - Added `npm run build` (`prisma generate --schema prisma/supabase/schema.prisma && tsc`) and `npm run start:prod` (`node scripts/db_setup.js && node dist/index.js`) to `backend/package.json` for streamlined deployment on Render.
 - Embedded the direct GitHub repository link (`https://github.com/Divyankseervi/lazarus-x`) into the application's Forensic Investigation Report (`frontend/src/ForensicReportModal.tsx`):

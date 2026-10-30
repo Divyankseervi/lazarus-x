@@ -893,7 +893,7 @@ test('durable engine rehydration correctly restores case state across app restar
 
     await withServer(prisma, async (api) => {
         const createRes = await fetch(api + '/api/cases', { method: 'POST', headers: { authorization: `Bearer ${sessionToken}` } });
-        const createData = await createRes.json();
+        const createData = await createRes.json() as any;
         caseId = createData.id;
 
         const evidenceRes = await fetch(api + '/api/cases/' + caseId + '/evidence', {
@@ -918,7 +918,7 @@ test('durable engine rehydration correctly restores case state across app restar
             headers: { authorization: `Bearer ${sessionToken}` },
         });
         assert.equal(restoredRes.status, 200);
-        const restored = await restoredRes.json();
+        const restored = await restoredRes.json() as any;
         assert.equal(restored.bestState.data.Department[0].name, 'Forensics', 'case listing must replay all fragments from the committed batch');
         assert.equal(restored.bestState.data.Department[0].id, 99, 'batch metadata must preserve multi-fragment transactions on replay');
         const restoredAuditRes = await fetch(`${api}/api/cases/${caseId}/provenance`, {
@@ -934,7 +934,7 @@ test('durable engine rehydration correctly restores case state across app restar
             headers: { authorization: `Bearer ${sessionToken}`, 'content-type': 'application/json' },
             body: JSON.stringify({ evidence: [{ table: 'Department', recordId: 1, field: 'id', value: 99 }] })
         });
-        const evData = await evRes.json();
+        const evData = await evRes.json() as any;
         assert(evData.bestState, 'rehydrated engine should return bestState');
         assert(evData.bestState.data.Department.length === 1, 'rehydrated engine should contain the combined state from both app sessions');
     });
